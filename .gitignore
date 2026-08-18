@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+desktop.ini
+*.egg-info/
+out/
+
+# Local Mitra weights (289MB) — never committed; for the DIMER wizard upload or a local bake.
+weights/
