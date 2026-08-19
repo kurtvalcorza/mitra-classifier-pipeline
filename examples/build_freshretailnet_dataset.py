@@ -65,7 +65,8 @@ def _temporal_splits(feat: pd.DataFrame, val_frac: float, test_frac: float,
         n = len(group)
         n_test = min(max(int(round(n * test_frac)), 1 if n > 2 and test_frac > 0 else 0), n)
         rest = n - n_test
-        n_val = min(max(int(round(n * val_frac)), 1 if rest > 1 else 0), max(rest - 1, 0))
+        n_val = min(max(int(round(n * val_frac)), 1 if (rest > 1 and val_frac > 0) else 0),
+                    max(rest - 1, 0))
         test_start = n - n_test
         val_end = test_start - horizon
         val_start = val_end - n_val
