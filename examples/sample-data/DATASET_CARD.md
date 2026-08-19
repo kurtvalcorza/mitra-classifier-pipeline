@@ -19,13 +19,13 @@ benchmark anything.
 
 ## Contents
 
-`freshretailnet-band-h7.zip` (265 KB) holds the pipeline's CSV contract:
+`freshretailnet-band-h7.zip` (238 KB) holds the pipeline's CSV contract:
 
 | file | rows | columns |
 |---|---|---|
-| `train.csv` | 4,806 | 17 features + `target` |
-| `val.csv` | 1,597 | 17 features + `target` |
-| `test.csv` | 1,597 | 17 features + `target` |
+| `train.csv` | 4,180 | 17 features + `target` |
+| `val.csv` | 1,600 | 17 features + `target` |
+| `test.csv` | 1,600 | 17 features + `target` |
 
 - **Target** — the **demand band** 7 days ahead: the future daily `sale_amount` cut into three
   ordered classes, `low` / `mid` / `high` (a multiclass classification target).
@@ -33,7 +33,7 @@ benchmark anything.
   the stockout signal (`stockout_hours`, `roll_7_stockout`), and same-day covariates
   (`discount`, `holiday_flag`, `activity_flag`, `precpt`, `avg_temperature`, `avg_humidity`,
   `avg_wind_level`, `dow`, `month`).
-- Class balance (train): `mid` 1,703 · `high` 1,612 · `low` 1,491.
+- Class balance (train): `mid` 1,465 · `high` 1,397 · `low` 1,318.
 
 ## How it was built
 
@@ -45,14 +45,15 @@ python examples/build_freshretailnet_dataset.py --src <train.parquet> --out ./ou
   --horizon 7 --n-series 220 --max-rows 8000 --n-bins 3 --seed 0
 ```
 
-One row per store-product-day; 220 store-product series sampled, capped at 8,000 rows. The
-split is a **per-series chronological split**: within each store-product series the latest 20%
-of rows become `test`, the next 20% `val`, and the earlier rows `train`. Validation and test
-are strictly in the future of training within each series, which measures forecasting
-generalization rather than mixing adjacent periods across the split. The future `sale_amount`
-is binned into three demand classes by tertile; the tertile edges (here `0.5` and `0.9`) are
-computed on the training rows only and applied to val/test, so no holdout information leaks
-into the labels.
+One row per store-product-day; 220 store-product series sampled, then each split capped for
+size. The split is a **purged per-series chronological split**: within each series the layout is
+`train | embargo | val | embargo | test`, with a `horizon`-length embargo (7 rows) removed at
+each boundary. Because a feature row at day `t` carries the target for day `t + 7`, the embargo
+guarantees a training row's target cannot fall inside the validation window, and a validation
+row's target cannot fall inside test — a strictly forward-looking, leak-free evaluation rather
+than the horizon-overlap a plain tail split would still allow. The future `sale_amount` is
+binned into three demand classes by tertile; the tertile edges are computed on the training
+rows only and applied to val/test, so no holdout information leaks into the labels.
 
 ## Provenance and licence
 

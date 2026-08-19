@@ -62,7 +62,7 @@ not as a guarantee on any table.
 Mitra supports two modes, both exposed as fine-tuning fields:
 
 - **Fine-tune** (`fine_tune=true`, the default) adapts the pretrained weights to the uploaded
-  table. It requires a GPU. A measured fine-tune on the 4,806-row sample ran within the 600 s
+  table. It requires a GPU. A measured fine-tune on the 4,180-row sample ran within the 600 s
   time budget on a single GPU.
 - **Zero-shot** (`fine_tune=false`) runs Mitra as an in-context learner with no weight update.
   It is CPU-safe and faster, at some cost in accuracy.
@@ -234,20 +234,20 @@ describing the run:
 ```json
 {
   "successful": true,
-  "message": "Mitra fine-tune succeeded on 4806 rows; holdout accuracy 0.5454.",
+  "message": "Mitra fine-tune succeeded on 4180 rows; holdout accuracy 0.5906.",
   "metrics": {
     "trainedModels": ["Mitra"],
     "mode": "fine-tune",
     "device": "cuda",
     "problemType": "multiclass",
     "numClasses": 3,
-    "trainRows": 4806,
-    "valRows": 1597,
+    "trainRows": 4180,
+    "valRows": 1600,
     "evalMetric": "accuracy",
     "headlineMetric": "accuracy",
-    "headlineScore": 0.5454,
-    "valEvaluation": { "accuracy": 0.5454, "balanced_accuracy": 0.5534, "mcc": 0.3251 },
-    "test": { "rows": 1597, "evaluation": { "accuracy": 0.5636 } },
+    "headlineScore": 0.5906,
+    "valEvaluation": { "accuracy": 0.5906, "balanced_accuracy": 0.5945, "mcc": 0.3880 },
+    "test": { "rows": 1600, "evaluation": { "accuracy": 0.5588 } },
     "artifactPath": "…/mitra_predictor"
   },
   "provenance": {
@@ -292,7 +292,7 @@ you create the pipeline. The default is a starting point, not a ceiling; the HPC
 has capacity well beyond it.
 
 Mitra holds the training table in memory as in-context context, so its footprint grows with
-the number of rows and features. A run on ~4,800 rows and 17 features used about 10 GB, already
+the number of rows and features. A run on ~4,200 rows and 17 features used about 10 GB, already
 above the 8Gi default. AutoGluon also declines to train a model whose projected footprint
 exceeds roughly 90% of available memory, so the requested memory must clear the footprint with
 headroom rather than match it.

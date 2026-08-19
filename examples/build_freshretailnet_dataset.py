@@ -48,13 +48,17 @@ def _band(values: np.ndarray, edges: np.ndarray, names: list[str]) -> list[str]:
     return [names[i] for i in idx]
 
 
-def _temporal_splits(feat: pd.DataFrame, val_frac: float,
-                     test_frac: float) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Per-series chronological split into train / val / test. Within each store-product
-    series the latest test_frac of rows become test, the next val_frac validation, and the
-    earlier rows train. This measures forecasting generalization — val and test are strictly
-    in the future of training within each series — rather than mixing adjacent periods across
-    the split as a random holdout would."""
+def _temporal_splits(feat: pd.DataFrame, val_frac: float, test_frac: float,
+                     horizon: int) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Purged per-series chronological split into train / val / test.
+
+    Within each store-product series (daily, contiguous) the layout by row index is
+    ``[train | embargo | val | embargo | test]`` with an embargo of ``horizon`` rows at each
+    boundary. Because a feature row at day ``t`` carries the target for day ``t + horizon``, the
+    embargo guarantees a training row's target cannot fall inside the validation window, and a
+    validation row's target cannot fall inside the test window — a strictly forward-looking,
+    leak-free split, unlike a random holdout or a plain tail split. A series too short to purge
+    cleanly is kept entirely in train (it then contributes no val/test rows, so it cannot leak)."""
     train_parts, val_parts, test_parts = [], [], []
     for _, group in feat.groupby("_key", sort=False):
         group = group.sort_values("_dt")
@@ -62,10 +66,18 @@ def _temporal_splits(feat: pd.DataFrame, val_frac: float,
         n_test = min(max(int(round(n * test_frac)), 1 if n > 2 and test_frac > 0 else 0), n)
         rest = n - n_test
         n_val = min(max(int(round(n * val_frac)), 1 if rest > 1 else 0), max(rest - 1, 0))
-        n_train = rest - n_val
-        train_parts.append(group.iloc[:n_train])
-        val_parts.append(group.iloc[n_train:n_train + n_val])
-        test_parts.append(group.iloc[n_train + n_val:])
+        test_start = n - n_test
+        val_end = test_start - horizon
+        val_start = val_end - n_val
+        train_end = val_start - horizon
+        if train_end < 1:
+            train_parts.append(group)  # too short to purge; train-only, cannot leak
+            continue
+        train_parts.append(group.iloc[:train_end])
+        if n_val > 0 and val_end > val_start:
+            val_parts.append(group.iloc[val_start:val_end])
+        if n_test > 0:
+            test_parts.append(group.iloc[test_start:])
     empty = feat.iloc[:0]
     train = pd.concat(train_parts).reset_index(drop=True) if train_parts else empty
     val = pd.concat(val_parts).reset_index(drop=True) if val_parts else empty
@@ -112,10 +124,16 @@ def build(src: Path, out: Path, horizon: int, n_series: int, max_rows: int,
         "_key": df["store_id"].astype(str) + "_" + df["product_id"].astype(str),
     }).dropna().reset_index(drop=True)
 
-    if len(feat) > max_rows:
-        feat = feat.sample(n=max_rows, random_state=seed).reset_index(drop=True)
+    # Split on the contiguous per-series rows FIRST (the embargo relies on daily contiguity),
+    # then cap each split for smoke-test size (holdouts need no contiguity after the split).
+    train, val, test = _temporal_splits(feat, val_frac, test_frac, horizon)
 
-    train, val, test = _temporal_splits(feat, val_frac, test_frac)
+    def _cap(frame: pd.DataFrame, n: int) -> pd.DataFrame:
+        return frame.sample(n=n, random_state=seed).reset_index(drop=True) if len(frame) > n else frame
+
+    train = _cap(train, max_rows)
+    val = _cap(val, max(1, int(max_rows * val_frac)))
+    test = _cap(test, max(1, int(max_rows * test_frac)))
 
     # Demand band: cut the future value into n_bins quantile classes. Edges come from the
     # training rows only and are applied to val/test — the labels carry no holdout leakage.

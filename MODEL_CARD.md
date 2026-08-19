@@ -77,23 +77,24 @@ and device in `result.json` (`metrics.mode`, `metrics.device`, `metrics.problemT
 
 Mitra is strongest on **small tabular data** (below ~5,000 samples and ~100 features). Hard
 limits: **10,000 training rows, 500 features, 10 classes**. It needs about **~10 GB of memory**
-(measured on the ~4,800-row sample; it grows with rows and features); request a profile that
+(measured on the ~4,200-row sample; it grows with rows and features); request a profile that
 clears that with headroom (see the README's resource profile).
 
 ## Measured behaviour in this pipeline
 
 Small smoke-test runs on the bundled sample (a 3-class demand band derived from
-FreshRetailNet-50K; 4,806 train / 1,597 val / 1,597 test rows, one seed, a **per-series
-chronological split**). These size and exercise the pipeline; they are **not a benchmark**. The
-majority-class baseline predicts the most frequent training class for every row (accuracy 0.35).
+FreshRetailNet-50K; 4,180 train / 1,600 val / 1,600 test rows, one seed, a **purged per-series
+chronological split** with a 7-row embargo at each boundary). These size and exercise the
+pipeline; they are **not a benchmark**. The majority-class baseline predicts the most frequent
+training class for every row.
 
 | Mode | Val accuracy | Test accuracy | Majority baseline (val / test) |
 |---|---|---|---|
-| fine-tune (GPU) | **0.545** | 0.564 | 0.351 / 0.352 |
-| zero-shot (CPU) | **0.547** | 0.565 | 0.351 / 0.352 |
+| fine-tune (GPU) | **0.591** | 0.559 | 0.334 / 0.338 |
+| zero-shot (CPU) | **0.586** | 0.553 | 0.334 / 0.338 |
 
-Both modes beat the majority-class baseline by about 0.19–0.21 accuracy, so the features carry
-signal about the demand band even under a forward-looking temporal split. Zero-shot matched
+Both modes beat the majority-class baseline by about 0.22–0.25 accuracy, so the features carry
+signal about the demand band even under a leak-free forward-looking split. Zero-shot matched
 fine-tuning on this small 3-class table — on larger or harder tables fine-tuning is expected to
 help more. Read these as direction, not scores. Treat Mitra's published benchmark results as
 evidence of strong performance where signal exists, not a guarantee on any table.
