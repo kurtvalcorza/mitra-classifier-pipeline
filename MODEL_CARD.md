@@ -55,11 +55,14 @@ hf download autogluon/mitra-classifier model.safetensors config.json \
 **Weight verification.** AutoGluon 1.5.0's Mitra loader resolves a checkpoint by Hugging Face
 repo id and does not accept a revision argument, so the base weights cannot be pinned by
 revision through it. Instead, before fitting, the fine-tuner resolves the exact
-`model.safetensors` the loader will use and **verifies its SHA-256 against the expected value
-above**; a mismatch fails the run. `result.json`'s `provenance` block records the resolved
-revision, the loaded weights' SHA-256, and whether the check was enforced. Baking the pinned
-revision (option 3) makes the loaded bytes deterministic; option 2 (`DIMER_MODEL_DIR`) records
-the uploaded bytes' checksum but is not checked against the public pinned value.
+`model.safetensors` **and `config.json`** the loader will use and **verifies both SHA-256s
+against the expected values above** (config.json carries the architecture Mitra builds before
+the weights load, so a drifted config with matching weights would still change the model — it is
+pinned too); a mismatch on either fails the run. `result.json`'s `provenance` block records the
+resolved revision, the loaded `weightsSha256`/`configSha256`, and whether the check was enforced.
+Baking the pinned revision (option 3) makes the loaded bytes deterministic; option 2
+(`DIMER_MODEL_DIR`) records the uploaded bytes' checksums but does not compare them to the public
+pinned values.
 
 ## How the pipeline uses it
 
@@ -72,6 +75,12 @@ classes, `multiclass` for three to ten — so AutoGluon loads the classifier che
 selects fine-tune versus zero-shot from GPU availability at runtime and records both the mode
 and device in `result.json` (`metrics.mode`, `metrics.device`, `metrics.problemType`,
 `metrics.numClasses`). See the [README](README.md).
+
+The run seed and — when it maps to one of Mitra's native metrics — the eval metric are passed
+into Mitra itself (recorded as `metrics.mitraSeed` and `metrics.mitraMetric`): the seed drives
+Mitra's internal validation split, and the metric drives fine-tune early stopping. Note that
+AutoGluon 1.5.0 disables Mitra's global `set_seed` (an upstream FIXME), so a fixed seed makes
+the internal split reproducible but not the entire fit.
 
 ## Applicability and limits
 

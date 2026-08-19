@@ -51,12 +51,13 @@ The fine-tuner needs the Mitra weights (`autogluon/mitra-classifier`). Choose on
 | C — uploaded weights | none at runtime | uploaded bytes | Mount a checkpoint dir (`model.safetensors` + `config.json`) and set `DIMER_MODEL_DIR`; the fine-tuner installs and uses those exact bytes |
 
 Pinned revision: `c425e9fa0910a6be1c494321792e7ba2a1367b1a`, `model.safetensors` SHA-256
-`e06a055e…`. AutoGluon's Mitra loader takes a repo id and no revision argument, so the base
-weights cannot be pinned by revision through it. The fine-tuner instead **verifies the loaded
-weights' SHA-256 against the expected value before fitting and fails the run on a mismatch**
-(options A/B); `result.json`'s `provenance` block records the resolved revision, the loaded
-SHA-256, the source, and whether the check was enforced. Option C records the uploaded bytes'
-checksum but does not compare it to the public pinned value.
+`e06a055e…`, `config.json` SHA-256 `2c96c24d…`. AutoGluon's Mitra loader takes a repo id and no
+revision argument, so the base weights cannot be pinned by revision through it. The fine-tuner
+instead **verifies both the loaded `model.safetensors` and `config.json` SHA-256s against the
+expected values before fitting and fails the run on a mismatch** (options A/B); `result.json`'s
+`provenance` block records the resolved revision, the loaded `weightsSha256`/`configSha256`, the
+source, and whether the check was enforced. Option C records the uploaded bytes' checksums but
+does not compare them to the public pinned values.
 
 ## Build and enable
 
@@ -71,6 +72,27 @@ checksum but does not compare it to the public pinned value.
 There is no push-to-rebuild webhook. After a code change, rebuild the affected image
 manually — the validator card for a validator change, the fine-tuner card for a training or
 `dimer-pipeline.json` change.
+
+## Container image and CI
+
+The fine-tuner image is built **`FROM pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime`** — CUDA
+12.8 / torch 2.8 ships `sm_120` (Blackwell, e.g. RTX 5070 Ti) kernels and satisfies AutoGluon
+1.5.0's `torch>=2.6,<2.10`, so pip does not swap the base torch. The build asserts the installed
+`torch`/`CUDA` after `pip install` and fails on drift. Do not downgrade to `cuda12.4`/`torch2.5`:
+that lacks `sm_120` and dies with "no kernel image is available" on RTX 50-series / B200 GPUs.
+
+Two GitHub Actions workflows guard the repo:
+
+- **`ci`** (every push/PR) — compiles the deployable sources, runs the unit suite, and enforces
+  the shared dataset-resolution block is byte-identical across the validator/finetuner copies and
+  matches the cross-repo pinned SHA (so this repo and the standalone deployment repos cannot
+  drift). It deliberately does **not** install AutoGluon.
+- **`integration`** (manual `workflow_dispatch`; nightly only when the repo variable
+  `ENABLE_NIGHTLY_GPU` is `true`) — needs a **self-hosted runner labelled `gpu`** with the NVIDIA
+  Container Toolkit. It builds the image, loads Mitra offline from the pinned weights, fine-tunes
+  a tiny model, saves it, reloads the `TabularPredictor`, and predicts — catching torch/base-image
+  drift, Mitra API changes, offline-weight failures, and seed/metric propagation that the unit
+  suite cannot. Attach a GPU runner and set `ENABLE_NIGHTLY_GPU` to turn on the nightly run.
 
 ## Operations
 
@@ -97,10 +119,11 @@ manually — the validator card for a validator change, the fine-tuner card for 
 ## Open item — inference serving
 
 DIMER deploys an inference service after training. This pipeline's artifact is an AutoGluon
-`TabularPredictor` directory, verified to reload and serve predictions outside the training
-process. Whether DIMER's inference-serving layer wraps a tabular predictor — as opposed to a
-vision model — is **not yet verified on the platform.** The platform team owns this check
-before the pipeline serves production traffic.
+`TabularPredictor` directory; the `integration` workflow exercises the save → reload → predict
+round-trip on a GPU runner, so the artifact is verified to reload and serve predictions outside
+the training process. Whether DIMER's own inference-serving layer wraps a tabular predictor — as
+opposed to a vision model — is **not yet verified on the platform.** The platform team owns this
+check before the pipeline serves production traffic.
 
 ## References
 

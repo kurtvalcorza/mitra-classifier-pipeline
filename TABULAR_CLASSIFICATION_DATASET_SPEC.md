@@ -56,6 +56,13 @@ the fine-tuner trains on.
 The archive is also rejected before any read if it is a zip bomb (a member's compression ratio
 or the total uncompressed size exceeds a safety bound).
 
+Each CSV is additionally size-bounded **before pandas materializes it**, so a hostile or
+accidental oversized file cannot exhaust memory (this applies to a directory of CSVs too, not
+only zips): a per-file uncompressed-byte ceiling (`DIMER_MAX_MEMBER_BYTES`, default 1 GiB) and a
+full-read row ceiling (`DIMER_MAX_CSV_ROWS`, default 5,000,000, read in `DIMER_CSV_CHUNK_ROWS`
+chunks). An over-limit table is **rejected, not silently truncated**. These ceilings sit far
+above any real dataset for a ≤10,000-row model; they are a resource guard, not a data limit.
+
 ## Row Ceiling
 
 Mitra accepts at most **10,000 training rows**. This is a property of the model, not of the
