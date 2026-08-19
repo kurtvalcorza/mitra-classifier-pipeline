@@ -1,0 +1,22 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pandas numpy
+      - name: Shared-block parity (validator vs finetuner)
+        run: python scripts/check_shared.py
+      - name: Compile deployable sources + example
+        run: |
+          python -m py_compile validator/validator.py
+          python -m py_compile finetuner/train.py
+          python -m py_compile examples/build_freshretailnet_dataset.py

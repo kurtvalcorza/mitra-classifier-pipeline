@@ -39,8 +39,9 @@ Provide them to the pipeline in one of three ways:
 
 1. **HuggingFace Model ID (default).** Enter `autogluon/mitra-classifier` as the Base Model;
    AutoGluon downloads it at runtime. Requires egress to `huggingface.co`.
-2. **Upload weights (no egress).** Use the wizard's *upload your own model weights* box with
-   `model.safetensors`; DIMER stores it in S3 and the fine-tuner reads it at runtime.
+2. **Upload weights (no egress).** Mount an uploaded checkpoint directory (holding
+   `model.safetensors` and `config.json`) and set `DIMER_MODEL_DIR` to it. The fine-tuner
+   installs those exact bytes into the loader's cache and uses them verbatim — no egress.
 3. **Bake into the image.** Uncomment Option A in the fine-tuner `Dockerfile` to download the
    pinned revision at build time (needs egress at build), or `COPY` a local copy in.
 
@@ -51,8 +52,14 @@ hf download autogluon/mitra-classifier model.safetensors config.json \
   --revision c425e9fa0910a6be1c494321792e7ba2a1367b1a --local-dir .
 ```
 
-Every fine-tuning run records the revision it actually used in `result.json`
-(`provenance.baseModelRevision`) and compares it to the pinned value.
+**Weight verification.** AutoGluon 1.5.0's Mitra loader resolves a checkpoint by Hugging Face
+repo id and does not accept a revision argument, so the base weights cannot be pinned by
+revision through it. Instead, before fitting, the fine-tuner resolves the exact
+`model.safetensors` the loader will use and **verifies its SHA-256 against the expected value
+above**; a mismatch fails the run. `result.json`'s `provenance` block records the resolved
+revision, the loaded weights' SHA-256, and whether the check was enforced. Baking the pinned
+revision (option 3) makes the loaded bytes deterministic; option 2 (`DIMER_MODEL_DIR`) records
+the uploaded bytes' checksum but is not checked against the public pinned value.
 
 ## How the pipeline uses it
 
@@ -69,27 +76,27 @@ and device in `result.json` (`metrics.mode`, `metrics.device`, `metrics.problemT
 ## Applicability and limits
 
 Mitra is strongest on **small tabular data** (below ~5,000 samples and ~100 features). Hard
-limits: **10,000 training rows, 500 features, 10 classes**. It needs about **8.7 GB of memory**
-(measured on 6,400 rows); request a profile that clears that with headroom (see the README's
-resource profile).
+limits: **10,000 training rows, 500 features, 10 classes**. It needs about **~10 GB of memory**
+(measured on the ~4,800-row sample; it grows with rows and features); request a profile that
+clears that with headroom (see the README's resource profile).
 
 ## Measured behaviour in this pipeline
 
-Small smoke-test runs on the bundled sample dataset (a 3-class demand band derived from
-FreshRetailNet-50K; 6,400 train / 1,600 validation rows, one seed, one split). These size and
-exercise the pipeline; they are **not a benchmark**. The majority-class baseline predicts the
-most frequent training class for every row.
+Small smoke-test runs on the bundled sample (a 3-class demand band derived from
+FreshRetailNet-50K; 4,806 train / 1,597 val / 1,597 test rows, one seed, a **per-series
+chronological split**). These size and exercise the pipeline; they are **not a benchmark**. The
+majority-class baseline predicts the most frequent training class for every row (accuracy 0.35).
 
-| Dataset | Classes | Mode | Mitra accuracy | Majority-class baseline |
-|---|---|---|---|---|
-| FreshRetailNet demand band | 3 | fine-tune (GPU) | **0.576** | 0.361 |
-| FreshRetailNet demand band | 3 | zero-shot (CPU) | 0.589 | 0.361 |
+| Mode | Val accuracy | Test accuracy | Majority baseline (val / test) |
+|---|---|---|---|
+| fine-tune (GPU) | **0.545** | 0.564 | 0.351 / 0.352 |
+| zero-shot (CPU) | **0.547** | 0.565 | 0.351 / 0.352 |
 
-Both modes beat the majority-class baseline by more than 0.2 accuracy, so the features carry
-signal about the demand band. Zero-shot matched fine-tuning on this small 3-class table — on
-larger or harder tables fine-tuning is expected to help more. Read these as direction, not
-scores. Treat Mitra's published benchmark results as evidence of strong performance where
-signal exists, not a guarantee on any table.
+Both modes beat the majority-class baseline by about 0.19–0.21 accuracy, so the features carry
+signal about the demand band even under a forward-looking temporal split. Zero-shot matched
+fine-tuning on this small 3-class table — on larger or harder tables fine-tuning is expected to
+help more. Read these as direction, not scores. Treat Mitra's published benchmark results as
+evidence of strong performance where signal exists, not a guarantee on any table.
 
 ## Licence
 

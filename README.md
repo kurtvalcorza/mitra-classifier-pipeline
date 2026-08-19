@@ -62,8 +62,8 @@ not as a guarantee on any table.
 Mitra supports two modes, both exposed as fine-tuning fields:
 
 - **Fine-tune** (`fine_tune=true`, the default) adapts the pretrained weights to the uploaded
-  table. It requires a GPU. One measured fit on the 6,400-row sample took about 310 s on a
-  single GPU.
+  table. It requires a GPU. A measured fine-tune on the 4,806-row sample ran within the 600 s
+  time budget on a single GPU.
 - **Zero-shot** (`fine_tune=false`) runs Mitra as an in-context learner with no weight update.
   It is CPU-safe and faster, at some cost in accuracy.
 
@@ -234,29 +234,39 @@ describing the run:
 ```json
 {
   "successful": true,
-  "message": "Mitra fine-tuning succeeded on 6400 rows; holdout accuracy 0.5756.",
+  "message": "Mitra fine-tune succeeded on 4806 rows; holdout accuracy 0.5454.",
   "metrics": {
     "trainedModels": ["Mitra"],
     "mode": "fine-tune",
     "device": "cuda",
     "problemType": "multiclass",
     "numClasses": 3,
-    "trainRows": 6400,
-    "valRows": 1600,
-    "accuracy": 0.5756,
-    "evaluation": { "accuracy": 0.5756, "balanced_accuracy": 0.5768, "mcc": 0.3615 },
+    "trainRows": 4806,
+    "valRows": 1597,
+    "evalMetric": "accuracy",
+    "headlineMetric": "accuracy",
+    "headlineScore": 0.5454,
+    "valEvaluation": { "accuracy": 0.5454, "balanced_accuracy": 0.5534, "mcc": 0.3251 },
+    "test": { "rows": 1597, "evaluation": { "accuracy": 0.5636 } },
     "artifactPath": "…/mitra_predictor"
   },
   "provenance": {
     "baseModel": "autogluon/mitra-classifier",
     "baseModelRevision": "c425e9fa0910a6be1c494321792e7ba2a1367b1a",
     "baseModelRevisionExpected": "c425e9fa0910a6be1c494321792e7ba2a1367b1a",
+    "weightsSha256": "e06a055e…", "expectedSha256": "e06a055e…",
+    "source": "huggingface", "enforced": true,
     "dataset": { "file": "dataset.zip", "sha256": "…" },
     "autogluonVersion": "1.5.0"
   },
   "metadata": { "baseModel": "autogluon/mitra-classifier", "targetColumn": "target", "seed": 0 }
 }
 ```
+
+The headline score is the metric named in `eval_metric` (here `accuracy`); `valEvaluation` and
+`test.evaluation` carry the full metric set AutoGluon reports. When the dataset zip includes a
+`test.csv`, it is scored after fitting and its metrics appear under `test`. Numbers above are
+illustrative; see the model card for measured smoke-test values.
 
 The saved artifact is an AutoGluon `TabularPredictor` directory. It reloads with
 `TabularPredictor.load(path)` and predicts on new rows with matching columns. Reload-and-serve
@@ -282,7 +292,7 @@ you create the pipeline. The default is a starting point, not a ceiling; the HPC
 has capacity well beyond it.
 
 Mitra holds the training table in memory as in-context context, so its footprint grows with
-the number of rows and features. A run on 6,400 rows and 17 features used about 8.7 GB, already
+the number of rows and features. A run on ~4,800 rows and 17 features used about 10 GB, already
 above the 8Gi default. AutoGluon also declines to train a model whose projected footprint
 exceeds roughly 90% of available memory, so the requested memory must clear the footprint with
 headroom rather than match it.
@@ -331,12 +341,14 @@ The validator, fine-tuner, configuration, and documentation in this repository w
 with AI assistance (Anthropic Claude Opus 4.8, via Claude Code) and are pending human review
 before production deployment. The following were verified by execution, not only generated:
 
-- both container scripts byte-compile, and `dimer-pipeline.json` validates against the field
-  schema;
+- both container scripts byte-compile, `dimer-pipeline.json` validates against the field
+  schema, and a unit-test suite covers the validator checks, the class-preserving split/cap,
+  ambiguous-archive rejection, unseen-label detection, and the uploaded-weights path;
 - the validator passes its full check set on the derived sample dataset;
 - the fine-tuner trains Mitra on GPU, writes a valid artifact, and that artifact reloads and
   serves predictions in a separate process;
-- the same image run without a GPU falls back to zero-shot on CPU.
+- the same image run without a GPU falls back to zero-shot on CPU;
+- the base weights' SHA-256 is verified before fitting, and `test.csv` is scored when present.
 
 Not yet verified, and requiring human sign-off: the DIMER portal image build, the on-platform
 smoke test, the memory-profile request, and the platform's inference-serving integration.

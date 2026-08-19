@@ -46,11 +46,17 @@ The fine-tuner needs the Mitra weights (`autogluon/mitra-classifier`). Choose on
 
 | Option | Egress | Reproducibility | How |
 |---|---|---|---|
-| A — bake into image (recommended) | none at runtime | pinned | Uncomment Option A in the fine-tuner `Dockerfile`; it downloads the pinned revision at build time |
-| B — runtime fetch | requires `huggingface.co` | current revision unless pinned | Default; AutoGluon downloads on first run |
+| A — bake into image (recommended) | none at runtime | deterministic | Uncomment Option A in the fine-tuner `Dockerfile`; it downloads the pinned revision at build time |
+| B — runtime fetch | requires `huggingface.co` | checksum-verified | Default; AutoGluon downloads on first run |
+| C — uploaded weights | none at runtime | uploaded bytes | Mount a checkpoint dir (`model.safetensors` + `config.json`) and set `DIMER_MODEL_DIR`; the fine-tuner installs and uses those exact bytes |
 
-Pinned revision: `c425e9fa0910a6be1c494321792e7ba2a1367b1a`. Every run records the revision it
-actually used in `result.json` under `provenance.baseModelRevision`.
+Pinned revision: `c425e9fa0910a6be1c494321792e7ba2a1367b1a`, `model.safetensors` SHA-256
+`e06a055e…`. AutoGluon's Mitra loader takes a repo id and no revision argument, so the base
+weights cannot be pinned by revision through it. The fine-tuner instead **verifies the loaded
+weights' SHA-256 against the expected value before fitting and fails the run on a mismatch**
+(options A/B); `result.json`'s `provenance` block records the resolved revision, the loaded
+SHA-256, the source, and whether the check was enforced. Option C records the uploaded bytes'
+checksum but does not compare it to the public pinned value.
 
 ## Build and enable
 

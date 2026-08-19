@@ -31,20 +31,30 @@ which from the number of distinct labels.
 
 ## Validation Checks
 
+All row-based checks count **usable rows** — rows with a non-null target, the exact population
+the fine-tuner trains on.
+
 | Check | Required? | Rule |
 |---|---|---|
 | `no_nested_zip` | YES | The archive must not contain another `.zip` |
+| `no_duplicate_tables` | YES | No two members may resolve to the same `train`/`val`/`test` table (e.g. `train.csv` and `dataset/train.csv`) |
 | `train_csv_present` | YES | A `train.csv` must exist in the archive |
 | `train_csv_parses` | YES | `train.csv` must parse as CSV |
 | `target_column_present` | YES | The configured target column must exist |
 | `target_has_values` | YES | The target must have at least one non-null value |
 | `target_class_count` | YES | The target must have 2–10 distinct classes |
-| `min_rows_per_class` | YES | The smallest class must have at least 2 rows |
+| `min_rows_per_class` | YES | The smallest class must have at least 2 rows (for a stratified split) |
 | `feature_columns_present` | YES | At least one feature column must remain after removing target and `drop_columns` |
-| `minimum_rows` | YES | At least 50 training rows |
+| `feature_limit` | YES | At most 500 feature columns (Mitra's limit) |
+| `minimum_rows` | YES | At least 50 usable (non-null-target) training rows |
 | `val_schema_matches_train` | YES if `val.csv` present | `val.csv` columns must equal `train.csv` columns |
 | `test_schema_matches_train` | YES if `test.csv` present | `test.csv` columns must equal `train.csv` columns |
-| `row_limit_advisory` | WARNING | Flags tables above the 10,000-row ceiling; the fine-tuner samples down |
+| `val_labels_subset_train` | YES if `val.csv` present | `val.csv` target labels must all appear in `train.csv` |
+| `test_labels_subset_train` | YES if `test.csv` present | `test.csv` target labels must all appear in `train.csv` |
+| `row_limit_advisory` | WARNING | Flags tables above the 10,000-row ceiling; the fine-tuner class-preservingly samples down |
+
+The archive is also rejected before any read if it is a zip bomb (a member's compression ratio
+or the total uncompressed size exceeds a safety bound).
 
 ## Row Ceiling
 
@@ -60,10 +70,11 @@ the count within range.
 
 ## Missing Validation Split
 
-If `val.csv` is absent, the fine-tuner carves a deterministic holdout from `train.csv` using
-`validation_split` (default 0.2) and the configured seed, and reports the split in
-`result.json`. A dataset is never trained without a reported holdout unless it has fewer than
-20 rows.
+If `val.csv` is absent, the fine-tuner carves a deterministic **stratified** holdout from
+`train.csv` using `validation_split` (default 0.2) and the configured seed, keeping every class
+represented in train, and reports the split in `result.json`. Setting `validation_split` to `0`
+explicitly disables the holdout: the run reports `valRows: 0`, records a note, and trains on all
+rows. Otherwise, a dataset with at least 20 rows is always trained with a reported holdout.
 
 ## Result JSON (validator output)
 
