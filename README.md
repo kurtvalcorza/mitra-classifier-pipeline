@@ -105,17 +105,31 @@ root.
 | Fine-tuner | `mitra-classifier-finetuner` | GPU |
 
 ```
-validator/
-  validator.py  Dockerfile  requirements.txt
-finetuner/
-  train.py  dimer-pipeline.json  Dockerfile  requirements.txt
-examples/
-  build_freshretailnet_dataset.py
+mitra-classifier-dataset-validator/     (CPU)
+├── Dockerfile
+├── validate.py          DIMER-facing entrypoint (delegates to validator.py)
+├── validator.py         validation implementation
+├── requirements.txt
+└── README.md
+
+mitra-classifier-finetuner/             (GPU)
+├── Dockerfile
+├── train.py             DIMER-facing entrypoint
+├── requirements.txt
+├── README.md
+└── dimer-pipeline.json  preprocessing + fine-tuning fields
 ```
+
+DIMER builds each repository from its root and launches the container by the portal naming
+convention: `validate.py` for the validator and `train.py` for the fine-tuner. The validator's
+tested logic lives in `validator.py`; `validate.py` is a thin entrypoint that delegates to it.
 
 Keep `dimer-pipeline.json` at the fine-tuner repository root. It defines the preprocessing and
 fine-tuning fields that end users see. Without it, the workbench preprocessing step renders
 empty and the fine-tuning step stays locked.
+
+The dataset-building helpers (`examples/`) and the dataset specs live in this umbrella
+repository, not in the container repositories.
 
 ---
 
@@ -128,18 +142,30 @@ GitHub App.
 
    | Field | Value |
    |---|---|
-   | Task Type | Custom / Other |
+   | Pipeline Name | `Mitra Tabular Classification` |
+   | Description | `Fine-tune the Mitra tabular foundation model for classification using your own tabular dataset. Supports binary and multiclass classification, dataset validation, configurable preprocessing, evaluation, and export of the trained model.` |
+   | Task Type | `Custom / Other` |
    | Base Model | `autogluon/mitra-classifier` |
-   | Validator repository | `mitra-classifier-dataset-validator` |
-   | Fine-tuner repository | `mitra-classifier-finetuner` |
+   | Validator repository | `https://github.com/kurtvalcorza/mitra-classifier-dataset-validator` |
+   | Fine-tuner repository | `https://github.com/kurtvalcorza/mitra-classifier-finetuner` |
 
 2. Build both images.
 3. Run the smoke test with a small dataset.
 4. Enable the pipeline.
 
-Because the task type is Custom / Other, the pipeline declares its own task identity: the
-fine-tuner image sets `DIMER_TASK_TYPE=tabular_classification` and treats any value the platform
-sends as an override.
+### Portal implementation notes
+
+- **`Custom / Other` is the correct portal card** for tabular pipelines; DIMER has no native
+  tabular task type. The pipeline therefore declares its own task identity: the fine-tuner image
+  sets `DIMER_TASK_TYPE=tabular_classification` and relies on that baked fallback rather than
+  trusting DIMER's current generic resolved task type, treating any value the platform sends as
+  an override.
+- **`dimer-pipeline.json` stays at the fine-tuner repository root.** The portal reads it there to
+  render the preprocessing and fine-tuning fields.
+- **Field-to-runtime mapping.** `datasetPreprocessing` keys are passed to the fine-tuner as
+  `DIMER_PREPROCESSING_ARGS_JSON`; `modelFinetuning` keys as `DIMER_HYPERPARAMETERS_JSON`.
+- **`model_id` is not declared in `dimer-pipeline.json`.** The DIMER **Base Model** field is
+  authoritative for the checkpoint that loads.
 
 ---
 
