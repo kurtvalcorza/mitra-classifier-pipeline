@@ -13,6 +13,18 @@ platform team owns. See [DEPLOYMENT.md](DEPLOYMENT.md) and [MODEL_CARD.md](MODEL
 - [x] Classification smoke matrix documented — binary/multiclass, imbalance, nullable targets, mixed features, explicit/absent `val.csv` (stratified auto-split), optional `test.csv`, duplicate-split rejection.
 - [x] Cross-repo synchronization automated — `scripts/check_shared.py` enforces the shared dataset-resolution block byte-identical + against a cross-repo pinned SHA in every repo's CI.
 
+## DIMER portal build contract (issue #4 — repo-side complete)
+
+Aligns the two deployment repos with the current `PIPELINE_SETUP_GUIDE.md` / Pipeline Builder
+build contract. Detail + evidence in each child repo's `docs/DIMER_PORTAL_CONTRACT.md`.
+
+- [x] Validator buildable from repo root; root `Dockerfile`, `validate.py`, `requirements.txt`, `README.md` — validator Dockerfile invokes `validate.py` (delegates to tested `validator.py`).
+- [x] Finetuner buildable from repo root; root `Dockerfile`, `train.py`, `requirements.txt`, `README.md`, `dimer-pipeline.json` — Dockerfile invokes `train.py`.
+- [x] `dimer-pipeline.json` is the authoritative classifier preprocessing/hyperparameter schema; `datasetPreprocessing` + `modelFinetuning` keys map 1:1 to `DIMER_PREPROCESSING_ARGS_JSON` / `DIMER_HYPERPARAMETERS_JSON` consumed by `train.py` (verified key-by-key).
+- [x] `model_id` not duplicated in the manifest; DIMER Base Model authoritative. `Custom / Other` normalization overridden by baked `DIMER_TASK_TYPE=tabular_classification`. Base Model `autogluon/mitra-classifier` passed through as an HF id; loaded checkpoint captured in `provenance`.
+- [x] `.gitignore` / `.dockerignore` exclude local dataset/result/model artifacts; cross-repo shared-code parity still enforced after the compatibility change.
+- [ ] Both images build from GitHub default branches **inside DIMER CodeBuild** — platform-owned (see release gate).
+
 ## Real-stack verification (complete this session)
 
 - [x] Build → offline Mitra load → fine-tune → save → reload → predict, exercised by `.github/workflows/integration.yml` (manual/nightly GPU) and run live on the 5070 Ti 2026-08-19 (`problemType=multiclass`).
