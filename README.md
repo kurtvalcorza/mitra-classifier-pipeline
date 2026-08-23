@@ -344,16 +344,16 @@ runtime and selects fine-tune (GPU) or zero-shot (CPU).
 
 | Image | Base | Runs on | Notes |
 |---|---|---|---|
-| `Dockerfile` (default) | CUDA | GPU or CPU | Fine-tunes on a GPU; **auto-falls back to zero-shot on CPU** when no GPU is present. Large (~10 GB). |
-| `Dockerfile.cpu` | slim | CPU only | Zero-shot; small image, no CUDA runtime. |
+| `Dockerfile` (default) | slim | CPU only | Zero-shot; small image, no CUDA runtime. Builds within CodeBuild's 15-minute / 2 vCPU / 3 GB limit. |
+| `Dockerfile.gpu` | CUDA | GPU or CPU | Fine-tunes on a GPU; **auto-falls back to zero-shot on CPU** when no GPU is present. Large (~10 GB). |
 
-DIMER builds the repository's root `Dockerfile`. Choose per instance:
+DIMER builds the repository's root `Dockerfile`. The default DIMER deployment provisions **no
+GPU node pool** (GPU is opt-in and off by default), so the CPU image is the default. Choose per
+instance:
 
-- **GPU instance** — use the default `Dockerfile`.
-- **No-GPU instance, size not a concern** — use the default `Dockerfile`; it runs on the CPU
-  node and falls back to zero-shot.
-- **No-GPU instance, lean image wanted** — make `Dockerfile.cpu` the root `Dockerfile` (rename
-  the CUDA one aside, then rename `Dockerfile.cpu` to `Dockerfile`).
+- **No-GPU instance (the default)** — use the default `Dockerfile` as-is; the run is zero-shot.
+- **GPU instance** — make `Dockerfile.gpu` the root `Dockerfile` (rename the CPU one aside, then
+  rename `Dockerfile.gpu` to `Dockerfile`) before connecting the repo.
 
 Verified from the one default image: `--gpus all` → `device: cuda, mode: fine-tune`; without a
 GPU → `device: cpu, mode: zero-shot`. The validator is CPU-only and needs no change.
