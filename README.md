@@ -164,8 +164,11 @@ GitHub App.
   render the preprocessing and fine-tuning fields.
 - **Field-to-runtime mapping.** `datasetPreprocessing` keys are passed to the fine-tuner as
   `DIMER_PREPROCESSING_ARGS_JSON`; `modelFinetuning` keys as `DIMER_HYPERPARAMETERS_JSON`.
-- **`model_id` is not declared in `dimer-pipeline.json`.** The DIMER **Base Model** field is
-  authoritative for the checkpoint that loads.
+- **`model_id` is not declared in `dimer-pipeline.json`.** The pipeline is permanently locked to
+  `autogluon/mitra-classifier`; `train.py` reads the DIMER **Base Model** field only to validate
+  it, and fails the run if an explicit override names a different model — including the cross-task
+  `autogluon/mitra-regressor`. An opaque backend id that cannot be resolved locally is allowed
+  through.
 
 ---
 
@@ -254,7 +257,11 @@ Fine-tuning (`modelFinetuning`):
 
 ## Outputs
 
-The fine-tuner writes the trained model to the run's output directory and a `result.json`
+The fine-tuner materializes the DIMER artifact layout under the run's output directory —
+`artifacts/best.pt` (the exported model artifact; a zip of the AutoGluon predictor directory,
+since Mitra has no single weight file), `evaluation/report.json`, `logs/run-summary.json`, and a
+single terminal `progress/epoch_0001.json` (Mitra exposes no per-epoch loop) — alongside the raw
+`mitra_predictor/` directory, plus a `result.json`
 describing the run:
 
 ```json
@@ -279,6 +286,11 @@ describing the run:
     "test": { "rows": 1600, "evaluation": { "accuracy": 0.5588 } },
     "artifactPath": "…/mitra_predictor"
   },
+  "artifacts": {
+    "modelArtifact":    { "path": "fine-tuning/<run_id>/artifacts/best.pt",     "name": "best.pt",          "contentType": "application/octet-stream", "sizeBytes": 0 },
+    "evaluationReport": { "path": "fine-tuning/<run_id>/evaluation/report.json", "name": "report.json",      "contentType": "application/json",         "sizeBytes": 0 },
+    "logArtifact":      { "path": "fine-tuning/<run_id>/logs/run-summary.json",  "name": "run-summary.json", "contentType": "application/json",         "sizeBytes": 0 }
+  },
   "provenance": {
     "baseModel": "autogluon/mitra-classifier",
     "baseModelRevision": "c425e9fa0910a6be1c494321792e7ba2a1367b1a",
@@ -297,7 +309,14 @@ The headline score is the metric named in `eval_metric` (here `accuracy`); `valE
 `test.csv`, it is scored after fitting and its metrics appear under `test`. Numbers above are
 illustrative; see the model card for measured smoke-test values.
 
-The saved artifact is an AutoGluon `TabularPredictor` directory. It reloads with
+The top-level `artifacts` block names the three files DIMER exports (`modelArtifact`,
+`evaluationReport`, `logArtifact`), each `{path, name, contentType, sizeBytes}` with `path`
+relative to the `/data` mount; `metadata` (abridged above) also carries the session/run ids, the
+selected model, the resolved device, and the eval settings.
+
+The exported model artifact is `artifacts/best.pt` — a zip of the AutoGluon `TabularPredictor`
+directory (the name DIMER's exporter greps), since Mitra has no single weight file. The raw
+predictor directory is left in place under `mitra_predictor/`; unzipped, it reloads with
 `TabularPredictor.load(path)` and predicts on new rows with matching columns. Reload-and-serve
 was verified in a process separate from training.
 
@@ -355,8 +374,16 @@ instance:
 - **GPU instance** — make `Dockerfile.gpu` the root `Dockerfile` (rename the CPU one aside, then
   rename `Dockerfile.gpu` to `Dockerfile`) before connecting the repo.
 
-Verified from the one default image: `--gpus all` → `device: cuda, mode: fine-tune`; without a
-GPU → `device: cpu, mode: zero-shot`. The validator is CPU-only and needs no change.
+Verified per image: the default CPU `Dockerfile` resolves to `device: cpu, mode: zero-shot` even
+under `--gpus all` (it installs a CPU-only torch build); `Dockerfile.gpu` under `--gpus all` →
+`device: cuda, mode: fine-tune`, and without a GPU falls back to `device: cpu, mode: zero-shot`.
+The validator is CPU-only and needs no change.
+
+**GPU burst (S3) mode.** When `GPU_BURST_MODE` is set, the fine-tuner reads the dataset from and
+writes `result.json` and `artifacts/best.pt` back to S3 (`GPU_BURST_S3_BUCKET` /
+`GPU_BURST_DATASET_PREFIX` / `GPU_BURST_RESULT_KEY` / `GPU_BURST_MODEL_KEY`, via the `boto3`
+dependency) instead of the `/data` mount. The path is inactive unless the platform sets those
+variables.
 
 ---
 
