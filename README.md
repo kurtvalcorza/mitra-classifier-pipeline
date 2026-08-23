@@ -259,8 +259,9 @@ Fine-tuning (`modelFinetuning`):
 
 The fine-tuner materializes the DIMER artifact layout under the run's output directory —
 `artifacts/best.pt` (the exported model artifact; a zip of the AutoGluon predictor directory,
-since Mitra has no single weight file), `evaluation/report.json`, `logs/run-summary.json`, and
-`progress/epoch_*.json` — alongside the raw `mitra_predictor/` directory, plus a `result.json`
+since Mitra has no single weight file), `evaluation/report.json`, `logs/run-summary.json`, and a
+single terminal `progress/epoch_0001.json` (Mitra exposes no per-epoch loop) — alongside the raw
+`mitra_predictor/` directory, plus a `result.json`
 describing the run:
 
 ```json
