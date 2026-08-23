@@ -3,7 +3,6 @@ on:
   push:
     branches: [main]
   pull_request:
-
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -13,10 +12,12 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pandas numpy
-      - name: Shared-block parity (validator vs finetuner)
+      - name: Shared-block parity
         run: python scripts/check_shared.py
-      - name: Compile deployable sources + example
+      - name: DIMER contract
+        run: python scripts/check_contract.py
+      - name: Compile deployables
         run: |
-          python -m py_compile validator/validator.py
-          python -m py_compile finetuner/train.py
+          python -m py_compile validator/validator.py validator/validate.py validator/contract_hardening.py
+          python -m py_compile finetuner/train.py finetuner/contract_entrypoint.py finetuner/contract_hardening.py
           python -m py_compile examples/build_freshretailnet_dataset.py
