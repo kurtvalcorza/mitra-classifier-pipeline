@@ -16,6 +16,8 @@ jobs:
         run: python scripts/check_shared.py
       - name: DIMER contract
         run: python scripts/check_contract.py
+      - name: Standalone Colab tutorial
+        run: python scripts/validate_colab_tutorial.py
       - name: Compile deployables
         run: |
           python -m py_compile validator/validator.py validator/validate.py validator/contract_hardening.py
