@@ -12,6 +12,24 @@ training data carries its own licence — see [Data licence](#data-licence-gover
 For platform-administrator setup and operations — resource profiles, weights delivery, network
 egress, enable, and monitoring — see [DEPLOYMENT.md](DEPLOYMENT.md).
 
+## Try Mitra yourself in Google Colab
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kurtvalcorza/mitra-classifier-pipeline/blob/main/tutorials/mitra_classifier_colab.ipynb)
+
+The [standalone Colab tutorial](tutorials/mitra_classifier_colab.ipynb) lets end users work with
+Mitra independently of DIMER Workbench. Download the Mitra Classifier weights from the DIMER
+Model Repository and upload the DIMER ZIP to the notebook. If the DIMER download is unavailable,
+the notebook can retrieve the exact pinned upstream checkpoint associated with this release.
+
+From there, users can bring their own CSV, inspect compatibility, evaluate pretrained/in-context
+Mitra, optionally fine-tune on a GPU, classify new rows, and export predictions plus a reusable
+AutoGluon predictor. The notebook SHA-256 verifies the model weights and matching `config.json`
+before loading them. See [`tutorials/README.md`](tutorials/README.md) for the supported release
+and tutorial notes.
+
+**No DIMER Workbench access is required.** User data is processed in the Google Colab runtime,
+not by DIMER.
+
 ---
 
 ## The model: Mitra
@@ -393,9 +411,16 @@ This section records how the pipeline was built and how the models it produces s
 
 ### How this pipeline was authored
 
-The validator, fine-tuner, configuration, and documentation in this repository were drafted
-with AI assistance (Anthropic Claude Opus 4.8, via Claude Code) and are pending human review
-before production deployment. The following were verified by execution, not only generated:
+The validator, fine-tuner, configuration, and original documentation in this repository were
+drafted with AI assistance (Anthropic Claude Opus 4.8, via Claude Code). The standalone Colab
+tutorial and its related documentation were subsequently designed and implemented with OpenAI
+ChatGPT under maintainer direction using Agent Relay in the Builder role. These materials remain
+subject to human review before production deployment.
+
+AI attribution here is **provenance, not sign-off**. It does not authenticate authorship, imply
+provider endorsement, or independently verify correctness. The maintainer retains responsibility
+for repository scope, acceptance, release decisions, and downstream use. The following were
+verified by execution, not only generated:
 
 - both container scripts byte-compile, `dimer-pipeline.json` validates against the field
   schema, and a unit-test suite covers the validator checks, the class-preserving split/cap,
@@ -409,6 +434,15 @@ before production deployment. The following were verified by execution, not only
 Not yet verified, and requiring human sign-off: the DIMER portal image build, the on-platform
 smoke test, the memory-profile request, and the platform's inference-serving integration.
 Treat the generated code as a reviewed draft, not audited production code.
+
+For the standalone tutorial specifically:
+
+- Generated with AI assistance by **OpenAI ChatGPT** under human direction and review.
+- Agent Relay role: **Builder**.
+- The model itself was developed by the AutoGluon team at AWS; DIMER distributes the pinned
+  checkpoint weights but is not the model developer.
+- The notebook records checkpoint revision and SHA-256 values separately from authorship
+  provenance so model lineage and tutorial authorship are not conflated.
 
 ### Model lineage
 
