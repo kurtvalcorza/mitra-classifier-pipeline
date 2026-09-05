@@ -262,6 +262,44 @@ def inference_step_is_self_contained(code_cells: list[tuple[int, str]]) -> bool:
     return False
 
 
+def has_safe_direct_weights_copy_guard(code_cells: list[tuple[int, str]]) -> bool:
+    for _, source in code_cells:
+        if "weights_from_dimer" not in source:
+            continue
+        tree = ast.parse(source)
+        for function in ast.walk(tree):
+            if not isinstance(function, ast.FunctionDef) or function.name != "weights_from_dimer":
+                continue
+            for candidate in ast.walk(function):
+                if not isinstance(candidate, ast.If):
+                    continue
+                test = candidate.test
+                if not (
+                    isinstance(test, ast.Compare)
+                    and len(test.ops) == 1
+                    and isinstance(test.ops[0], ast.NotEq)
+                    and len(test.comparators) == 1
+                    and ast.unparse(test.left) == "p.resolve()"
+                    and ast.unparse(test.comparators[0]) == "dest.resolve()"
+                ):
+                    continue
+                for statement in candidate.body:
+                    for node in ast.walk(statement):
+                        if not (
+                            isinstance(node, ast.Call)
+                            and isinstance(node.func, ast.Attribute)
+                            and isinstance(node.func.value, ast.Name)
+                            and node.func.value.id == "shutil"
+                            and node.func.attr == "copy2"
+                            and len(node.args) >= 2
+                            and ast.unparse(node.args[0]) == "p"
+                            and ast.unparse(node.args[1]) == "dest"
+                        ):
+                            continue
+                        return True
+    return False
+
+
 def validate_training_tutorial() -> None:
     _, text, parsed_code = load_notebook(NOTEBOOK)
 
@@ -283,7 +321,6 @@ def validate_training_tutorial() -> None:
         "test_data",
         "assert_resolver_locked",
         "resolved_digest",
-        "if p.resolve() != dest.resolve():",
         "contains unseen target classes",
         "train_feature_set",
         "reindex(columns=ordered_columns)",
@@ -364,6 +401,10 @@ def validate_training_tutorial() -> None:
     require(
         inference_step_is_self_contained(parsed_code),
         "Step 5 inference must import io and pandas locally",
+    )
+    require(
+        has_safe_direct_weights_copy_guard(parsed_code),
+        "direct model.safetensors upload must avoid copying a path onto itself",
     )
 
 
