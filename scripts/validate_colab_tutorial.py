@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,12 +21,6 @@ SAMPLE_REVISION = "8fc19e80ae3166ec6bf964d194a28c80e6ba3b1f"
 FORBIDDEN = (
     "mitra-classifier-finetuner",
     "mitra-classifier-dataset-validator",
-    "DIMER_MODEL_DIR",
-    "DIMER_DATASET_DIR",
-    "DIMER_OUTPUT_DIR",
-    "DIMER_HYPERPARAMETERS_JSON",
-    "DIMER_PREPROCESSING_ARGS_JSON",
-    "ag.max_memory_usage_ratio",
     "load_breast_cancer",
     "Built-in demo",
     "mitra-classifier-pipeline/main/examples/sample-data/freshretailnet-band-h7.zip",
@@ -79,6 +74,26 @@ def has_literal_assignment(
     return False
 
 
+def memory_guard_keys(code_cells: list[tuple[int, str]]) -> set[str]:
+    keys: set[str] = set()
+    for _, source in code_cells:
+        if not source.strip():
+            continue
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            if not isinstance(node.func, ast.Attribute) or node.func.attr != "fit":
+                continue
+            for keyword in node.keywords:
+                if keyword.arg != "ag_args_fit" or not isinstance(keyword.value, ast.Dict):
+                    continue
+                for key in keyword.value.keys:
+                    if isinstance(key, ast.Constant) and isinstance(key.value, str):
+                        keys.add(key.value)
+    return keys
+
+
 def has_memory_guard(code_cells: list[tuple[int, str]]) -> bool:
     for _, source in code_cells:
         if not source.strip():
@@ -125,12 +140,17 @@ def main() -> int:
         "DIMER ZIP",
         "Pinned upstream",
         "Sample dataset (FreshRetailNet)",
+        "Upload pre-split train/val/test",
         "freshretailnet-band-h7.zip",
         "DATASET_CARD.md",
         "train.csv",
         "val.csv",
         "test.csv",
-        "sample_test_data",
+        "test_data",
+        "assert_resolver_locked",
+        "torch_version",
+        "fine_tune_steps_requested",
+        "one-row accuracy resolution",
         "CC BY 4.0",
         "## AI use and provenance",
         "OpenAI ChatGPT",
@@ -150,9 +170,16 @@ def main() -> int:
         if source.strip():
             ast.parse(source, filename=f"{NOTEBOOK.name}:cell-{i}")
 
+    code_text = "\n".join(source for _, source in parsed_code)
+    require(
+        re.search(r"\bDIMER_[A-Z0-9_]+\b", code_text) is None,
+        "standalone tutorial must not depend on DIMER_* runtime variables",
+    )
+
     for name, expected in (
         ("RUN_FINE_TUNING", False),
         ("RUN_NEW_DATA_INFERENCE", False),
+        ("FINE_TUNE_STEPS", 50),
         ("MAX_MEMORY_USAGE_RATIO", 1.1),
         ("NETWORK_TIMEOUT_SECONDS", 30),
     ):
@@ -164,6 +191,10 @@ def main() -> int:
     require(
         has_memory_guard(parsed_code),
         "tutorial must pass max_memory_usage_ratio through a .fit(...) ag_args_fit keyword",
+    )
+    require(
+        "ag.max_memory_usage_ratio" not in memory_guard_keys(parsed_code),
+        "tutorial must not pass the prefixed ag.max_memory_usage_ratio key to .fit(...)",
     )
 
     root_readme = ROOT_README.read_text(encoding="utf-8")
@@ -181,6 +212,9 @@ def main() -> int:
 
     tutorial_readme = TUTORIAL_README.read_text(encoding="utf-8")
     for required in (
+        PINNED_REVISION,
+        WEIGHTS_SHA256,
+        CONFIG_SHA256,
         "freshretailnet-band-h7.zip",
         "DATASET_CARD.md",
         "purged chronological split",
@@ -192,7 +226,7 @@ def main() -> int:
     ):
         require(
             required in tutorial_readme,
-            f"tutorial README missing sample/provenance marker: {required}",
+            f"tutorial README missing sample/model/provenance marker: {required}",
         )
 
     print("Standalone Mitra Colab tutorial: OK")
