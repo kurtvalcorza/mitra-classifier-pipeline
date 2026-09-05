@@ -25,6 +25,7 @@ FORBIDDEN = (
     "Built-in demo",
     "mitra-classifier-pipeline/main/examples/sample-data/freshretailnet-band-h7.zip",
 )
+REPO_INTERNAL_IMPORT_PARTS = {"finetuner", "validator"}
 
 
 def require(condition: bool, message: str) -> None:
@@ -123,6 +124,25 @@ def has_memory_guard(code_cells: list[tuple[int, str]]) -> bool:
     return False
 
 
+def repo_internal_imports(code_cells: list[tuple[int, str]]) -> set[str]:
+    """Return imports that couple the standalone notebook to repo worker modules."""
+    found: set[str] = set()
+    for _, source in code_cells:
+        if not source.strip():
+            continue
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            modules: list[str] = []
+            if isinstance(node, ast.Import):
+                modules.extend(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                modules.append(node.module)
+            for module in modules:
+                if REPO_INTERNAL_IMPORT_PARTS.intersection(module.split(".")):
+                    found.add(module)
+    return found
+
+
 def main() -> int:
     payload = json.loads(NOTEBOOK.read_text(encoding="utf-8"))
     require(payload.get("nbformat") == 4, "notebook must use nbformat 4")
@@ -153,6 +173,10 @@ def main() -> int:
         "test.csv",
         "test_data",
         "assert_resolver_locked",
+        "resolved_digest",
+        "contains unseen target classes",
+        "train_feature_set",
+        "reindex(columns=ordered_columns)",
         "torch_version",
         "fine_tune_steps_requested",
         "one-row accuracy resolution",
@@ -179,6 +203,11 @@ def main() -> int:
     require(
         re.search(r"\bDIMER_[A-Z0-9_]+\b", code_text) is None,
         "standalone tutorial must not depend on DIMER_* runtime variables",
+    )
+    internal_imports = repo_internal_imports(parsed_code)
+    require(
+        not internal_imports,
+        f"standalone tutorial must not import repo-internal worker modules: {sorted(internal_imports)}",
     )
 
     for name, expected in (
