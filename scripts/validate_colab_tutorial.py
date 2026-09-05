@@ -263,7 +263,7 @@ def validate_training_tutorial() -> None:
         "np.allclose",
         "CC BY 4.0",
         "## AI use and provenance",
-        "OpenAI ChatGPT",
+        "GPT-5.6 Sol High",
         "Agent Relay role",
         "provenance, not sign-off",
     ):
@@ -331,7 +331,7 @@ def validate_inference_tutorial() -> None:
         "predict_proba",
         "predictions.csv",
         "## AI use and provenance",
-        "OpenAI ChatGPT",
+        "GPT-5.6 Sol High",
         "Agent Relay role",
         "provenance, not sign-off",
     ):
@@ -398,7 +398,7 @@ def validate_docs() -> None:
         "TabularPredictor.load",
         "predictions.csv",
         "## AI use and provenance",
-        "OpenAI ChatGPT",
+        "GPT-5.6 Sol High",
         "Agent Relay role",
         "provenance, not sign-off",
     ):
