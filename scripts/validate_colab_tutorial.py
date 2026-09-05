@@ -24,6 +24,7 @@ FORBIDDEN = (
     "DIMER_OUTPUT_DIR",
     "DIMER_HYPERPARAMETERS_JSON",
     "DIMER_PREPROCESSING_ARGS_JSON",
+    '"ag.max_memory_usage_ratio"',
 )
 
 
@@ -49,6 +50,8 @@ def main() -> int:
         "Pinned upstream",
         "RUN_FINE_TUNING",
         "RUN_NEW_DATA_INFERENCE",
+        "MAX_MEMORY_USAGE_RATIO = 1.10",
+        'ag_args_fit={"max_memory_usage_ratio": MAX_MEMORY_USAGE_RATIO}',
         "## AI use and provenance",
         "OpenAI ChatGPT",
         "Agent Relay role",
@@ -58,7 +61,7 @@ def main() -> int:
 
     for forbidden in FORBIDDEN:
         assert forbidden not in text, (
-            f"standalone tutorial leaked Workbench dependency: {forbidden}"
+            f"standalone tutorial leaked forbidden dependency/configuration: {forbidden}"
         )
 
     for i, cell in enumerate(cells):
