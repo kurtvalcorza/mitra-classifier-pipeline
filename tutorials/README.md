@@ -1,6 +1,15 @@
-# Mitra Classifier standalone Colab tutorial
+# Mitra Classifier standalone Colab tutorials
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kurtvalcorza/mitra-classifier-pipeline/blob/main/tutorials/mitra_classifier_colab.ipynb)
+There are now two standalone Colab workflows:
+
+| Notebook | Purpose |
+|---|---|
+| [`mitra_classifier_colab.ipynb`](mitra_classifier_colab.ipynb) | Acquire/verify Mitra, bring data, evaluate, optionally fine-tune, infer, and export `mitra-predictor.zip` |
+| [`mitra_classifier_predictor_inference_colab.ipynb`](mitra_classifier_predictor_inference_colab.ipynb) | Reload an exported `mitra-predictor.zip`, validate a new CSV, run inference, and download `predictions.csv` |
+
+### Build/evaluate/export
+
+[![Open build/evaluate/export tutorial in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kurtvalcorza/mitra-classifier-pipeline/blob/main/tutorials/mitra_classifier_colab.ipynb)
 
 `mitra_classifier_colab.ipynb` is a standalone tutorial for the Mitra Classifier checkpoint distributed through the DIMER Model Repository.
 
@@ -21,15 +30,52 @@ The tutorial covers:
 - optional GPU fine-tuning with an explicit requested step count;
 - before/after metric comparison with metric direction and holdout-resolution guidance;
 - inference on new CSV rows; and
-- export of predictions, run metadata, and a reusable AutoGluon predictor.
+- export of predictions, run metadata, and a reusable AutoGluon predictor ZIP.
+
+### Use an exported predictor
+
+[![Open exported-predictor inference tutorial in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kurtvalcorza/mitra-classifier-pipeline/blob/main/tutorials/mitra_classifier_predictor_inference_colab.ipynb)
+
+`mitra_classifier_predictor_inference_colab.ipynb` is intentionally inference-only. It starts from the `mitra-predictor.zip` created by the main tutorial.
+
+The inference tutorial:
+
+- installs `autogluon.tabular[mitra]==1.5.0`;
+- uploads exactly one `mitra-predictor.zip`;
+- computes the uploaded archive's SHA-256 for provenance;
+- rejects path traversal and symlink entries before extraction;
+- locates the saved AutoGluon predictor root via `predictor.pkl`;
+- reads `tutorial_run_metadata.json` when present;
+- reloads the saved predictor with `TabularPredictor.load(...)`;
+- shows model/task/feature/provenance information;
+- uploads one new CSV;
+- validates required feature columns while allowing harmless column reordering and extra columns;
+- runs `predict()` and `predict_proba()`; and
+- writes and downloads `predictions.csv`.
+
+It does **not** reacquire `model.safetensors` or `config.json`, does not call DIMER, and does not train or fine-tune. The whole point of `mitra-predictor.zip` is that it is already the reusable downstream predictor artifact.
+
+The end-user flow is therefore:
+
+```text
+DIMER model.safetensors OR pinned upstream checkpoint
+        ↓
+mitra_classifier_colab.ipynb
+        ↓
+mitra-predictor.zip
+        ↓
+mitra_classifier_predictor_inference_colab.ipynb
+        ↓
+predictions.csv
+```
 
 ## Runtime note
 
 `autogluon.tabular[mitra]==1.5.0` requires a compatible PyTorch range and can replace the PyTorch version preinstalled by Google Colab. In the executed Tesla T4 run used during development, pip replaced PyTorch 2.11.0 with PyTorch 2.9.1. CUDA remained available and the Mitra workflow completed, but unrelated preinstalled packages reported resolver conflicts.
 
-The notebook therefore does **not** claim that PyTorch is left untouched. It prints the installed PyTorch version, CUDA build, and CUDA availability immediately after installation. If PyTorch had already been imported and pip changes the installed version, the notebook requires a session restart before continuing.
+The notebooks therefore do **not** claim that PyTorch is left untouched. They print the installed PyTorch version, CUDA build, and CUDA availability immediately after installation. If PyTorch had already been imported and pip changes the installed version, the notebooks require a session restart before continuing.
 
-For memory safety, the notebook keeps `MAX_MEMORY_USAGE_RATIO=1.10`, the setting that cleared AutoGluon's default training skip in the executed Colab run. AutoGluon may still suggest a larger value in a warning. Values above 1.0 deliberately accept more OOM risk, so the tutorial recommends reducing rows/context or using a higher-memory runtime before increasing the ratio simply to silence the warning.
+For memory safety, the build/evaluate/export notebook keeps `MAX_MEMORY_USAGE_RATIO=1.10`, the setting that cleared AutoGluon's default training skip in the executed Colab run. AutoGluon may still suggest a larger value in a warning. Values above 1.0 deliberately accept more OOM risk, so the tutorial recommends reducing rows/context or using a higher-memory runtime before increasing the ratio simply to silence the warning.
 
 ## Bundled sample dataset
 
@@ -53,7 +99,7 @@ The sample is intended for tutorial and smoke-test use, **not benchmarking**.
 
 The single-CSV upload path uses a stratified random holdout and assumes rows are approximately IID. It should not be used blindly for time-dependent, panel, grouped, lagged, rolling-window, or other leakage-sensitive data.
 
-For those cases, prepare leakage-aware partitions externally and use **Upload pre-split train/val/test**. The notebook preserves those partitions exactly and verifies that validation/test sets cover the classes learned from training.
+For those cases, prepare leakage-aware partitions externally and use **Upload pre-split train/val/test**. The notebook preserves those partitions exactly, reorders validation/test features to the training order when names match, and verifies that evaluation labels are compatible with the classes learned from training.
 
 ## Model context carried into the tutorial
 
@@ -73,15 +119,17 @@ The notebook also mirrors the model-card guidance that matters for end users:
 - Weights SHA-256: `e06a055e91a3baeffc37f9cf634d9e69a27d904b6686131dc3b702f9c0126b19`
 - Config SHA-256: `2c96c24dd25f64e92753f6f2ba00cc7833b9923459403dcd8504e8700c0995df`
 
-The notebook refuses to run a checkpoint whose checksum does not match this release and refuses to continue if Hugging Face resolves outside the staged verified snapshot.
+The build/evaluate/export notebook refuses to run a checkpoint whose checksum does not match this release and refuses to continue if Hugging Face resolves outside the staged verified snapshot.
 
 ## Export provenance
 
 `tutorial_run_metadata.json` records the actual AutoGluon, PyTorch, CUDA-build, and Python versions; checkpoint identity; row counts and row-cap status; requested fine-tuning steps/time limit; selected evaluation metric; memory-guard ratio; and holdout/independent-test metrics. A time limit can truncate the requested fine-tune schedule, so the metadata records that caveat rather than claiming an exact completed step count that AutoGluon does not expose here.
 
+The inference notebook reads this metadata when available and checks its recorded AutoGluon version against the active runtime before loading the predictor.
+
 ## AI use and provenance
 
-This tutorial was developed with substantial AI assistance from **OpenAI ChatGPT** under human direction and review. The maintainer defined the goal, scope, model release, DIMER constraints, and acceptance criteria and remains responsible for repository changes and release decisions.
+These tutorials were developed with substantial AI assistance from **OpenAI ChatGPT** under human direction and review. The maintainer defined the goal, scope, model release, DIMER constraints, and acceptance criteria and remains responsible for repository changes and release decisions.
 
 - Generated with AI assistance by: **OpenAI ChatGPT**
 - Agent Relay role: **Builder**
@@ -89,4 +137,4 @@ This tutorial was developed with substantial AI assistance from **OpenAI ChatGPT
 - Distributed DIMER artifact: `model.safetensors`
 - Model identity: the pinned revision and SHA-256 values above
 
-AI attribution is **provenance, not sign-off**. It does not authenticate authorship, imply endorsement by OpenAI, AWS, AutoGluon, or DIMER, or independently verify correctness. Executed checks and reproducible outputs remain the evidence for a particular run, and users should review the notebook and its results before consequential use.
+AI attribution is **provenance, not sign-off**. It does not authenticate authorship, imply endorsement by OpenAI, AWS, AutoGluon, or DIMER, or independently verify correctness. Executed checks and reproducible outputs remain the evidence for a particular run, and users should review the notebooks and their results before consequential use.
