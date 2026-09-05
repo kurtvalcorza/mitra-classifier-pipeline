@@ -30,11 +30,55 @@ FORBIDDEN = (
 )
 
 
+def require(condition: bool, message: str) -> None:
+    if not condition:
+        raise RuntimeError(message)
+
+
+def code_sources(cells: list[dict]) -> list[tuple[int, str]]:
+    result = []
+    for i, cell in enumerate(cells):
+        if cell.get("cell_type") != "code":
+            continue
+        source = cell.get("source", "")
+        if isinstance(source, list):
+            source = "".join(source)
+        source = "\n".join(
+            line
+            for line in source.splitlines()
+            if not line.lstrip().startswith(("%", "!"))
+        )
+        result.append((i, source))
+    return result
+
+
+def has_memory_guard(code_cells: list[tuple[int, str]]) -> bool:
+    for _, source in code_cells:
+        if not source.strip():
+            continue
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            for keyword in node.keywords:
+                if keyword.arg != "ag_args_fit" or not isinstance(keyword.value, ast.Dict):
+                    continue
+                for key, value in zip(keyword.value.keys, keyword.value.values):
+                    if (
+                        isinstance(key, ast.Constant)
+                        and key.value == "max_memory_usage_ratio"
+                        and isinstance(value, ast.Name)
+                        and value.id == "MAX_MEMORY_USAGE_RATIO"
+                    ):
+                        return True
+    return False
+
+
 def main() -> int:
     payload = json.loads(NOTEBOOK.read_text(encoding="utf-8"))
-    assert payload["nbformat"] == 4
+    require(payload.get("nbformat") == 4, "notebook must use nbformat 4")
     cells = payload.get("cells", [])
-    assert cells, "notebook has no cells"
+    require(bool(cells), "notebook has no cells")
 
     text = "\n".join(
         "".join(cell.get("source", []))
@@ -53,7 +97,7 @@ def main() -> int:
         "RUN_FINE_TUNING = False",
         "RUN_NEW_DATA_INFERENCE = False",
         "MAX_MEMORY_USAGE_RATIO = 1.10",
-        'ag_args_fit={"max_memory_usage_ratio": MAX_MEMORY_USAGE_RATIO}',
+        "NETWORK_TIMEOUT_SECONDS = 30",
         "Sample dataset (FreshRetailNet)",
         "freshretailnet-band-h7.zip",
         "DATASET_CARD.md",
@@ -67,26 +111,23 @@ def main() -> int:
         "Agent Relay role",
         "provenance, not sign-off",
     ):
-        assert required in text, f"missing required tutorial marker: {required}"
+        require(required in text, f"missing required tutorial marker: {required}")
 
     for forbidden in FORBIDDEN:
-        assert forbidden not in text, (
-            f"standalone tutorial leaked forbidden dependency/configuration: {forbidden}"
+        require(
+            forbidden not in text,
+            f"standalone tutorial leaked forbidden dependency/configuration: {forbidden}",
         )
 
-    for i, cell in enumerate(cells):
-        if cell.get("cell_type") != "code":
-            continue
-        source = cell.get("source", "")
-        if isinstance(source, list):
-            source = "".join(source)
-        source = "\n".join(
-            line
-            for line in source.splitlines()
-            if not line.lstrip().startswith(("%", "!"))
-        )
+    parsed_code = code_sources(cells)
+    for i, source in parsed_code:
         if source.strip():
             ast.parse(source, filename=f"{NOTEBOOK.name}:cell-{i}")
+
+    require(
+        has_memory_guard(parsed_code),
+        "tutorial must pass max_memory_usage_ratio through ag_args_fit",
+    )
 
     root_readme = ROOT_README.read_text(encoding="utf-8")
     for required in (
@@ -96,8 +137,9 @@ def main() -> int:
         "OpenAI ChatGPT",
         "Agent Relay",
     ):
-        assert required in root_readme, (
-            f"root README missing tutorial/provenance marker: {required}"
+        require(
+            required in root_readme,
+            f"root README missing tutorial/provenance marker: {required}",
         )
 
     tutorial_readme = TUTORIAL_README.read_text(encoding="utf-8")
@@ -111,8 +153,9 @@ def main() -> int:
         "Agent Relay role",
         "provenance, not sign-off",
     ):
-        assert required in tutorial_readme, (
-            f"tutorial README missing sample/provenance marker: {required}"
+        require(
+            required in tutorial_readme,
+            f"tutorial README missing sample/provenance marker: {required}",
         )
 
     print("Standalone Mitra Colab tutorial: OK")
