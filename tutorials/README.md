@@ -41,3 +41,20 @@ The notebook also mirrors the model-card guidance that matters for end users:
 - Config SHA-256: `2c96c24dd25f64e92753f6f2ba00cc7833b9923459403dcd8504e8700c0995df`
 
 The notebook refuses to run a checkpoint whose checksum does not match this release.
+
+## AI use and provenance
+
+This tutorial was developed with substantial AI assistance from **OpenAI ChatGPT** under human
+direction and review. The maintainer defined the goal, scope, model release, DIMER constraints,
+and acceptance criteria and remains responsible for repository changes and release decisions.
+
+- Generated with AI assistance by: **OpenAI ChatGPT**
+- Agent Relay role: **Builder**
+- Base-model developer: **AutoGluon team, Amazon Web Services (AWS)**
+- Distributed DIMER artifact: `model.safetensors`
+- Model identity: the pinned revision and SHA-256 values above
+
+AI attribution is **provenance, not sign-off**. It does not authenticate authorship, imply
+endorsement by OpenAI, AWS, AutoGluon, or DIMER, or independently verify correctness. Executed
+checks and reproducible outputs remain the evidence for a particular run, and users should review
+the notebook and its results before consequential use.
