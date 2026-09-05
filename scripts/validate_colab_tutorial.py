@@ -376,7 +376,7 @@ def validate_docs() -> None:
         "## Try Mitra yourself in Google Colab",
         "tutorials/mitra_classifier_colab.ipynb",
         "colab.research.google.com",
-        "OpenAI ChatGPT",
+        "GPT-5.6 Sol High",
         "Agent Relay",
     ):
         require(
