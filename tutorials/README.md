@@ -10,18 +10,32 @@ The tutorial covers:
 
 - DIMER ZIP upload or pinned-upstream checkpoint fallback;
 - SHA-256 verification of `model.safetensors` and `config.json`;
+- an explicit post-staging resolver check that refuses to continue unless Hugging Face resolves the verified offline snapshot;
+- reporting the actual AutoGluon, PyTorch, CUDA-build, Python, and GPU runtime state used for the run;
 - a bundled FreshRetailNet sample dataset for users who do not yet have their own CSV;
 - preservation of the sample's provided `train.csv` / `val.csv` / `test.csv` splits;
-- BYOD CSV inspection and stratified holdout splitting;
+- BYOD single-CSV inspection with a stratified random holdout for approximately IID data;
+- a pre-split `train.csv` / `val.csv` / `test.csv` upload path for temporal, grouped, embargoed, or otherwise leakage-sensitive workflows;
+- class-coverage and duplicate-row checks before evaluation;
 - pretrained/in-context Mitra evaluation;
-- optional GPU fine-tuning;
-- before/after metric comparison;
+- optional GPU fine-tuning with an explicit requested step count;
+- before/after metric comparison with metric direction and holdout-resolution guidance;
 - inference on new CSV rows; and
 - export of predictions, run metadata, and a reusable AutoGluon predictor.
+
+## Runtime note
+
+`autogluon.tabular[mitra]==1.5.0` requires a compatible PyTorch range and can replace the PyTorch version preinstalled by Google Colab. In the executed Tesla T4 run used during development, pip replaced PyTorch 2.11.0 with PyTorch 2.9.1. CUDA remained available and the Mitra workflow completed, but unrelated preinstalled packages reported resolver conflicts.
+
+The notebook therefore does **not** claim that PyTorch is left untouched. It prints the installed PyTorch version, CUDA build, and CUDA availability immediately after installation. If PyTorch had already been imported and pip changes the installed version, the notebook requires a session restart before continuing.
+
+For memory safety, the notebook keeps `MAX_MEMORY_USAGE_RATIO=1.10`, the setting that cleared AutoGluon's default training skip in the executed Colab run. AutoGluon may still suggest a larger value in a warning. Values above 1.0 deliberately accept more OOM risk, so the tutorial recommends reducing rows/context or using a higher-memory runtime before increasing the ratio simply to silence the warning.
 
 ## Bundled sample dataset
 
 The default data source is [`freshretailnet-band-h7.zip`](../examples/sample-data/freshretailnet-band-h7.zip), a convenience sample derived from FreshRetailNet-50K and redistributed under **CC BY 4.0**.
+
+Pinned sample revision: `8fc19e80ae3166ec6bf964d194a28c80e6ba3b1f`.
 
 It contains:
 
@@ -34,6 +48,12 @@ It contains:
 Each split has 17 features plus a three-class `target` (`low`, `mid`, `high`) representing the demand band seven days ahead. The notebook preserves the supplied split rather than randomly re-splitting it. See the [sample dataset card](../examples/sample-data/DATASET_CARD.md) for provenance, feature construction, the purged chronological split with embargo, and licence details.
 
 The sample is intended for tutorial and smoke-test use, **not benchmarking**.
+
+## BYOD split guidance
+
+The single-CSV upload path uses a stratified random holdout and assumes rows are approximately IID. It should not be used blindly for time-dependent, panel, grouped, lagged, rolling-window, or other leakage-sensitive data.
+
+For those cases, prepare leakage-aware partitions externally and use **Upload pre-split train/val/test**. The notebook preserves those partitions exactly and verifies that validation/test sets cover the classes learned from training.
 
 ## Model context carried into the tutorial
 
@@ -53,7 +73,11 @@ The notebook also mirrors the model-card guidance that matters for end users:
 - Weights SHA-256: `e06a055e91a3baeffc37f9cf634d9e69a27d904b6686131dc3b702f9c0126b19`
 - Config SHA-256: `2c96c24dd25f64e92753f6f2ba00cc7833b9923459403dcd8504e8700c0995df`
 
-The notebook refuses to run a checkpoint whose checksum does not match this release.
+The notebook refuses to run a checkpoint whose checksum does not match this release and refuses to continue if Hugging Face resolves outside the staged verified snapshot.
+
+## Export provenance
+
+`tutorial_run_metadata.json` records the actual AutoGluon, PyTorch, CUDA-build, and Python versions; checkpoint identity; row counts and row-cap status; requested fine-tuning steps/time limit; selected evaluation metric; memory-guard ratio; and holdout/independent-test metrics. A time limit can truncate the requested fine-tune schedule, so the metadata records that caveat rather than claiming an exact completed step count that AutoGluon does not expose here.
 
 ## AI use and provenance
 
