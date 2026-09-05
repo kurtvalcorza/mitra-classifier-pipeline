@@ -49,14 +49,16 @@ def code_sources(cells: list[dict]) -> list[tuple[int, str]]:
     return result
 
 
-def has_literal_assignment(
+def top_level_literal_assignments_match(
     code_cells: list[tuple[int, str]], name: str, expected: object
 ) -> bool:
+    """Require at least one top-level assignment and reject any override/drift."""
+    found = False
     for _, source in code_cells:
         if not source.strip():
             continue
         tree = ast.parse(source)
-        for node in ast.walk(tree):
+        for node in tree.body:
             targets = []
             value = None
             if isinstance(node, ast.Assign):
@@ -65,13 +67,16 @@ def has_literal_assignment(
             elif isinstance(node, ast.AnnAssign):
                 targets = [node.target]
                 value = node.value
-            if value is None or not isinstance(value, ast.Constant):
+            else:
                 continue
+            if not any(isinstance(target, ast.Name) and target.id == name for target in targets):
+                continue
+            found = True
+            if not isinstance(value, ast.Constant):
+                return False
             if type(value.value) is not type(expected) or value.value != expected:
-                continue
-            if any(isinstance(target, ast.Name) and target.id == name for target in targets):
-                return True
-    return False
+                return False
+    return found
 
 
 def memory_guard_keys(code_cells: list[tuple[int, str]]) -> set[str]:
@@ -184,8 +189,8 @@ def main() -> int:
         ("NETWORK_TIMEOUT_SECONDS", 30),
     ):
         require(
-            has_literal_assignment(parsed_code, name, expected),
-            f"tutorial must assign {name} the literal default {expected!r}",
+            top_level_literal_assignments_match(parsed_code, name, expected),
+            f"every top-level assignment to {name} must be the literal default {expected!r}",
         )
 
     require(
