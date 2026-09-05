@@ -2,6 +2,9 @@
 
 There are now two standalone Colab workflows:
 
+Both inference workflows reject duplicate CSV headers before pandas can rename them.
+Quoted column names and UTF-8 files with a byte-order mark are supported.
+
 | Notebook | Purpose |
 |---|---|
 | [`mitra_classifier_colab.ipynb`](mitra_classifier_colab.ipynb) | Acquire/verify Mitra, bring data, evaluate, optionally fine-tune, infer, and export `mitra-predictor.zip` |
