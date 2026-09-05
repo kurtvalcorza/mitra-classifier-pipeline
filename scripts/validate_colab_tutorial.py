@@ -34,6 +34,23 @@ def require(condition: bool, message: str) -> None:
         raise RuntimeError(message)
 
 
+def code_sources(cells: list[dict]) -> list[tuple[int, str]]:
+    result: list[tuple[int, str]] = []
+    for i, cell in enumerate(cells):
+        if cell.get("cell_type") != "code":
+            continue
+        source = cell.get("source", "")
+        if isinstance(source, list):
+            source = "".join(source)
+        source = "\n".join(
+            line
+            for line in str(source).splitlines()
+            if not line.lstrip().startswith(("%", "!"))
+        )
+        result.append((i, source))
+    return result
+
+
 def load_notebook(path: Path) -> tuple[list[dict], str, list[tuple[int, str]]]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     require(payload.get("nbformat") == 4, f"{path.name} must use nbformat 4")
@@ -45,42 +62,24 @@ def load_notebook(path: Path) -> tuple[list[dict], str, list[tuple[int, str]]]:
         else str(cell.get("source", ""))
         for cell in cells
     )
-    parsed_code = code_sources(cells)
-    for i, source in parsed_code:
+    parsed = code_sources(cells)
+    for i, source in parsed:
         if source.strip():
             ast.parse(source, filename=f"{path.name}:cell-{i}")
-    return cells, text, parsed_code
-
-
-def code_sources(cells: list[dict]) -> list[tuple[int, str]]:
-    result = []
-    for i, cell in enumerate(cells):
-        if cell.get("cell_type") != "code":
-            continue
-        source = cell.get("source", "")
-        if isinstance(source, list):
-            source = "".join(source)
-        source = "\n".join(
-            line
-            for line in source.splitlines()
-            if not line.lstrip().startswith(("%", "!"))
-        )
-        result.append((i, source))
-    return result
+    return cells, text, parsed
 
 
 def top_level_literal_assignments_match(
     code_cells: list[tuple[int, str]], name: str, expected: object
 ) -> bool:
-    """Require at least one top-level assignment and reject any override/drift."""
     found = False
     for _, source in code_cells:
         if not source.strip():
             continue
         tree = ast.parse(source)
         for node in tree.body:
-            targets = []
-            value = None
+            targets: list[ast.expr] = []
+            value: ast.expr | None = None
             if isinstance(node, ast.Assign):
                 targets = node.targets
                 value = node.value
@@ -89,7 +88,7 @@ def top_level_literal_assignments_match(
                 value = node.value
             else:
                 continue
-            if not any(isinstance(target, ast.Name) and target.id == name for target in targets):
+            if not any(isinstance(t, ast.Name) and t.id == name for t in targets):
                 continue
             found = True
             if not isinstance(value, ast.Constant):
@@ -99,52 +98,7 @@ def top_level_literal_assignments_match(
     return found
 
 
-def memory_guard_keys(code_cells: list[tuple[int, str]]) -> set[str]:
-    keys: set[str] = set()
-    for _, source in code_cells:
-        if not source.strip():
-            continue
-        tree = ast.parse(source)
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            if not isinstance(node.func, ast.Attribute) or node.func.attr != "fit":
-                continue
-            for keyword in node.keywords:
-                if keyword.arg != "ag_args_fit" or not isinstance(keyword.value, ast.Dict):
-                    continue
-                for key in keyword.value.keys:
-                    if isinstance(key, ast.Constant) and isinstance(key.value, str):
-                        keys.add(key.value)
-    return keys
-
-
-def has_memory_guard(code_cells: list[tuple[int, str]]) -> bool:
-    for _, source in code_cells:
-        if not source.strip():
-            continue
-        tree = ast.parse(source)
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            if not isinstance(node.func, ast.Attribute) or node.func.attr != "fit":
-                continue
-            for keyword in node.keywords:
-                if keyword.arg != "ag_args_fit" or not isinstance(keyword.value, ast.Dict):
-                    continue
-                for key, value in zip(keyword.value.keys, keyword.value.values):
-                    if (
-                        isinstance(key, ast.Constant)
-                        and key.value == "max_memory_usage_ratio"
-                        and isinstance(value, ast.Name)
-                        and value.id == "MAX_MEMORY_USAGE_RATIO"
-                    ):
-                        return True
-    return False
-
-
 def repo_internal_imports(code_cells: list[tuple[int, str]]) -> set[str]:
-    """Return imports that couple a standalone notebook to repo worker modules."""
     found: set[str] = set()
     for _, source in code_cells:
         if not source.strip():
@@ -162,13 +116,58 @@ def repo_internal_imports(code_cells: list[tuple[int, str]]) -> set[str]:
     return found
 
 
+def memory_guard_keys(code_cells: list[tuple[int, str]]) -> set[str]:
+    keys: set[str] = set()
+    for _, source in code_cells:
+        if not source.strip():
+            continue
+        for node in ast.walk(ast.parse(source)):
+            if not (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "fit"
+            ):
+                continue
+            for keyword in node.keywords:
+                if keyword.arg != "ag_args_fit" or not isinstance(keyword.value, ast.Dict):
+                    continue
+                for key in keyword.value.keys:
+                    if isinstance(key, ast.Constant) and isinstance(key.value, str):
+                        keys.add(key.value)
+    return keys
+
+
+def has_memory_guard(code_cells: list[tuple[int, str]]) -> bool:
+    for _, source in code_cells:
+        if not source.strip():
+            continue
+        for node in ast.walk(ast.parse(source)):
+            if not (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "fit"
+            ):
+                continue
+            for keyword in node.keywords:
+                if keyword.arg != "ag_args_fit" or not isinstance(keyword.value, ast.Dict):
+                    continue
+                for key, value in zip(keyword.value.keys, keyword.value.values):
+                    if (
+                        isinstance(key, ast.Constant)
+                        and key.value == "max_memory_usage_ratio"
+                        and isinstance(value, ast.Name)
+                        and value.id == "MAX_MEMORY_USAGE_RATIO"
+                    ):
+                        return True
+    return False
+
+
 def call_attributes(code_cells: list[tuple[int, str]]) -> set[str]:
     attrs: set[str] = set()
     for _, source in code_cells:
         if not source.strip():
             continue
-        tree = ast.parse(source)
-        for node in ast.walk(tree):
+        for node in ast.walk(ast.parse(source)):
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
                 attrs.add(node.func.attr)
     return attrs
@@ -178,8 +177,7 @@ def direct_tabular_predictor_construction(code_cells: list[tuple[int, str]]) -> 
     for _, source in code_cells:
         if not source.strip():
             continue
-        tree = ast.parse(source)
-        for node in ast.walk(tree):
+        for node in ast.walk(ast.parse(source)):
             if (
                 isinstance(node, ast.Call)
                 and isinstance(node.func, ast.Name)
@@ -190,7 +188,6 @@ def direct_tabular_predictor_construction(code_cells: list[tuple[int, str]]) -> 
 
 
 def has_current_fit_completion_gate(code_cells: list[tuple[int, str]]) -> bool:
-    """Require Step 4 to invalidate stale state before fitting and mark success after it."""
     for _, source in code_cells:
         if not source.strip():
             continue
@@ -200,21 +197,18 @@ def has_current_fit_completion_gate(code_cells: list[tuple[int, str]]) -> bool:
         true_positions: list[int] = []
         for position, node in enumerate(tree.body):
             if isinstance(node, ast.Assign):
-                names = [
-                    target.id
-                    for target in node.targets
-                    if isinstance(target, ast.Name)
-                ]
+                names = [t.id for t in node.targets if isinstance(t, ast.Name)]
                 if "FIT_RUN_COMPLETED" in names and isinstance(node.value, ast.Constant):
                     if node.value.value is False:
                         false_positions.append(position)
                     elif node.value.value is True:
                         true_positions.append(position)
-
-                if isinstance(node.value, ast.Call):
-                    call = node.value
-                    if isinstance(call.func, ast.Name) and call.func.id == "fit_mitra":
-                        fit_positions.append(position)
+                if (
+                    isinstance(node.value, ast.Call)
+                    and isinstance(node.value.func, ast.Name)
+                    and node.value.func.id == "fit_mitra"
+                ):
+                    fit_positions.append(position)
         if (
             false_positions
             and fit_positions
@@ -222,6 +216,49 @@ def has_current_fit_completion_gate(code_cells: list[tuple[int, str]]) -> bool:
             and min(false_positions) < min(fit_positions) < max(true_positions)
         ):
             return True
+    return False
+
+
+def predict_proba_calls_are_multiclass(
+    code_cells: list[tuple[int, str]], minimum_calls: int
+) -> bool:
+    calls = 0
+    for _, source in code_cells:
+        if not source.strip():
+            continue
+        for node in ast.walk(ast.parse(source)):
+            if not (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "predict_proba"
+            ):
+                continue
+            calls += 1
+            keyword = next((k for k in node.keywords if k.arg == "as_multiclass"), None)
+            if not (
+                keyword
+                and isinstance(keyword.value, ast.Constant)
+                and keyword.value.value is True
+            ):
+                return False
+    return calls >= minimum_calls
+
+
+def inference_step_is_self_contained(code_cells: list[tuple[int, str]]) -> bool:
+    for _, source in code_cells:
+        if "RUN_NEW_DATA_INFERENCE" not in source:
+            continue
+        tree = ast.parse(source)
+        imported_io = False
+        imported_pandas_as_pd = False
+        for node in tree.body:
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == "io":
+                        imported_io = True
+                    if alias.name == "pandas" and alias.asname == "pd":
+                        imported_pandas_as_pd = True
+        return imported_io and imported_pandas_as_pd
     return False
 
 
@@ -249,6 +286,10 @@ def validate_training_tutorial() -> None:
         "contains unseen target classes",
         "train_feature_set",
         "reindex(columns=ordered_columns)",
+        "require_min_training_class_count",
+        "Capped training split",
+        "Inference CSV contains duplicate column names",
+        "as_multiclass=True",
         "torch_version",
         "fine_tune_steps_requested",
         "one-row accuracy resolution",
@@ -280,10 +321,10 @@ def validate_training_tutorial() -> None:
         re.search(r"\bDIMER_[A-Z0-9_]+\b", code_text) is None,
         "standalone tutorial must not depend on DIMER_* runtime variables",
     )
-    internal_imports = repo_internal_imports(parsed_code)
+    imports = repo_internal_imports(parsed_code)
     require(
-        not internal_imports,
-        f"standalone tutorial must not import repo-internal worker modules: {sorted(internal_imports)}",
+        not imports,
+        f"standalone tutorial must not import repo-internal worker modules: {sorted(imports)}",
     )
 
     for name, expected in (
@@ -298,13 +339,10 @@ def validate_training_tutorial() -> None:
             f"every top-level assignment to {name} must be the literal default {expected!r}",
         )
 
-    require(
-        has_memory_guard(parsed_code),
-        "tutorial must pass max_memory_usage_ratio through a .fit(...) ag_args_fit keyword",
-    )
+    require(has_memory_guard(parsed_code), "tutorial must pass max_memory_usage_ratio through .fit(...)")
     require(
         "ag.max_memory_usage_ratio" not in memory_guard_keys(parsed_code),
-        "tutorial must not pass the prefixed ag.max_memory_usage_ratio key to .fit(...)",
+        "tutorial must not use the prefixed ag.max_memory_usage_ratio key",
     )
     require(
         has_current_fit_completion_gate(parsed_code),
@@ -313,6 +351,18 @@ def validate_training_tutorial() -> None:
     require(
         text.count("globals().get('FIT_RUN_COMPLETED', False)") >= 2,
         "inference and export must both gate on the current Step 4 completion flag",
+    )
+    require(
+        text.count("require_min_training_class_count(train_data") >= 2,
+        "training class counts must be checked before and after the optional 10k cap",
+    )
+    require(
+        predict_proba_calls_are_multiclass(parsed_code, minimum_calls=3),
+        "every training-tutorial predict_proba call must request as_multiclass=True",
+    )
+    require(
+        inference_step_is_self_contained(parsed_code),
+        "Step 5 inference must import io and pandas locally",
     )
 
 
@@ -328,7 +378,9 @@ def validate_inference_tutorial() -> None:
         "stat.S_IFLNK",
         "TabularPredictor.load",
         "FEATURE_COLUMNS",
+        "Inference CSV contains duplicate column names",
         "predict_proba",
+        "as_multiclass=True",
         "predictions.csv",
         "## AI use and provenance",
         "GPT-5.6 Sol High",
@@ -354,16 +406,20 @@ def validate_inference_tutorial() -> None:
             f"inference tutorial must not reacquire/train base model artifacts: {forbidden_code}",
         )
 
-    internal_imports = repo_internal_imports(parsed_code)
+    imports = repo_internal_imports(parsed_code)
     require(
-        not internal_imports,
-        f"inference tutorial must not import repo-internal worker modules: {sorted(internal_imports)}",
+        not imports,
+        f"inference tutorial must not import repo-internal worker modules: {sorted(imports)}",
     )
     attrs = call_attributes(parsed_code)
     require("fit" not in attrs, "inference tutorial must not call .fit(...)")
     require("load" in attrs, "inference tutorial must load an exported predictor")
     require("predict" in attrs, "inference tutorial must call predict(...)")
     require("predict_proba" in attrs, "inference tutorial must call predict_proba(...)")
+    require(
+        predict_proba_calls_are_multiclass(parsed_code, minimum_calls=1),
+        "inference tutorial predict_proba must request as_multiclass=True",
+    )
     require(
         not direct_tabular_predictor_construction(parsed_code),
         "inference tutorial must reload an exported predictor, not construct a new TabularPredictor",
@@ -379,10 +435,7 @@ def validate_docs() -> None:
         "GPT-5.6 Sol High",
         "Agent Relay",
     ):
-        require(
-            required in root_readme,
-            f"root README missing tutorial/provenance marker: {required}",
-        )
+        require(required in root_readme, f"root README missing tutorial/provenance marker: {required}")
 
     tutorial_readme = TUTORIAL_README.read_text(encoding="utf-8")
     for required in (
@@ -402,10 +455,7 @@ def validate_docs() -> None:
         "Agent Relay role",
         "provenance, not sign-off",
     ):
-        require(
-            required in tutorial_readme,
-            f"tutorial README missing sample/model/inference/provenance marker: {required}",
-        )
+        require(required in tutorial_readme, f"tutorial README missing marker: {required}")
 
 
 def main() -> int:
