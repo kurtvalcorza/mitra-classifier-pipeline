@@ -2,25 +2,38 @@
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kurtvalcorza/mitra-classifier-pipeline/blob/main/tutorials/mitra_classifier_colab.ipynb)
 
-`mitra_classifier_colab.ipynb` is a standalone, bring-your-own-data tutorial for the Mitra
-Classifier checkpoint distributed through the DIMER Model Repository.
+`mitra_classifier_colab.ipynb` is a standalone tutorial for the Mitra Classifier checkpoint distributed through the DIMER Model Repository.
 
-It does **not** depend on DIMER Workbench, DIMER APIs, or the DIMER validator/fine-tuner workers.
-Users can download the model weights from DIMER and run the notebook independently in Google
-Colab. If the DIMER download is unavailable, the notebook can retrieve the exact pinned upstream
-checkpoint associated with the DIMER release.
+It does **not** depend on DIMER Workbench, DIMER APIs, or the DIMER validator/fine-tuner workers. Users can download the model weights from DIMER and run the notebook independently in Google Colab. If the DIMER download is unavailable, the notebook can retrieve the exact pinned upstream checkpoint associated with the DIMER release.
 
 The tutorial covers:
 
 - DIMER ZIP upload or pinned-upstream checkpoint fallback;
 - SHA-256 verification of `model.safetensors` and `config.json`;
-- CSV dataset inspection and compatibility checks;
-- stratified train/holdout splitting;
+- a bundled FreshRetailNet sample dataset for users who do not yet have their own CSV;
+- preservation of the sample's provided `train.csv` / `val.csv` / `test.csv` splits;
+- BYOD CSV inspection and stratified holdout splitting;
 - pretrained/in-context Mitra evaluation;
 - optional GPU fine-tuning;
 - before/after metric comparison;
 - inference on new CSV rows; and
 - export of predictions, run metadata, and a reusable AutoGluon predictor.
+
+## Bundled sample dataset
+
+The default data source is [`freshretailnet-band-h7.zip`](../examples/sample-data/freshretailnet-band-h7.zip), a convenience sample derived from FreshRetailNet-50K and redistributed under **CC BY 4.0**.
+
+It contains:
+
+| split | rows |
+|---|---:|
+| `train.csv` | 4,180 |
+| `val.csv` | 1,600 |
+| `test.csv` | 1,600 |
+
+Each split has 17 features plus a three-class `target` (`low`, `mid`, `high`) representing the demand band seven days ahead. The notebook preserves the supplied split rather than randomly re-splitting it. See the [sample dataset card](../examples/sample-data/DATASET_CARD.md) for provenance, feature construction, the purged chronological split with embargo, and licence details.
+
+The sample is intended for tutorial and smoke-test use, **not benchmarking**.
 
 ## Model context carried into the tutorial
 
@@ -44,9 +57,7 @@ The notebook refuses to run a checkpoint whose checksum does not match this rele
 
 ## AI use and provenance
 
-This tutorial was developed with substantial AI assistance from **OpenAI ChatGPT** under human
-direction and review. The maintainer defined the goal, scope, model release, DIMER constraints,
-and acceptance criteria and remains responsible for repository changes and release decisions.
+This tutorial was developed with substantial AI assistance from **OpenAI ChatGPT** under human direction and review. The maintainer defined the goal, scope, model release, DIMER constraints, and acceptance criteria and remains responsible for repository changes and release decisions.
 
 - Generated with AI assistance by: **OpenAI ChatGPT**
 - Agent Relay role: **Builder**
@@ -54,7 +65,4 @@ and acceptance criteria and remains responsible for repository changes and relea
 - Distributed DIMER artifact: `model.safetensors`
 - Model identity: the pinned revision and SHA-256 values above
 
-AI attribution is **provenance, not sign-off**. It does not authenticate authorship, imply
-endorsement by OpenAI, AWS, AutoGluon, or DIMER, or independently verify correctness. Executed
-checks and reproducible outputs remain the evidence for a particular run, and users should review
-the notebook and its results before consequential use.
+AI attribution is **provenance, not sign-off**. It does not authenticate authorship, imply endorsement by OpenAI, AWS, AutoGluon, or DIMER, or independently verify correctness. Executed checks and reproducible outputs remain the evidence for a particular run, and users should review the notebook and its results before consequential use.
