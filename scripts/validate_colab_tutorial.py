@@ -25,6 +25,8 @@ FORBIDDEN = (
     "DIMER_HYPERPARAMETERS_JSON",
     "DIMER_PREPROCESSING_ARGS_JSON",
     '"ag.max_memory_usage_ratio"',
+    "load_breast_cancer",
+    "Built-in demo",
 )
 
 
@@ -48,10 +50,18 @@ def main() -> int:
         "autogluon.tabular[mitra]==1.5.0",
         "DIMER ZIP",
         "Pinned upstream",
-        "RUN_FINE_TUNING",
-        "RUN_NEW_DATA_INFERENCE",
+        "RUN_FINE_TUNING = False",
+        "RUN_NEW_DATA_INFERENCE = False",
         "MAX_MEMORY_USAGE_RATIO = 1.10",
         'ag_args_fit={"max_memory_usage_ratio": MAX_MEMORY_USAGE_RATIO}',
+        "Sample dataset (FreshRetailNet)",
+        "freshretailnet-band-h7.zip",
+        "DATASET_CARD.md",
+        "train.csv",
+        "val.csv",
+        "test.csv",
+        "sample_test_data",
+        "CC BY 4.0",
         "## AI use and provenance",
         "OpenAI ChatGPT",
         "Agent Relay role",
@@ -92,13 +102,17 @@ def main() -> int:
 
     tutorial_readme = TUTORIAL_README.read_text(encoding="utf-8")
     for required in (
+        "freshretailnet-band-h7.zip",
+        "DATASET_CARD.md",
+        "purged chronological split",
+        "CC BY 4.0",
         "## AI use and provenance",
         "OpenAI ChatGPT",
         "Agent Relay role",
         "provenance, not sign-off",
     ):
         assert required in tutorial_readme, (
-            f"tutorial README missing provenance marker: {required}"
+            f"tutorial README missing sample/provenance marker: {required}"
         )
 
     print("Standalone Mitra Colab tutorial: OK")
