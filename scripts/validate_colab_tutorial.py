@@ -189,6 +189,42 @@ def direct_tabular_predictor_construction(code_cells: list[tuple[int, str]]) -> 
     return False
 
 
+def has_current_fit_completion_gate(code_cells: list[tuple[int, str]]) -> bool:
+    """Require Step 4 to invalidate stale state before fitting and mark success after it."""
+    for _, source in code_cells:
+        if not source.strip():
+            continue
+        tree = ast.parse(source)
+        false_positions: list[int] = []
+        fit_positions: list[int] = []
+        true_positions: list[int] = []
+        for position, node in enumerate(tree.body):
+            if isinstance(node, ast.Assign):
+                names = [
+                    target.id
+                    for target in node.targets
+                    if isinstance(target, ast.Name)
+                ]
+                if "FIT_RUN_COMPLETED" in names and isinstance(node.value, ast.Constant):
+                    if node.value.value is False:
+                        false_positions.append(position)
+                    elif node.value.value is True:
+                        true_positions.append(position)
+
+                if isinstance(node.value, ast.Call):
+                    call = node.value
+                    if isinstance(call.func, ast.Name) and call.func.id == "fit_mitra":
+                        fit_positions.append(position)
+        if (
+            false_positions
+            and fit_positions
+            and true_positions
+            and min(false_positions) < min(fit_positions) < max(true_positions)
+        ):
+            return True
+    return False
+
+
 def validate_training_tutorial() -> None:
     _, text, parsed_code = load_notebook(NOTEBOOK)
 
@@ -216,6 +252,15 @@ def validate_training_tutorial() -> None:
         "torch_version",
         "fine_tune_steps_requested",
         "one-row accuracy resolution",
+        "FIT_RUN_COMPLETED",
+        "Cleared stale predictor state and output paths before fitting.",
+        "No predictor was successfully trained in this Step 4 execution.",
+        "shutil.rmtree",
+        "gc.collect",
+        "torch.cuda.empty_cache",
+        "## 7. Reload smoke test",
+        "TabularPredictor.load(str(RELOAD_DIR))",
+        "np.allclose",
         "CC BY 4.0",
         "## AI use and provenance",
         "OpenAI ChatGPT",
@@ -260,6 +305,14 @@ def validate_training_tutorial() -> None:
     require(
         "ag.max_memory_usage_ratio" not in memory_guard_keys(parsed_code),
         "tutorial must not pass the prefixed ag.max_memory_usage_ratio key to .fit(...)",
+    )
+    require(
+        has_current_fit_completion_gate(parsed_code),
+        "tutorial must invalidate FIT_RUN_COMPLETED before fitting and set it true only after a current fit completes",
+    )
+    require(
+        text.count("globals().get('FIT_RUN_COMPLETED', False)") >= 2,
+        "inference and export must both gate on the current Step 4 completion flag",
     )
 
 
