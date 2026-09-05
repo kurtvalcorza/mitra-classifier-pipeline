@@ -335,10 +335,9 @@ The model, data, code, and runtime are independently pinned or recorded.
 
 ### AI use and provenance
 
-The implementation and documentation were produced with AI assistance under human direction
-and review. **OpenAI ChatGPT** was used for repository analysis, implementation, review, and
-documentation support through Agent Relay. Human maintainers remain responsible for repository
-changes, release decisions, and on-platform validation.
+The implementation and documentation were produced with AI assistance using **GPT-5.6 Sol High**
+under human direction and review, through **OpenAI / ChatGPT** and Agent Relay. Human maintainers
+remain responsible for repository changes, release decisions, and on-platform validation.
 
 Automated and executable checks cover the repository-level contract: validator behavior,
 finetuner behavior, shared-block parity, base-model mismatch handling, CPU zero-shot operation,
