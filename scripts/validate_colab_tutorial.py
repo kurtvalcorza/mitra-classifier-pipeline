@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static checks for the standalone Mitra Colab tutorial."""
+"""Static checks for the standalone Mitra Colab tutorials."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 NOTEBOOK = ROOT / "tutorials" / "mitra_classifier_colab.ipynb"
+INFERENCE_NOTEBOOK = ROOT / "tutorials" / "mitra_classifier_predictor_inference_colab.ipynb"
 ROOT_README = ROOT / "README.md"
 TUTORIAL_README = ROOT / "tutorials" / "README.md"
 
@@ -31,6 +32,24 @@ REPO_INTERNAL_IMPORT_PARTS = {"finetuner", "validator"}
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise RuntimeError(message)
+
+
+def load_notebook(path: Path) -> tuple[list[dict], str, list[tuple[int, str]]]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    require(payload.get("nbformat") == 4, f"{path.name} must use nbformat 4")
+    cells = payload.get("cells", [])
+    require(bool(cells), f"{path.name} has no cells")
+    text = "\n".join(
+        "".join(cell.get("source", []))
+        if isinstance(cell.get("source", []), list)
+        else str(cell.get("source", ""))
+        for cell in cells
+    )
+    parsed_code = code_sources(cells)
+    for i, source in parsed_code:
+        if source.strip():
+            ast.parse(source, filename=f"{path.name}:cell-{i}")
+    return cells, text, parsed_code
 
 
 def code_sources(cells: list[dict]) -> list[tuple[int, str]]:
@@ -125,7 +144,7 @@ def has_memory_guard(code_cells: list[tuple[int, str]]) -> bool:
 
 
 def repo_internal_imports(code_cells: list[tuple[int, str]]) -> set[str]:
-    """Return imports that couple the standalone notebook to repo worker modules."""
+    """Return imports that couple a standalone notebook to repo worker modules."""
     found: set[str] = set()
     for _, source in code_cells:
         if not source.strip():
@@ -143,18 +162,35 @@ def repo_internal_imports(code_cells: list[tuple[int, str]]) -> set[str]:
     return found
 
 
-def main() -> int:
-    payload = json.loads(NOTEBOOK.read_text(encoding="utf-8"))
-    require(payload.get("nbformat") == 4, "notebook must use nbformat 4")
-    cells = payload.get("cells", [])
-    require(bool(cells), "notebook has no cells")
+def call_attributes(code_cells: list[tuple[int, str]]) -> set[str]:
+    attrs: set[str] = set()
+    for _, source in code_cells:
+        if not source.strip():
+            continue
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                attrs.add(node.func.attr)
+    return attrs
 
-    text = "\n".join(
-        "".join(cell.get("source", []))
-        if isinstance(cell.get("source", []), list)
-        else str(cell.get("source", ""))
-        for cell in cells
-    )
+
+def direct_tabular_predictor_construction(code_cells: list[tuple[int, str]]) -> bool:
+    for _, source in code_cells:
+        if not source.strip():
+            continue
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "TabularPredictor"
+            ):
+                return True
+    return False
+
+
+def validate_training_tutorial() -> None:
+    _, text, parsed_code = load_notebook(NOTEBOOK)
 
     for required in (
         PINNED_REVISION,
@@ -194,11 +230,6 @@ def main() -> int:
             f"standalone tutorial leaked forbidden dependency/configuration: {forbidden}",
         )
 
-    parsed_code = code_sources(cells)
-    for i, source in parsed_code:
-        if source.strip():
-            ast.parse(source, filename=f"{NOTEBOOK.name}:cell-{i}")
-
     code_text = "\n".join(source for _, source in parsed_code)
     require(
         re.search(r"\bDIMER_[A-Z0-9_]+\b", code_text) is None,
@@ -231,6 +262,62 @@ def main() -> int:
         "tutorial must not pass the prefixed ag.max_memory_usage_ratio key to .fit(...)",
     )
 
+
+def validate_inference_tutorial() -> None:
+    _, text, parsed_code = load_notebook(INFERENCE_NOTEBOOK)
+
+    for required in (
+        "autogluon.tabular[mitra]==1.5.0",
+        "mitra-predictor.zip",
+        "predictor.pkl",
+        "tutorial_run_metadata.json",
+        "safe_extract_zip",
+        "stat.S_IFLNK",
+        "TabularPredictor.load",
+        "FEATURE_COLUMNS",
+        "predict_proba",
+        "predictions.csv",
+        "## AI use and provenance",
+        "OpenAI ChatGPT",
+        "Agent Relay role",
+        "provenance, not sign-off",
+    ):
+        require(required in text, f"inference tutorial missing required marker: {required}")
+
+    code_text = "\n".join(source for _, source in parsed_code)
+    require(
+        re.search(r"\bDIMER_[A-Z0-9_]+\b", code_text) is None,
+        "inference tutorial must not depend on DIMER_* runtime variables",
+    )
+    for forbidden_code in (
+        "model.safetensors",
+        "config.json",
+        "hf_hub_download",
+        "huggingface_hub",
+        "fine_tune_steps",
+    ):
+        require(
+            forbidden_code not in code_text,
+            f"inference tutorial must not reacquire/train base model artifacts: {forbidden_code}",
+        )
+
+    internal_imports = repo_internal_imports(parsed_code)
+    require(
+        not internal_imports,
+        f"inference tutorial must not import repo-internal worker modules: {sorted(internal_imports)}",
+    )
+    attrs = call_attributes(parsed_code)
+    require("fit" not in attrs, "inference tutorial must not call .fit(...)")
+    require("load" in attrs, "inference tutorial must load an exported predictor")
+    require("predict" in attrs, "inference tutorial must call predict(...)")
+    require("predict_proba" in attrs, "inference tutorial must call predict_proba(...)")
+    require(
+        not direct_tabular_predictor_construction(parsed_code),
+        "inference tutorial must reload an exported predictor, not construct a new TabularPredictor",
+    )
+
+
+def validate_docs() -> None:
     root_readme = ROOT_README.read_text(encoding="utf-8")
     for required in (
         "## Try Mitra yourself in Google Colab",
@@ -253,6 +340,10 @@ def main() -> int:
         "DATASET_CARD.md",
         "purged chronological split",
         "CC BY 4.0",
+        "mitra_classifier_predictor_inference_colab.ipynb",
+        "mitra-predictor.zip",
+        "TabularPredictor.load",
+        "predictions.csv",
         "## AI use and provenance",
         "OpenAI ChatGPT",
         "Agent Relay role",
@@ -260,10 +351,15 @@ def main() -> int:
     ):
         require(
             required in tutorial_readme,
-            f"tutorial README missing sample/model/provenance marker: {required}",
+            f"tutorial README missing sample/model/inference/provenance marker: {required}",
         )
 
-    print("Standalone Mitra Colab tutorial: OK")
+
+def main() -> int:
+    validate_training_tutorial()
+    validate_inference_tutorial()
+    validate_docs()
+    print("Standalone Mitra Colab tutorials: OK")
     return 0
 
 
