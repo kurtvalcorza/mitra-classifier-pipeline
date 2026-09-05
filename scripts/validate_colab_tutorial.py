@@ -15,6 +15,7 @@ TUTORIAL_README = ROOT / "tutorials" / "README.md"
 PINNED_REVISION = "c425e9fa0910a6be1c494321792e7ba2a1367b1a"
 WEIGHTS_SHA256 = "e06a055e91a3baeffc37f9cf634d9e69a27d904b6686131dc3b702f9c0126b19"
 CONFIG_SHA256 = "2c96c24dd25f64e92753f6f2ba00cc7833b9923459403dcd8504e8700c0995df"
+SAMPLE_REVISION = "8fc19e80ae3166ec6bf964d194a28c80e6ba3b1f"
 
 FORBIDDEN = (
     "mitra-classifier-finetuner",
@@ -27,6 +28,7 @@ FORBIDDEN = (
     "ag.max_memory_usage_ratio",
     "load_breast_cancer",
     "Built-in demo",
+    "mitra-classifier-pipeline/main/examples/sample-data/freshretailnet-band-h7.zip",
 )
 
 
@@ -60,6 +62,8 @@ def has_memory_guard(code_cells: list[tuple[int, str]]) -> bool:
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
+            if not isinstance(node.func, ast.Attribute) or node.func.attr != "fit":
+                continue
             for keyword in node.keywords:
                 if keyword.arg != "ag_args_fit" or not isinstance(keyword.value, ast.Dict):
                     continue
@@ -91,6 +95,7 @@ def main() -> int:
         PINNED_REVISION,
         WEIGHTS_SHA256,
         CONFIG_SHA256,
+        SAMPLE_REVISION,
         "autogluon.tabular[mitra]==1.5.0",
         "DIMER ZIP",
         "Pinned upstream",
@@ -126,7 +131,7 @@ def main() -> int:
 
     require(
         has_memory_guard(parsed_code),
-        "tutorial must pass max_memory_usage_ratio through ag_args_fit",
+        "tutorial must pass max_memory_usage_ratio through a .fit(...) ag_args_fit keyword",
     )
 
     root_readme = ROOT_README.read_text(encoding="utf-8")
