@@ -307,20 +307,115 @@ describing the run:
   "artifacts": {
     "modelArtifact":    { "path": "fine-tuning/<run_id>/artifacts/best.pt",     "name": "best.pt",          "contentType": "application/octet-stream", "sizeBytes": 0 },
     "evaluationReport": { "path": "fine-tuning/<run_id>/evaluation/report.json", "name": "report.json",      "contentType": "application/json",         "sizeBytes": 0 },
-    "logArtifact":      { "path": "fine-tuning/<run_id>/logs/run-summary.json",   "name": "run-summary.json",  "contentType": "application/json",         "sizeBytes": 0 },
-    "progressArtifact": { "path": "fine-tuning/<run_id>/progress/epoch_0001.json", "name": "epoch_0001.json",  "contentType": "application/json",         "sizeBytes": 0 }
-  }
+    "logArtifact":      { "path": "fine-tuning/<run_id>/logs/run-summary.json",  "name": "run-summary.json", "contentType": "application/json",         "sizeBytes": 0 }
+  },
+  "provenance": {
+    "baseModel": "autogluon/mitra-classifier",
+    "baseModelRevision": "c425e9fa0910a6be1c494321792e7ba2a1367b1a",
+    "baseModelRevisionExpected": "c425e9fa0910a6be1c494321792e7ba2a1367b1a",
+    "weightsSha256": "e06a055e…", "expectedSha256": "e06a055e…",
+    "source": "huggingface", "enforced": true,
+    "dataset": { "file": "dataset.zip", "sha256": "…" },
+    "autogluonVersion": "1.5.0"
+  },
+  "metadata": { "baseModel": "autogluon/mitra-classifier", "targetColumn": "target", "seed": 0 }
 }
 ```
 
-### AI-assisted development disclosure
+The headline score is the metric named in `eval_metric` (here `accuracy`); `valEvaluation` and
+`test.evaluation` carry the full metric set AutoGluon reports. When the dataset zip includes a
+`test.csv`, it is scored after fitting and its metrics appear under `test`. Numbers above are
+illustrative; see the model card for measured smoke-test values.
 
-The validator, fine-tuner, configuration, tests, and documentation were drafted with Anthropic
-Claude Opus 4.8 through Claude Code under human direction and review. The standalone Colab
-tutorial and related tutorial documentation were subsequently developed with **GPT-5.6 Sol High**
-using Agent Relay in the **Builder** role, again under human direction and review. AI attribution
-here is provenance only: it does not imply endorsement, establish authorship, or replace human
-review and executed validation.
+The top-level `artifacts` block names the three files DIMER exports (`modelArtifact`,
+`evaluationReport`, `logArtifact`), each `{path, name, contentType, sizeBytes}` with `path`
+relative to the `/data` mount; `metadata` (abridged above) also carries the session/run ids, the
+selected model, the resolved device, and the eval settings.
+
+The exported model artifact is `artifacts/best.pt` — a zip of the AutoGluon `TabularPredictor`
+directory (the name DIMER's exporter greps), since Mitra has no single weight file. The raw
+predictor directory is left in place under `mitra_predictor/`; unzipped, it reloads with
+`TabularPredictor.load(path)` and predicts on new rows with matching columns. Reload-and-serve
+was verified in a process separate from training.
+
+---
+
+## Reproducibility
+
+Mitra's fine-tuning is stochastic: two runs on identical data can differ unless the seed is
+fixed. `seed` is a first-class hyperparameter, and every RNG the fit touches is seeded from it.
+GPU kernel autotuning can still leave small residual variation, so runs are reproducible in
+ranking but not guaranteed byte-identical. For byte-stable artifacts, also pin the model
+weights into the image — see the fine-tuner `Dockerfile`.
+
+---
+
+## Resource profile
+
+Each fine-tuning run executes as a Kubernetes job under a GPU profile. The platform's default
+profile is 1 GPU and 8Gi memory. Request a larger profile from a platform administrator when
+you create the pipeline. The default is a starting point, not a ceiling; the HPC deployment
+has capacity well beyond it.
+
+Mitra holds the training table in memory as in-context context, so its footprint grows with
+the number of rows and features. A run on ~4,200 rows and 17 features used about 10 GB, already
+above the 8Gi default. AutoGluon also declines to train a model whose projected footprint
+exceeds roughly 90% of available memory, so the requested memory must clear the footprint with
+headroom rather than match it.
+
+Minimum profile to request:
+
+| Resource | Minimum | Notes |
+|---|---|---|
+| GPU | 1 | Mitra runs on a single GPU |
+| Memory | 12 Gi | Clears the measured ~8.7 GB with headroom for AutoGluon's memory guard |
+
+Raise memory toward 16 Gi for datasets near the 10,000-row ceiling or with many feature
+columns. If you request less, the memory guard can skip the fit. The pipeline reports that as
+a failed run, never as a silent success.
+
+### Container images
+
+The fine-tuner provides two images. Both run the same `train.py`, which detects the GPU at
+runtime and selects fine-tune (GPU) or zero-shot (CPU).
+
+| Image | Base | Runs on | Notes |
+|---|---|---|---|
+| `Dockerfile` (default) | slim | CPU only | Zero-shot; small image, no CUDA runtime. Builds within CodeBuild's 15-minute / 2 vCPU / 3 GB limit. |
+| `Dockerfile.gpu` | CUDA | GPU or CPU | Fine-tunes on a GPU; **auto-falls back to zero-shot on CPU** when no GPU is present. Large (~10 GB). |
+
+DIMER builds the repository's root `Dockerfile`. The default DIMER deployment provisions **no
+GPU node pool** (GPU is opt-in and off by default), so the CPU image is the default. Choose per
+instance:
+
+- **No-GPU instance (the default)** — use the default `Dockerfile` as-is; the run is zero-shot.
+- **GPU instance** — make `Dockerfile.gpu` the root `Dockerfile` (rename the CPU one aside, then
+  rename `Dockerfile.gpu` to `Dockerfile`) before connecting the repo.
+
+Verified per image: the default CPU `Dockerfile` resolves to `device: cpu, mode: zero-shot` even
+under `--gpus all` (it installs a CPU-only torch build); `Dockerfile.gpu` under `--gpus all` →
+`device: cuda, mode: fine-tune`, and without a GPU falls back to `device: cpu, mode: zero-shot`.
+The validator is CPU-only and needs no change.
+
+**GPU burst (S3) mode.** When `GPU_BURST_MODE` is set, the fine-tuner reads the dataset from and
+writes `result.json` and `artifacts/best.pt` back to S3 (`GPU_BURST_S3_BUCKET` /
+`GPU_BURST_DATASET_PREFIX` / `GPU_BURST_RESULT_KEY` / `GPU_BURST_MODEL_KEY`, via the `boto3`
+dependency) instead of the `/data` mount. The path is inactive unless the platform sets those
+variables.
+
+---
+
+## Provenance and traceability
+
+This section records how the pipeline was built and how the models it produces stay auditable.
+
+### How this pipeline was authored
+
+The validator, fine-tuner, configuration, and original documentation in this repository were
+drafted with AI assistance (Anthropic Claude Opus 4.8, via Claude Code). The standalone Colab
+tutorial and its related documentation were subsequently designed and implemented with OpenAI
+ChatGPT under maintainer direction using Agent Relay in the Builder role. These materials remain
+subject to human review before production deployment.
 
 AI attribution here is **provenance, not sign-off**. It does not authenticate authorship, imply
 provider endorsement, or independently verify correctness. The maintainer retains responsibility
@@ -342,8 +437,7 @@ Treat the generated code as a reviewed draft, not audited production code.
 
 For the standalone tutorial specifically:
 
-- AI model/configuration: **GPT-5.6 Sol High**.
-- Provider/client: **OpenAI / ChatGPT**.
+- Generated with AI assistance by **OpenAI ChatGPT** under human direction and review.
 - Agent Relay role: **Builder**.
 - The model itself was developed by the AutoGluon team at AWS; DIMER distributes the pinned
   checkpoint weights but is not the model developer.
