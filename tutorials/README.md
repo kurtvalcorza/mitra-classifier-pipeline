@@ -129,9 +129,10 @@ The inference notebook reads this metadata when available and checks its recorde
 
 ## AI use and provenance
 
-These tutorials were developed with substantial AI assistance from **OpenAI ChatGPT** under human direction and review. The maintainer defined the goal, scope, model release, DIMER constraints, and acceptance criteria and remains responsible for repository changes and release decisions.
+These tutorials were developed with substantial AI assistance using **GPT-5.6 Sol High** under human direction and review. The maintainer defined the goal, scope, model release, DIMER constraints, and acceptance criteria and remains responsible for repository changes and release decisions.
 
-- Generated with AI assistance by: **OpenAI ChatGPT**
+- AI model/configuration: **GPT-5.6 Sol High**
+- Provider/client: **OpenAI / ChatGPT**
 - Agent Relay role: **Builder**
 - Base-model developer: **AutoGluon team, Amazon Web Services (AWS)**
 - Distributed DIMER artifact: `model.safetensors`
