@@ -54,6 +54,31 @@ def code_sources(cells: list[dict]) -> list[tuple[int, str]]:
     return result
 
 
+def has_literal_assignment(
+    code_cells: list[tuple[int, str]], name: str, expected: object
+) -> bool:
+    for _, source in code_cells:
+        if not source.strip():
+            continue
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            targets = []
+            value = None
+            if isinstance(node, ast.Assign):
+                targets = node.targets
+                value = node.value
+            elif isinstance(node, ast.AnnAssign):
+                targets = [node.target]
+                value = node.value
+            if value is None or not isinstance(value, ast.Constant):
+                continue
+            if type(value.value) is not type(expected) or value.value != expected:
+                continue
+            if any(isinstance(target, ast.Name) and target.id == name for target in targets):
+                return True
+    return False
+
+
 def has_memory_guard(code_cells: list[tuple[int, str]]) -> bool:
     for _, source in code_cells:
         if not source.strip():
@@ -78,29 +103,6 @@ def has_memory_guard(code_cells: list[tuple[int, str]]) -> bool:
     return False
 
 
-def has_literal_assignment(
-    code_cells: list[tuple[int, str]], variable: str, expected: object
-) -> bool:
-    for _, source in code_cells:
-        if not source.strip():
-            continue
-        tree = ast.parse(source)
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Assign):
-                targets = node.targets
-                value = node.value
-            elif isinstance(node, ast.AnnAssign):
-                targets = [node.target]
-                value = node.value
-            else:
-                continue
-            if not isinstance(value, ast.Constant) or value.value != expected:
-                continue
-            if any(isinstance(target, ast.Name) and target.id == variable for target in targets):
-                return True
-    return False
-
-
 def main() -> int:
     payload = json.loads(NOTEBOOK.read_text(encoding="utf-8"))
     require(payload.get("nbformat") == 4, "notebook must use nbformat 4")
@@ -122,8 +124,6 @@ def main() -> int:
         "autogluon.tabular[mitra]==1.5.0",
         "DIMER ZIP",
         "Pinned upstream",
-        "MAX_MEMORY_USAGE_RATIO = 1.10",
-        "NETWORK_TIMEOUT_SECONDS = 30",
         "Sample dataset (FreshRetailNet)",
         "freshretailnet-band-h7.zip",
         "DATASET_CARD.md",
@@ -150,17 +150,20 @@ def main() -> int:
         if source.strip():
             ast.parse(source, filename=f"{NOTEBOOK.name}:cell-{i}")
 
+    for name, expected in (
+        ("RUN_FINE_TUNING", False),
+        ("RUN_NEW_DATA_INFERENCE", False),
+        ("MAX_MEMORY_USAGE_RATIO", 1.1),
+        ("NETWORK_TIMEOUT_SECONDS", 30),
+    ):
+        require(
+            has_literal_assignment(parsed_code, name, expected),
+            f"tutorial must assign {name} the literal default {expected!r}",
+        )
+
     require(
         has_memory_guard(parsed_code),
         "tutorial must pass max_memory_usage_ratio through a .fit(...) ag_args_fit keyword",
-    )
-    require(
-        has_literal_assignment(parsed_code, "RUN_FINE_TUNING", False),
-        "RUN_FINE_TUNING must default to False",
-    )
-    require(
-        has_literal_assignment(parsed_code, "RUN_NEW_DATA_INFERENCE", False),
-        "RUN_NEW_DATA_INFERENCE must default to False",
     )
 
     root_readme = ROOT_README.read_text(encoding="utf-8")
