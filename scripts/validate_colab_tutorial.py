@@ -24,7 +24,7 @@ FORBIDDEN = (
     "DIMER_OUTPUT_DIR",
     "DIMER_HYPERPARAMETERS_JSON",
     "DIMER_PREPROCESSING_ARGS_JSON",
-    '"ag.max_memory_usage_ratio"',
+    "ag.max_memory_usage_ratio",
     "load_breast_cancer",
     "Built-in demo",
 )
