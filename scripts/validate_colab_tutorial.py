@@ -283,6 +283,7 @@ def validate_training_tutorial() -> None:
         "test_data",
         "assert_resolver_locked",
         "resolved_digest",
+        "if p.resolve() != dest.resolve():",
         "contains unseen target classes",
         "train_feature_set",
         "reindex(columns=ordered_columns)",
