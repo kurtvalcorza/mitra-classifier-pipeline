@@ -60,7 +60,10 @@ class Issue16HardeningTests(unittest.TestCase):
         text = notebook_text(INFERENCE)
         self.assertIn("EXPECTED_ZIP_SHA256", text)
         self.assertIn("Predictor ZIP checksum mismatch", text)
-        self.assertLess(text.index("Predictor ZIP checksum mismatch"), text.index("TabularPredictor.load"))
+        self.assertLess(
+            text.index("Predictor ZIP checksum mismatch"),
+            text.index("predictor = TabularPredictor.load(str(PREDICTOR_ROOT))"),
+        )
         self.assertIn("Trust boundary", text)
 
     def test_companion_rejects_wrong_problem_type_and_output_collisions(self):
