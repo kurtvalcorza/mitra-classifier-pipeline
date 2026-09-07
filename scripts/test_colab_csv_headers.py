@@ -11,17 +11,24 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 NOTEBOOKS = (
-    ("mitra_classifier_colab.ipynb", 10),
-    ("mitra_classifier_predictor_inference_colab.ipynb", 8),
+    "mitra_classifier_colab.ipynb",
+    "mitra_classifier_predictor_inference_colab.ipynb",
 )
 
 
-def read_input_cell(name, index, payload, features):
+def read_input_cell(name, payload, features):
     notebook = json.loads((ROOT / "tutorials" / name).read_text(encoding="utf-8"))
     cell_idx = next(
-        i for i, cell in enumerate(notebook["cells"])
-        if cell.get("cell_type") == "code" and "read_inference_csv" in "".join(cell.get("source", "")) and "FEATURE_COLUMNS" in "".join(cell.get("source", ""))
+        (
+            i for i, cell in enumerate(notebook["cells"])
+            if cell.get("cell_type") == "code"
+            and "read_inference_csv" in "".join(cell.get("source", ""))
+            and "FEATURE_COLUMNS" in "".join(cell.get("source", ""))
+        ),
+        None,
     )
+    if cell_idx is None:
+        raise AssertionError(f"Could not locate inference CSV cell in {name}")
     source = "".join(notebook["cells"][cell_idx]["source"])
     tree = ast.parse(source)
     # Enable the optional training-notebook inference path, stopping immediately
@@ -56,7 +63,7 @@ def read_input_cell(name, index, payload, features):
 
 class CsvHeaderTests(unittest.TestCase):
     def test_duplicate_headers_rejected(self):
-        for name, index in NOTEBOOKS:
+        for name in NOTEBOOKS:
             for payload, features in (
                 (b"amount,amount\n1,999\n", ["amount"]),
                 (b'"sale,amount","sale,amount"\n1,999\n', ["sale,amount"]),
@@ -65,16 +72,16 @@ class CsvHeaderTests(unittest.TestCase):
             ):
                 with self.subTest(notebook=name, payload=payload):
                     with self.assertRaisesRegex(ValueError, "duplicate column names"):
-                        read_input_cell(name, index, payload, features)
+                        read_input_cell(name, payload, features)
 
     def test_valid_headers_and_feature_order_preserved(self):
-        for name, index in NOTEBOOKS:
+        for name in NOTEBOOKS:
             for payload in (
                 b'amount.1,"sale,amount",amount\n7,9,1\n',
                 b'\xef\xbb\xbfamount.1,"sale,amount",amount\r\n7,9,1\r\n',
             ):
                 with self.subTest(notebook=name, payload=payload):
-                    frame = read_input_cell(name, index, payload, ["amount", "sale,amount"])
+                    frame = read_input_cell(name, payload, ["amount", "sale,amount"])
                     self.assertEqual(frame.to_dict("list"), {"amount": [1], "sale,amount": [9]})
 
 
