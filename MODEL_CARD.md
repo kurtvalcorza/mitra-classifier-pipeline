@@ -10,6 +10,11 @@ base_model: autogluon/mitra-classifier
 
 # Mitra Classifier
 
+[![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-autogluon%2Fmitra--classifier-ffcc4d?style=flat)](https://huggingface.co/autogluon/mitra-classifier)
+[![GitHub](https://img.shields.io/badge/GitHub-autogluon%2Fautogluon-181717?style=flat&logo=github&logoColor=white)](https://github.com/autogluon/autogluon)
+[![arXiv](https://img.shields.io/badge/arXiv-2510.21204-b31b1b.svg)](https://arxiv.org/abs/2510.21204)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 ## Description
 
 Mitra Classifier is a pretrained tabular foundation model developed by the AutoGluon team at Amazon Web Services (AWS) for supervised classification on structured or tabular datasets.
@@ -29,6 +34,10 @@ Mitra operates as an in-context learning tabular foundation model and additional
 **Model name:** Mitra Classifier
 
 **Model identifier:** `autogluon/mitra-classifier`
+
+**Code repository:** [autogluon/autogluon](https://github.com/autogluon/autogluon)
+
+**Hugging Face repository:** [autogluon/mitra-classifier](https://huggingface.co/autogluon/mitra-classifier)
 
 **Developer:** AutoGluon team, Amazon Web Services (AWS)
 
@@ -92,17 +101,21 @@ e06a055e91a3baeffc37f9cf634d9e69a27d904b6686131dc3b702f9c0126b19
 2c96c24dd25f64e92753f6f2ba00cc7833b9923459403dcd8504e8700c0995df
 ```
 
-The associated `config.json` contains:
+The exact raw content of `config.json` (86 bytes, single line without trailing newline) is:
 
 ```json
-{
-  "dim": 512,
-  "dim_output": 10,
-  "n_layers": 12,
-  "n_heads": 4,
-  "task": "CLASSIFICATION"
-}
+{"dim": 512, "dim_output": 10, "n_layers": 12, "n_heads": 4, "task": "CLASSIFICATION"}
 ```
+
+> **DIMER Model Hosting Note:** When retrieving Mitra model weights from DIMER, only the `model.safetensors` binary is hosted. Because AutoGluon requires `config.json` in the same directory to initialize the Transformer architecture, you can recreate `weights/config.json` alongside `model.safetensors` using the exact text above:
+> 
+> ```bash
+> printf '{"dim": 512, "dim_output": 10, "n_layers": 12, "n_heads": 4, "task": "CLASSIFICATION"}' > weights/config.json
+> ```
+> Or in PowerShell:
+> ```powershell
+> [System.IO.File]::WriteAllText("weights\config.json", '{"dim": 512, "dim_output": 10, "n_layers": 12, "n_heads": 4, "task": "CLASSIFICATION"}', [System.Text.Encoding]::ASCII)
+> ```
 
 These configuration parameters define the architecture into which the serialized model weights are loaded.
 
@@ -477,15 +490,53 @@ Licensing of downstream datasets and applications must be considered separately.
 
 # Model Ownership and Attribution
 
-Mitra Classifier was developed by the AutoGluon team at Amazon Web Services (AWS).
+Mitra Classifier was developed by the AutoGluon team at Amazon Web Services (AWS). Upstream source code is part of the AutoGluon project hosted at [autogluon/autogluon](https://github.com/autogluon/autogluon), and base model artifacts are distributed on Hugging Face at [autogluon/mitra-classifier](https://huggingface.co/autogluon/mitra-classifier).
 
 A downstream integration or fine-tuned derivative should distinguish the upstream foundation model from any subsequent modifications and preserve applicable license and attribution information.
 
 # Citation
 
-Cite the original Mitra work:
+Cite the original Mitra work, the AutoGluon framework, and the upstream repository:
 
-Zhang, X., Maddix, D. C., Yin, J., Erickson, N., Ansari, A. F., Han, B., Zhang, S., Akoglu, L., Faloutsos, C., Mahoney, M., Hu, T., Rangwala, H., Karypis, G., & Wang, Y. (2025). *Mitra: Mixed Synthetic Priors for Enhancing Tabular Foundation Models.* NeurIPS 2025. arXiv:2510.21204. https://doi.org/10.48550/arXiv.2510.21204
+### Papers
+
+- **Mitra (2025):**  
+  Zhang, X., Maddix, D. C., Yin, J., Erickson, N., Ansari, A. F., Han, B., Zhang, S., Akoglu, L., Faloutsos, C., Mahoney, M., Hu, T., Rangwala, H., Karypis, G., & Wang, Y. (2025). *Mitra: Mixed Synthetic Priors for Enhancing Tabular Foundation Models.* NeurIPS 2025. arXiv:2510.21204. https://doi.org/10.48550/arXiv.2510.21204
+
+- **AutoGluon-Tabular (2020):**  
+  Erickson, N., Mueller, J., Shirkov, A., Zhang, H., Larroy, P., Li, M., & Smola, A. (2020). *AutoGluon-Tabular: Robust and Accurate AutoML for Structured Data.* arXiv:2003.06505. https://doi.org/10.48550/arXiv.2003.06505
+
+### Upstream Repository
+
+- **AutoGluon Codebase:**  
+  AutoGluon team, Amazon Web Services (AWS). *AutoGluon: AutoML for Image, Text, and Tabular Data* [Software]. GitHub. https://github.com/autogluon/autogluon
+
+### BibTeX
+
+```bibtex
+@article{zhang2025mitra,
+  title={Mitra: Mixed Synthetic Priors for Enhancing Tabular Foundation Models},
+  author={Zhang, Xingjian and Maddix, Danielle C and Yin, Junwei and Erickson, Nick and Ansari, Abdul Fatir and Han, Boran and Zhang, Shenghao and Akoglu, Leman and Faloutsos, Christos and Mahoney, Michael and Hu, Tianpuxin and Rangwala, Huzefa and Karypis, George and Wang, Yuyang},
+  journal={arXiv preprint arXiv:2510.21204},
+  year={2025}
+}
+
+@article{erickson2020autogluon,
+  title={AutoGluon-Tabular: Robust and Accurate AutoML for Structured Data},
+  author={Erickson, Nick and Mueller, Jonas and Shirkov, Alexander and Zhang, Hang and Larroy, Pedro and Li, Mu and Smola, Alexander},
+  journal={arXiv preprint arXiv:2003.06505},
+  year={2020}
+}
+
+@misc{autogluon_repo,
+  author = {Erickson, Nick and Mueller, Jonas and Shirkov, Alexander and Zhang, Hang and Larroy, Pedro and Li, Mu and Smola, Alexander and others},
+  title = {AutoGluon: AutoML for Image, Text, and Tabular Data},
+  year = {2020},
+  publisher = {GitHub},
+  journal = {GitHub repository},
+  howpublished = {\url{https://github.com/autogluon/autogluon}}
+}
+```
 
 # Evaluation Status
 
