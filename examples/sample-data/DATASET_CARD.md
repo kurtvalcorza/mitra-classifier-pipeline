@@ -42,8 +42,8 @@ A fast, cross-sectional customer retention dataset demonstrating Mitra on nomina
 - **Features:** 19 features (15 categorical strings, 4 numeric):
   - Categoricals: `gender`, `Partner`, `Dependents`, `PhoneService`, `MultipleLines`, `InternetService`, `OnlineSecurity`, `OnlineBackup`, `DeviceProtection`, `TechSupport`, `StreamingTV`, `StreamingMovies`, `Contract`, `PaperlessBilling`, `PaymentMethod`.
   - Numerics: `SeniorCitizen`, `tenure`, `MonthlyCharges`, `TotalCharges`.
-- **Split method:** Seed-stratified random split (seed 42).
-- **Licence:** Apache 2.0 / Public Domain (IBM / OpenML).
+- **Split method:** Seed-stratified random split (seed 42). Missing values in `TotalCharges` are imputed strictly using the training partition's median ($1,278.80) to prevent validation/test leakage.
+- **Licence:** Apache 2.0 (IBM Corporation / OpenML 42178).
 
 ---
 
@@ -58,7 +58,7 @@ The classic tabular machine learning benchmark for predicting individual income 
   - Categoricals: `workclass`, `education`, `marital-status`, `occupation`, `relationship`, `race`, `sex`, `native-country`.
   - Numerics: `age`, `fnlwgt`, `education-num`, `capital-gain`, `capital-loss`, `hours-per-week`.
 - **Split method:** Seed-stratified random split (seed 42).
-- **Licence:** CC BY 4.0 / Public Domain (UCI Machine Learning Repository).
+- **Licence:** CC BY 4.0 (UCI Machine Learning Repository / OpenML 1590).
 
 ---
 

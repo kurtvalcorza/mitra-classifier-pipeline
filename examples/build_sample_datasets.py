@@ -26,17 +26,29 @@ def build_telco_churn() -> Path:
     telco_raw = sklearn.datasets.fetch_openml(data_id=42178, as_frame=True, parser="auto")
     df = telco_raw.frame.copy()
 
-    if "TotalCharges" in df.columns:
-        df["TotalCharges"] = pd.to_numeric(df["TotalCharges"].astype(str).str.strip(), errors="coerce")
-        df["TotalCharges"] = df["TotalCharges"].fillna(df["TotalCharges"].median())
-
     if "customerID" in df.columns:
         df = df.drop(columns=["customerID"])
+
+    # Convert TotalCharges whitespace to NaN
+    if "TotalCharges" in df.columns:
+        df["TotalCharges"] = pd.to_numeric(df["TotalCharges"].astype(str).str.strip(), errors="coerce")
 
     # Stratified sample of 2,400 rows: 1,440 train (60%), 480 val (20%), 480 test (20%)
     df_sub, _ = train_test_split(df, train_size=2400, random_state=SEED, stratify=df["Churn"])
     train_df, temp_df = train_test_split(df_sub, train_size=1440, random_state=SEED, stratify=df_sub["Churn"])
     val_df, test_df = train_test_split(temp_df, train_size=480, random_state=SEED, stratify=temp_df["Churn"])
+
+    train_df = train_df.copy().reset_index(drop=True)
+    val_df = val_df.copy().reset_index(drop=True)
+    test_df = test_df.copy().reset_index(drop=True)
+
+    # Train-only imputation: compute median TotalCharges strictly on train partition
+    if "TotalCharges" in train_df.columns:
+        train_median = float(train_df["TotalCharges"].median())
+        train_df["TotalCharges"] = train_df["TotalCharges"].fillna(train_median)
+        val_df["TotalCharges"] = val_df["TotalCharges"].fillna(train_median)
+        test_df["TotalCharges"] = test_df["TotalCharges"].fillna(train_median)
+        print(f"  Imputed TotalCharges with train-only median: {train_median:.2f}")
 
     out_zip = OUT_DIR / "telco-customer-churn.zip"
     with zipfile.ZipFile(out_zip, "w", compression=zipfile.ZIP_DEFLATED) as z:
