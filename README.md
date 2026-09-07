@@ -22,6 +22,13 @@ egress, enable, and monitoring — see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kurtvalcorza/mitra-classifier-pipeline/blob/main/tutorials/mitra_classifier_colab.ipynb)
 
+The standalone Colab tutorials let end users work with Mitra independently of DIMER Workbench:
+
+- **Build/evaluate/export tutorial (`mitra_classifier_colab.ipynb`)**: Download and verify the model, evaluate on sample or BYOD data, run tree baselines, optionally fine-tune on GPU, and export `mitra-predictor.zip`.<br>
+  [![Open Main Tutorial In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kurtvalcorza/mitra-classifier-pipeline/blob/main/tutorials/mitra_classifier_colab.ipynb)
+- **Predictor inference tutorial (`mitra_classifier_predictor_inference_colab.ipynb`)**: Reload an exported `mitra-predictor.zip`, validate a new CSV, run inference, and download `predictions.csv`.<br>
+  [![Open Predictor Inference In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kurtvalcorza/mitra-classifier-pipeline/blob/main/tutorials/mitra_classifier_predictor_inference_colab.ipynb)
+
 The [standalone Colab tutorial](tutorials/mitra_classifier_colab.ipynb) lets end users work with
 Mitra independently of DIMER Workbench. Download the Mitra Classifier weights from the DIMER
 Model Repository and upload the DIMER ZIP to the notebook. If the DIMER download is unavailable,
