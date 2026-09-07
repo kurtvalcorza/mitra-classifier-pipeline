@@ -18,10 +18,15 @@ NOTEBOOKS = (
 
 def read_input_cell(name, index, payload, features):
     notebook = json.loads((ROOT / "tutorials" / name).read_text(encoding="utf-8"))
-    tree = ast.parse("".join(notebook["cells"][index]["source"]))
+    cell_idx = next(
+        i for i, cell in enumerate(notebook["cells"])
+        if cell.get("cell_type") == "code" and "read_inference_csv" in "".join(cell.get("source", "")) and "FEATURE_COLUMNS" in "".join(cell.get("source", ""))
+    )
+    source = "".join(notebook["cells"][cell_idx]["source"])
+    tree = ast.parse(source)
     # Enable the optional training-notebook inference path, stopping immediately
     # before model execution. Keep imports, upload, parsing and validation intact.
-    if index == 10:
+    if "RUN_NEW_DATA_INFERENCE" in source:
         for node in tree.body:
             if isinstance(node, ast.Assign) and any(
                 isinstance(t, ast.Name) and t.id == "RUN_NEW_DATA_INFERENCE"

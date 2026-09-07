@@ -38,6 +38,8 @@ The tutorial covers:
 - pretrained/in-context Mitra evaluation;
 - optional GPU fine-tuning with an explicit requested step count;
 - before/after metric comparison with metric direction and holdout-resolution guidance;
+- companion classical tree baselines (LightGBM and Random Forest) with holdout leaderboard and device latency;
+- in-memory post-hoc probability blending with strict label alignment and generalization assessment;
 - inference on new CSV rows; and
 - export of predictions, run metadata, and a reusable AutoGluon predictor ZIP.
 
