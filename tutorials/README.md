@@ -88,23 +88,19 @@ The notebooks therefore do **not** claim that PyTorch is left untouched. They pr
 
 For memory safety, the build/evaluate/export notebook keeps `MAX_MEMORY_USAGE_RATIO=1.10`, the setting that cleared AutoGluon's default training skip in the executed Colab run. AutoGluon may still suggest a larger value in a warning. Values above 1.0 deliberately accept more OOM risk, so the tutorial recommends reducing rows/context or using a higher-memory runtime before increasing the ratio simply to silence the warning.
 
-## Bundled sample dataset
+## Bundled sample datasets
 
-The default data source is [`freshretailnet-band-h7.zip`](../examples/sample-data/freshretailnet-band-h7.zip), a convenience sample derived from FreshRetailNet-50K and redistributed under **CC BY 4.0**.
+Three pre-packaged sample datasets are bundled under `examples/sample-data/` for tutorial and smoke-test use (not benchmarking):
 
-Pinned sample revision: `8fc19e80ae3166ec6bf964d194a28c80e6ba3b1f`.
+1. **FreshRetailNet demand bands** ([`freshretailnet-band-h7.zip`](../examples/sample-data/freshretailnet-band-h7.zip)): Derived from FreshRetailNet-50K and redistributed under **CC BY 4.0**. Pinned sample revision: `8fc19e80ae3166ec6bf964d194a28c80e6ba3b1f`.
+   - `train.csv`: 4,180 rows
+   - `val.csv`: 1,600 rows
+   - `test.csv`: 1,600 rows
+   - 17 numeric features and 3-class target (`low`, `mid`, `high`). Preserves a purged chronological split with embargo.
+2. **Telco Customer Churn** ([`telco-customer-churn.zip`](../examples/sample-data/telco-customer-churn.zip)): Derived from IBM Telco Churn (Apache 2.0 / OpenML 42178). 1,440 train, 480 val, 480 test rows. 19 mixed features (15 categorical strings like `Contract`, `InternetService`, `PaymentMethod`, plus 4 numeric features) predicting binary customer attrition (`Churn`: `Yes`/`No`). Runs Step 4b in ~15 seconds.
+3. **Adult Census Income** ([`adult-census-income.zip`](../examples/sample-data/adult-census-income.zip)): Derived from the Adult Census benchmark (CC BY 4.0 / OpenML 1590). 1,500 train, 500 val, 500 test rows. 14 mixed demographic features (`workclass`, `education`, `occupation`, `age`, `hours-per-week`) predicting binary income bracket (`class`: `<=50K`/`>50K`).
 
-It contains:
-
-| split | rows |
-|---|---:|
-| `train.csv` | 4,180 |
-| `val.csv` | 1,600 |
-| `test.csv` | 1,600 |
-
-Each split has 17 features plus a three-class `target` (`low`, `mid`, `high`) representing the demand band seven days ahead. The notebook preserves the supplied split rather than randomly re-splitting it. See the [sample dataset card](../examples/sample-data/DATASET_CARD.md) for provenance, feature construction, the purged chronological split with embargo, and licence details.
-
-The sample is intended for tutorial and smoke-test use, **not benchmarking**.
+See the [sample dataset card](../examples/sample-data/DATASET_CARD.md) for provenance, feature schemas, and license details.
 
 ## BYOD split guidance
 
