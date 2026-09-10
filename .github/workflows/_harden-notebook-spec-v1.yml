@@ -26,7 +26,7 @@ jobs:
         run: python -m pip install --upgrade pip pandas numpy
 
       - name: Apply final hardening
-        run: python scripts/_harden_notebook_spec_v1.py
+        run: python scripts/_harden_notebook_spec_v1_v2.py
 
       - name: Run tutorial validators
         run: |
@@ -38,7 +38,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm scripts/_harden_notebook_spec_v1.py .github/workflows/_harden-notebook-spec-v1.yml
+          git rm scripts/_harden_notebook_spec_v1.py scripts/_harden_notebook_spec_v1_v2.py .github/workflows/_harden-notebook-spec-v1.yml
           git add tutorials/ scripts/validate_colab_tutorial.py
           git commit -m "fix(tutorials): harden Notebook Spec v1 artifact and runtime contracts [notebook-spec-final]"
           git push origin HEAD:fix/notebook-spec-v1-conformance
