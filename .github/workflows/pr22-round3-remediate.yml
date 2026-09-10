@@ -20,6 +20,7 @@ jobs:
           python-version: "3.12"
       - name: Assemble and apply remediation
         run: |
+          sed -i "s/new_func = '''def load_dimer_package/new_func = r'''def load_dimer_package/" scripts/_pr22_r3_part00.pyfrag
           cat scripts/_pr22_r3_part00.pyfrag \
               scripts/_pr22_r3_part01.pyfrag \
               scripts/_pr22_r3_part02.pyfrag \
