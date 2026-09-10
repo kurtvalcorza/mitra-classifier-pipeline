@@ -18,6 +18,8 @@ jobs:
         run: python scripts/check_contract.py
       - name: Standalone Colab tutorial
         run: python scripts/validate_colab_tutorial.py
+      - name: DIMER notebook-package producer
+        run: python scripts/build_dimer_notebook_package.py --self-test
       - name: Colab CSV header regressions
         run: python scripts/test_colab_csv_headers.py
       - name: Issue 16 tutorial hardening regressions
@@ -27,3 +29,4 @@ jobs:
           python -m py_compile validator/validator.py validator/validate.py validator/contract_hardening.py
           python -m py_compile finetuner/train.py finetuner/contract_entrypoint.py finetuner/contract_hardening.py
           python -m py_compile examples/build_freshretailnet_dataset.py
+          python -m py_compile scripts/build_dimer_notebook_package.py
