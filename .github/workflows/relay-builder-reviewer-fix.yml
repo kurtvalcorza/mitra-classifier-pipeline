@@ -25,26 +25,43 @@ jobs:
       - name: Restore intact immutable relay patcher
         run: git show b69ec2cd1e9316608d2b85bc9739054bd441cfc2:scripts/relay_builder_fix_all.py > /tmp/relay_builder_fix_all.py
 
-      - name: Add temporary compatibility anchor for historical tutorial patch
+      - name: Normalize already-fixed tutorial state for historical patch
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          path = Path('tutorials/mitra_classifier_colab.ipynb')
-          nb = json.loads(path.read_text(encoding='utf-8'))
+
+          e2e = Path('tutorials/mitra_classifier_colab.ipynb')
+          nb = json.loads(e2e.read_text(encoding='utf-8'))
           for cell in nb['cells']:
               src = ''.join(cell.get('source', [])) if isinstance(cell.get('source', []), list) else str(cell.get('source', ''))
-              if 'def load_dimer_files(weights_dest, config_dest):' not in src:
-                  continue
-              marker = '\n\ndef install_offline_snapshot'
-              if marker not in src:
-                  raise RuntimeError('install_offline_snapshot marker not found after DIMER loader')
-              src = src.replace(marker, '\n\nMODEL_DIR = MODEL_DIR' + marker, 1)
-              cell['source'] = src.splitlines(keepends=True)
-              path.write_text(json.dumps(nb, indent=1, ensure_ascii=False) + '\n', encoding='utf-8')
-              break
+              if 'def load_dimer_files(weights_dest, config_dest):' in src:
+                  marker = '\n\ndef install_offline_snapshot'
+                  if marker not in src:
+                      raise RuntimeError('install_offline_snapshot marker not found after DIMER loader')
+                  src = src.replace(marker, '\n\nMODEL_DIR = MODEL_DIR' + marker, 1)
+                  cell['source'] = src.splitlines(keepends=True)
+                  break
           else:
               raise RuntimeError('DIMER loader cell not found')
+          e2e.write_text(json.dumps(nb, indent=1, ensure_ascii=False) + '\n', encoding='utf-8')
+
+          companion = Path('tutorials/mitra_classifier_predictor_inference_colab.ipynb')
+          nb = json.loads(companion.read_text(encoding='utf-8'))
+          for cell in nb['cells']:
+              src = ''.join(cell.get('source', [])) if isinstance(cell.get('source', []), list) else str(cell.get('source', ''))
+              if 'def safe_extract_zip' not in src:
+                  continue
+              src = src.replace('        seen_members = set()\n', '', 1)
+              start = '            normalized_member = portable_member.as_posix()\n'
+              end = '            member = Path(*portable_member.parts)\n'
+              i = src.find(start)
+              j = src.find(end, i if i >= 0 else 0)
+              if i >= 0 and j >= 0:
+                  src = src[:i] + src[j:]
+              cell['source'] = src.splitlines(keepends=True)
+              companion.write_text(json.dumps(nb, indent=1, ensure_ascii=False) + '\n', encoding='utf-8')
+              break
           PY
 
       - name: Wire shared production-facing API into DIMER worker
