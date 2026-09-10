@@ -1,0 +1,37 @@
+name: Relay consolidate sample portfolio
+
+on:
+  push:
+    branches: [fix/notebook-spec-v1-conformance]
+
+permissions:
+  contents: write
+
+jobs:
+  consolidate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Port sample assets from sibling PR
+        run: |
+          git fetch origin feat/add-sample-datasets
+          git checkout origin/feat/add-sample-datasets -- \
+            examples/build_sample_datasets.py \
+            examples/sample-data/DATASET_CARD.md \
+            examples/sample-data/telco-customer-churn.zip \
+            examples/sample-data/adult-census-income.zip
+          python scripts/_relay_consolidate_samples.py
+      - name: Validate hardened tutorial
+        run: |
+          python scripts/validate_colab_tutorial.py
+          python -m compileall scripts
+      - name: Commit consolidated work
+        run: |
+          git rm .github/workflows/_relay-consolidate-samples.yml scripts/_relay_consolidate_samples.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat(tutorials): consolidate Telco and Adult sample portfolio"
+          git push origin HEAD:fix/notebook-spec-v1-conformance
