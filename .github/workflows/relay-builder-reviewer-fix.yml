@@ -1,0 +1,64 @@
+name: Relay builder reviewer remediation
+
+on:
+  push:
+    branches: [fix/notebook-spec-v1-conformance]
+    paths:
+      - .github/workflows/relay-builder-reviewer-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/notebook-spec-v1-conformance
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Wire shared production-facing API into DIMER worker
+        run: python scripts/relay_builder_fix_all.py production
+
+      - name: Install lightweight validation dependencies
+        run: pip install pandas numpy scikit-learn
+
+      - name: Validate production phase
+        run: |
+          python -m py_compile finetuner/pipeline_api.py finetuner/train.py
+          python scripts/check_shared.py
+          python scripts/check_contract.py
+
+      - name: Commit immutable worker/API integration ancestor
+        run: |
+          git add finetuner/train.py finetuner/Dockerfile finetuner/Dockerfile.gpu .github/workflows/ci.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "refactor(finetuner): use shared Mitra pipeline API"
+          echo "API_REF=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Patch tutorials against immutable API revision
+        run: python scripts/relay_builder_fix_all.py tutorials --api-ref "$API_REF"
+
+      - name: Run durable repository checks before push
+        run: |
+          python scripts/check_shared.py
+          python scripts/check_contract.py
+          python scripts/test_pipeline_api_contract.py
+          python scripts/validate_colab_tutorial.py
+          python scripts/test_colab_csv_headers.py
+          python scripts/test_issue16_hardening.py
+          python -m py_compile validator/validator.py validator/validate.py validator/contract_hardening.py
+          python -m py_compile finetuner/pipeline_api.py finetuner/train.py finetuner/contract_entrypoint.py finetuner/contract_hardening.py
+          python -m py_compile examples/build_freshretailnet_dataset.py
+
+      - name: Remove relay scaffolding and commit final remediation
+        run: |
+          git rm -f scripts/relay_builder_fix_all.py .github/workflows/relay-builder-reviewer-fix.yml
+          git add scripts/validate_colab_tutorial.py tutorials/README.md tutorials/mitra_classifier_colab.ipynb tutorials/mitra_classifier_predictor_inference_colab.ipynb RELEASE_CHECKLIST.md
+          git commit -m "fix(tutorials): resolve reviewer contract blockers"
+          git push origin HEAD:fix/notebook-spec-v1-conformance
