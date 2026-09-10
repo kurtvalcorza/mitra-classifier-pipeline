@@ -1,0 +1,50 @@
+name: Relay final reviewer remediation
+
+on:
+  push:
+    branches: [fix/notebook-spec-v1-conformance]
+    paths:
+      - .github/workflows/relay-final-reviewer-remediation.yml
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/notebook-spec-v1-conformance
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Apply focused reviewer remediation
+        run: python scripts/relay_fix_reviewer_blockers.py
+      - name: Install lightweight CI dependencies
+        run: pip install pandas numpy
+      - name: Shared-block parity
+        run: python scripts/check_shared.py
+      - name: DIMER contract
+        run: python scripts/check_contract.py
+      - name: Standalone Colab tutorial
+        run: python scripts/validate_colab_tutorial.py
+      - name: Colab CSV header regressions
+        run: python scripts/test_colab_csv_headers.py
+      - name: Issue 16 tutorial hardening regressions
+        run: python scripts/test_issue16_hardening.py
+      - name: Compile deployables
+        run: |
+          python -m py_compile validator/validator.py validator/validate.py validator/contract_hardening.py
+          python -m py_compile finetuner/train.py finetuner/contract_entrypoint.py finetuner/contract_hardening.py
+          python -m py_compile examples/build_freshretailnet_dataset.py
+      - name: Remove temporary relay tooling and commit result
+        run: |
+          git rm -f scripts/relay_fix_reviewer_blockers.py .github/workflows/relay-final-reviewer-remediation.yml
+          git add scripts/validate_colab_tutorial.py tutorials/README.md tutorials/mitra_classifier_colab.ipynb
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git diff --cached --quiet && exit 0
+          git commit -m "fix(tutorials): resolve reviewer blockers"
+          git push origin HEAD:fix/notebook-spec-v1-conformance
