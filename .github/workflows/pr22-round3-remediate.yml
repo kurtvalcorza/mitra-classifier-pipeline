@@ -21,6 +21,8 @@ jobs:
       - name: Assemble and apply remediation
         run: |
           sed -i "s/new_func = '''def load_dimer_package/new_func = r'''def load_dimer_package/" scripts/_pr22_r3_part00.pyfrag
+          sed -i "s/PACKAGE_SCRIPT.write_text('''#!/PACKAGE_SCRIPT.write_text(r'''#!/" scripts/_pr22_r3_part02.pyfrag
+          sed -i "s/PACKAGE_DOC.write_text('''# DIMER/PACKAGE_DOC.write_text(r'''# DIMER/" scripts/_pr22_r3_part04.pyfrag
           sed -i 's/repository-defined notebook transport envelope/Repository-defined notebook transport envelope/' scripts/_pr22_r3_part05.pyfrag
           cat scripts/_pr22_r3_part00.pyfrag \
               scripts/_pr22_r3_part01.pyfrag \
