@@ -164,3 +164,14 @@ These tutorials were developed with substantial AI assistance using **GPT-5.6 So
 - Model identity: the pinned revision and SHA-256 values above
 
 AI attribution is **provenance, not sign-off**. It does not authenticate authorship, imply endorsement by OpenAI, AWS, AutoGluon, or DIMER, or independently verify correctness. Executed checks and reproducible outputs remain the evidence for a particular run, and users should review the notebooks and their results before consequential use.
+
+
+## Sample dataset portfolio
+
+The hardened E2E classifier tutorial exposes three sample paths:
+
+- **FreshRetailNet** — temporal demand-band classification with preserved leakage-aware splits.
+- **Telco Customer Churn** — mixed-feature binary classification (`Churn`).
+- **Adult Census Income** — mixed-feature binary classification (`class`).
+
+The sample archives and dataset card are pinned to repository revision `8e766925733b2726cc5c1c74cc3605e35f76b811`; the Notebook Specification v1.0 validation, BYOD, model-integrity, artifact, and inference boundaries remain unchanged.
