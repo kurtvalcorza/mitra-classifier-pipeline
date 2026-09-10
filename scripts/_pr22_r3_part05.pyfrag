@@ -1,0 +1,93 @@
+
+def patch_deployment() -> None:
+    text = DEPLOYMENT.read_text(encoding="utf-8")
+    old = '''Two GitHub Actions workflows guard the repo:
+
+- **`ci`** (every push/PR) — compiles the deployable sources, runs the unit suite, and enforces
+  the shared dataset-resolution block is byte-identical across the validator/finetuner copies and
+  matches the cross-repo pinned SHA (so this repo and the standalone deployment repos cannot
+  drift). It deliberately does **not** install AutoGluon.
+- **`integration`** (manual `workflow_dispatch`; nightly only when the repo variable
+  `ENABLE_NIGHTLY_GPU` is `true`) — needs a **self-hosted runner labelled `gpu`** with the NVIDIA
+  Container Toolkit. It builds the image, loads Mitra offline from the pinned weights, fine-tunes
+  a tiny model, saves it, reloads the `TabularPredictor`, and predicts — catching torch/base-image
+  drift, Mitra API changes, offline-weight failures, and seed/metric propagation that the unit
+  suite cannot. Attach a GPU runner and set `ENABLE_NIGHTLY_GPU` to turn on the nightly run.
+'''
+    new = '''Current GitHub Actions validation is intentionally static:
+
+- **`ci`** (every push/PR) — compiles the deployable sources, runs the unit suite, enforces
+  shared-code parity and notebook contracts, and self-tests the repository-defined DIMER notebook
+  package producer. It deliberately does **not** install AutoGluon or execute the notebooks end to end.
+- **No `integration.yml` workflow exists on the current branch.** The GPU save → reload → predict
+  evidence cited by the release checklist is the live 5070 Ti run from 2026-08-19, not an active
+  GitHub Actions workflow. Do not treat static CI as clean-runtime notebook or GPU integration evidence.
+'''
+    text = replace_once(text, old, new, "deployment CI section")
+    text = text.replace(
+        "`TabularPredictor` directory; the `integration` workflow exercises the save → reload → predict\nround-trip on a GPU runner, so the artifact is verified to reload and serve predictions outside\nthe training process.",
+        "`TabularPredictor` directory; the live 5070 Ti verification on 2026-08-19 exercised the save → reload → predict\nround-trip outside the training process. That historical/manual evidence is distinct from current static CI.",
+    )
+    DEPLOYMENT.write_text(text, encoding="utf-8")
+
+
+def patch_validator() -> None:
+    text = VALIDATOR.read_text(encoding="utf-8")
+    text = text.replace('        "DIMER ZIP",\n', '        "DIMER notebook package",\n')
+    text = text.replace("\"PACKAGE_MANIFEST_FILENAME\",\n", "\"PACKAGE_MANIFEST_FILENAME\",\n        \"MAX_DIMER_UPLOAD_BYTES\",\n        \"MAX_DIMER_EXPANDED_BYTES\",\n        \"DIMER notebook package\",\n")
+    text = text.replace('        "legacy weights-only ZIPs are refused",\n', '        "DIMER itself is not claimed to emit this ZIP",\n')
+    text = text.replace("\"artifact_format_version\",\n", "\"artifact_format_version\",\n        \"feature_schema_sha256\",\n", 1)
+    # Add one inference marker after its profile marker block using a unique nearby string.
+    text = text.replace(
+        '        "Artifact format version",\n        "internal archive consistency",\n',
+        '        "Artifact format version",\n        "feature_schema_sha256",\n        "Loaded predictor feature schema does not match",\n        "internal archive consistency",\n',
+    )
+    docs_anchor = '''    tutorial_readme = TUTORIAL_README.read_text(encoding="utf-8")
+    for required in (
+'''
+    replacement = '''    tutorial_readme = TUTORIAL_README.read_text(encoding="utf-8")
+    for required in (
+'''
+    if docs_anchor not in text:
+        raise RuntimeError("validator docs anchor missing")
+    # Extend required README markers by inserting before closing provenance markers.
+    text = text.replace(
+        '        "provenance, not sign-off",\n    ):\n        require(required in tutorial_readme, f"tutorial README missing marker: {required}")\n',
+        '        "provenance, not sign-off",\n        "DIMER_NOTEBOOK_PACKAGE.md",\n        "repository-defined",\n    ):\n        require(required in tutorial_readme, f"tutorial README missing marker: {required}")\n\n    package_doc = ROOT / "docs" / "DIMER_NOTEBOOK_PACKAGE.md"\n    package_script = ROOT / "scripts" / "build_dimer_notebook_package.py"\n    require(package_doc.exists(), "missing DIMER notebook-package contract document")\n    require(package_script.exists(), "missing DIMER notebook-package producer")\n    package_doc_text = package_doc.read_text(encoding="utf-8")\n    for required in ("Current DIMER platform checkpoint boundary", "repository-defined notebook transport envelope", "model.safetensors", "config.json"):\n        require(required in package_doc_text, f"DIMER notebook-package contract missing marker: {required}")\n\n    deployment_text = (ROOT / "DEPLOYMENT.md").read_text(encoding="utf-8")\n    require("No `integration.yml` workflow exists on the current branch." in deployment_text, "deployment docs must state current integration-workflow absence")\n    require("the `integration` workflow exercises" not in deployment_text, "stale integration-workflow evidence claim remains in DEPLOYMENT.md")\n',
+    )
+    VALIDATOR.write_text(text, encoding="utf-8")
+
+
+def patch_ci() -> None:
+    text = CI.read_text(encoding="utf-8")
+    anchor = '''      - name: Standalone Colab tutorial
+        run: python scripts/validate_colab_tutorial.py
+'''
+    replacement = anchor + '''      - name: DIMER notebook-package producer
+        run: python scripts/build_dimer_notebook_package.py --self-test
+'''
+    text = replace_once(text, anchor, replacement, "CI producer self-test")
+    compile_anchor = "          python -m py_compile examples/build_freshretailnet_dataset.py\n"
+    text = replace_once(
+        text,
+        compile_anchor,
+        compile_anchor + "          python -m py_compile scripts/build_dimer_notebook_package.py\n",
+        "CI producer compile",
+    )
+    CI.write_text(text, encoding="utf-8")
+
+
+def main() -> None:
+    patch_main_notebook()
+    patch_inference_notebook()
+    write_package_script()
+    write_package_doc()
+    patch_readme()
+    patch_deployment()
+    patch_validator()
+    patch_ci()
+    print("PR #22 round-3 remediation applied")
+
+
+if __name__ == "__main__":
+    main()
