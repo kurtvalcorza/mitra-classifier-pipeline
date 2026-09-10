@@ -42,7 +42,23 @@ jobs:
           echo "API_REF=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
       - name: Patch tutorials against immutable API revision
-        run: python scripts/relay_builder_fix_all.py tutorials --api-ref "$API_REF"
+        id: tutorial_patch
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          python scripts/relay_builder_fix_all.py tutorials --api-ref "$API_REF" 2>&1 | tee relay-tutorial-patch.log
+
+      - name: Upload tutorial patch diagnostics
+        if: always() && steps.tutorial_patch.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: relay-tutorial-patch-diagnostics
+          path: relay-tutorial-patch.log
+
+      - name: Stop after tutorial patch failure
+        if: steps.tutorial_patch.outcome == 'failure'
+        run: exit 1
 
       - name: Run durable repository checks before push
         run: |
