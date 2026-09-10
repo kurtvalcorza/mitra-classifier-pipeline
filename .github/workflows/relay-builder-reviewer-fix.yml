@@ -1,3 +1,4 @@
+# Agent Relay builder one-shot remediation; self-deletes on success.
 name: Relay builder reviewer remediation
 
 on:
