@@ -13,7 +13,7 @@ There are now two standalone Colab workflows. Both are aligned to **DIMER Notebo
 | `mitra_classifier_colab.ipynb` | `E2E` | v1.0 | Candidate — static checks enforced; clean Colab execution of the release revision pending |
 | `mitra_classifier_predictor_inference_colab.ipynb` | `ARTIFACT-INFERENCE` | v1.0 | Candidate — static checks enforced; clean Colab execution of the release revision pending |
 
-The exact dependency graphs used by the notebooks are committed as `requirements-colab.lock.txt` and `requirements-inference.lock.txt`. Release-grade status requires clean target-runtime execution evidence for the exact release revision; static CI alone is not execution evidence.
+The exact dependency graphs used by the notebooks are committed as `requirements-colab.lock.txt` and `requirements-inference.lock.txt`; both release locks target Python 3.12. Release-grade status requires clean target-runtime execution evidence for the exact release revision; static CI alone is not execution evidence.
 
 Both inference workflows reject duplicate CSV headers before pandas can rename them.
 Quoted column names and UTF-8 files with a byte-order mark are supported.
@@ -61,7 +61,8 @@ The inference tutorial:
 - installs `autogluon.tabular[mitra]==1.5.0`;
 - uploads exactly one `mitra-predictor.zip`;
 - computes the uploaded archive's SHA-256 and verifies it when an expected digest is supplied;
-- rejects path traversal and symlink entries before extraction;
+- rejects absolute/traversal/backslash/symlink archive paths, enforces extraction containment and a 4 GiB expanded-size ceiling;
+- requires and verifies `artifact-manifest.json` against the exact extracted file set, per-file sizes, and SHA-256 digests;
 - locates the saved AutoGluon predictor root via `predictor.pkl`;
 - reads `tutorial_run_metadata.json` when present;
 - reloads the saved predictor with `TabularPredictor.load(...)`;

@@ -303,7 +303,9 @@ def has_safe_direct_weights_copy_guard(code_cells: list[tuple[int, str]]) -> boo
 
 def validate_lockfile(path: Path) -> None:
     require(path.exists(), f"missing notebook lockfile: {path}")
-    for line in path.read_text(encoding='utf-8').splitlines():
+    lock_text = path.read_text(encoding='utf-8')
+    require('/home/runner/' not in lock_text, f"runner-local path leaked into {path.name}")
+    for line in lock_text.splitlines():
         stripped = line.strip()
         if not stripped or stripped.startswith('#') or stripped.startswith('--') or stripped.startswith('    #'):
             continue
@@ -366,6 +368,12 @@ def validate_training_tutorial() -> None:
         "calibration itself is not established",
         "Unsafe archive member path",
         "Symlink entries are not allowed",
+        "Python 3.12",
+        "RELEASE_PACKAGE_MANIFEST",
+        "Remote-code boundary",
+        "Baseline variability",
+        "output column(s) reserved by this notebook",
+        "This notebook does not demonstrate",
         "Agent Relay role",
         "provenance, not sign-off",
     ):
@@ -459,6 +467,15 @@ def validate_inference_tutorial() -> None:
         "HF_HUB_OFFLINE",
         "calibration for your deployment population has not been established",
         "What a successful artifact-inference run proves",
+        "MAX_EXPANDED_BYTES",
+        "Backslash archive member paths are not allowed",
+        "Artifact manifest file set mismatch",
+        "Artifact manifest verified",
+        "SUPPORTED_MODEL_REVISION",
+        "Artifact format version",
+        "internal archive consistency",
+        "Python 3.12",
+        "This notebook is inference-only",
     ):
         require(required in text, f"inference tutorial missing required marker: {required}")
 
