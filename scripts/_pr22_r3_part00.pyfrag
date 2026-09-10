@@ -1,0 +1,110 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+MAIN_NB = ROOT / "tutorials" / "mitra_classifier_colab.ipynb"
+INF_NB = ROOT / "tutorials" / "mitra_classifier_predictor_inference_colab.ipynb"
+TUTORIAL_README = ROOT / "tutorials" / "README.md"
+DEPLOYMENT = ROOT / "DEPLOYMENT.md"
+VALIDATOR = ROOT / "scripts" / "validate_colab_tutorial.py"
+CI = ROOT / ".github" / "workflows" / "ci.yml"
+PACKAGE_DOC = ROOT / "docs" / "DIMER_NOTEBOOK_PACKAGE.md"
+PACKAGE_SCRIPT = ROOT / "scripts" / "build_dimer_notebook_package.py"
+
+
+def src(cell: dict) -> str:
+    value = cell.get("source", "")
+    return "".join(value) if isinstance(value, list) else value
+
+
+def set_src(cell: dict, text: str) -> None:
+    if isinstance(cell.get("source"), list):
+        cell["source"] = text.splitlines(keepends=True)
+    else:
+        cell["source"] = text
+
+
+def find_cell(nb: dict, needle: str, *, cell_type: str | None = None) -> dict:
+    matches = [c for c in nb["cells"] if (cell_type is None or c.get("cell_type") == cell_type) and needle in src(c)]
+    if len(matches) != 1:
+        raise RuntimeError(f"Expected one cell containing {needle!r}; found {len(matches)}")
+    return matches[0]
+
+
+def replace_once(text: str, old: str, new: str, label: str) -> str:
+    if text.count(old) != 1:
+        raise RuntimeError(f"{label}: expected exactly one occurrence of {old!r}; found {text.count(old)}")
+    return text.replace(old, new, 1)
+
+
+def dump_nb(path: Path, nb: dict) -> None:
+    path.write_text(json.dumps(nb, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def patch_main_notebook() -> None:
+    nb = json.loads(MAIN_NB.read_text(encoding="utf-8"))
+
+    opening = find_cell(nb, "# Mitra Classifier — End-to-End", cell_type="markdown")
+    text = src(opening)
+    text = text.replace(
+        "This notebook takes you from the pinned Mitra checkpoint (from the DIMER Model Repository, or the identical upstream release)",
+        "This notebook takes you from the pinned Mitra checkpoint (from a repository-defined notebook package built from the current DIMER checkpoint pair, or the identical upstream release)",
+    )
+    set_src(opening, text)
+
+    step2_md = find_cell(nb, "## 2. Acquire, verify, and lock the checkpoint", cell_type="markdown")
+    text = src(step2_md)
+    old = "- **DIMER ZIP** uploads a self-describing offline ZIP distributed through the DIMER Model Repository. Notebook Spec v1.0 packages must contain `dimer-model-manifest.json`, `model.safetensors`, and `config.json` at the archive root. The manifest is validated before either model file is staged; legacy weights-only ZIPs are refused rather than silently completed from the network."
+    new = "- **DIMER notebook package** uploads a repository-defined transport ZIP built from the current DIMER checkpoint pair (`model.safetensors` + `config.json`) with `scripts/build_dimer_notebook_package.py`. DIMER itself is not claimed to emit this ZIP. The wrapper adds `dimer-model-manifest.json` at the archive root so the notebook can validate model identity, immutable revision, exact file set, and digests before staging."
+    text = replace_once(text, old, new, "main step2 markdown")
+    text = text.replace(
+        "For a DIMER upload, the notebook reads and validates the manifest **from the uploaded ZIP itself**: manifest version, exact model identifier, immutable revision, exact package file set, and SHA-256 for both weights and configuration. A failed or incomplete package never falls back to upstream acquisition.",
+        "For a DIMER notebook-package upload, the notebook reads and validates the manifest **from the uploaded ZIP itself**: manifest version, exact model identifier, immutable revision, exact package file set, and SHA-256 for both weights and configuration. The package producer is documented in `docs/DIMER_NOTEBOOK_PACKAGE.md`; a failed or incomplete package never falls back to upstream acquisition.",
+    )
+    set_src(step2_md, text)
+
+    step2_code = find_cell(nb, "def load_dimer_package", cell_type="code")
+    code = src(step2_code)
+    code = replace_once(
+        code,
+        "PACKAGE_MANIFEST_VERSION = '1.0'\nNETWORK_TIMEOUT_SECONDS = 30\n",
+        "PACKAGE_MANIFEST_VERSION = '1.0'\nMAX_DIMER_UPLOAD_BYTES = 768 * 1024 ** 2\nMAX_DIMER_EXPANDED_BYTES = 1024 ** 3\nMAX_DIMER_MANIFEST_BYTES = 1024 ** 2\nNETWORK_TIMEOUT_SECONDS = 30\n",
+        "main package limits",
+    )
+    start = code.index("def load_dimer_package(weights_dest, config_dest):")
+    end = code.index("def install_offline_snapshot", start)
+    new_func = '''def load_dimer_package(weights_dest, config_dest):
+    from google.colab import files
+
+    uploaded = files.upload()
+    if len(uploaded) != 1:
+        raise RuntimeError('Upload exactly one DIMER notebook-package ZIP.')
+    name, payload = next(iter(uploaded.items()))
+    if len(payload) > MAX_DIMER_UPLOAD_BYTES:
+        raise RuntimeError(
+            f'DIMER notebook package exceeds the {MAX_DIMER_UPLOAD_BYTES / (1024 ** 2):.0f} MiB upload ceiling.'
+        )
+    package_path = MODEL_DIR / Path(name).name
+    if package_path.suffix.lower() != '.zip':
+        raise ValueError('DIMER notebook-package mode requires a .zip package with an embedded manifest.')
+    package_path.write_bytes(payload)
+
+    expected_release_files = {
+        'model.safetensors': EXPECTED_WEIGHTS_SHA256,
+        'config.json': EXPECTED_CONFIG_SHA256,
+    }
+    expected_archive_files = {PACKAGE_MANIFEST_FILENAME, *expected_release_files}
+
+    with zipfile.ZipFile(package_path) as z:
+        by_name = {}
+        expanded_bytes = 0
+        for info in z.infolist():
+            if info.is_dir():
+                continue
+            if '\\' in info.filename:
+                raise RuntimeError(f'Backslash archive member paths are not allowed: {info.filename!r}')
+            member = PurePosixPath(info.filename)
+            mode = (info.external_attr >> 16) & 0o170000
+            if member.is_absolute() or '..' in member.parts:
