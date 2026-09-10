@@ -165,6 +165,36 @@ jobs:
           path.write_text(json.dumps(nb, indent=1, ensure_ascii=False) + '\n')
           PY
 
+      - name: Align static validator with single-file DIMER contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/validate_colab_tutorial.py')
+          src = path.read_text(encoding='utf-8')
+          replacements = [
+              ('"DIMER files",', '"DIMER weights",'),
+              ('"load_dimer_files",', '"load_dimer_weights",'),
+              ('"Upload exactly two files downloaded from DIMER",', '"Upload exactly one file downloaded from DIMER: model.safetensors",'),
+              ('"weights_from_dimer" not in code_text and "load_dimer_files" in code_text', '"weights_from_dimer" not in code_text and "load_dimer_weights" in code_text'),
+              ('"DIMER files path must use the fail-closed digest-validating two-file loader"', '"DIMER weights path must use the fail-closed digest-validating one-file loader with canonical local config"'),
+          ]
+          for old, new in replacements:
+              if old in src:
+                  src = src.replace(old, new)
+              elif new not in src:
+                  raise RuntimeError(f'validator contract anchor missing: {old}')
+          required = (
+              '"DIMER weights",',
+              '"load_dimer_weights",',
+              '"Upload exactly one file downloaded from DIMER: model.safetensors",',
+              '"weights_from_dimer" not in code_text and "load_dimer_weights" in code_text',
+          )
+          for marker in required:
+              if marker not in src:
+                  raise RuntimeError(f'updated validator marker missing: {marker}')
+          path.write_text(src, encoding='utf-8')
+          PY
+
       - name: Remove E2E compatibility sentinel
         run: |
           python - <<'PY'
