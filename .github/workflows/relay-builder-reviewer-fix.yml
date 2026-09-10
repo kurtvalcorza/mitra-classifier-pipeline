@@ -31,15 +31,23 @@ jobs:
           import json
           from pathlib import Path
 
+          def get_source(cell):
+              source = cell.get('source', [])
+              return ''.join(source) if isinstance(source, list) else str(source)
+
+          # The historical remediation expects MODEL_DIR immediately after the old
+          # two-file DIMER loader. Insert a temporary sentinel before the current
+          # install_offline_snapshot helper; it is removed after the patch lands.
           e2e = Path('tutorials/mitra_classifier_colab.ipynb')
           nb = json.loads(e2e.read_text(encoding='utf-8'))
           for cell in nb['cells']:
-              src = ''.join(cell.get('source', [])) if isinstance(cell.get('source', []), list) else str(cell.get('source', ''))
+              src = get_source(cell)
               if 'def load_dimer_files(weights_dest, config_dest):' in src:
                   marker = '\n\ndef install_offline_snapshot'
                   if marker not in src:
                       raise RuntimeError('install_offline_snapshot marker not found after DIMER loader')
-                  src = src.replace(marker, '\n\nMODEL_DIR = MODEL_DIR' + marker, 1)
+                  if '\n\nMODEL_DIR = MODEL_DIR\n\n' not in src:
+                      src = src.replace(marker, '\n\nMODEL_DIR = MODEL_DIR' + marker, 1)
                   cell['source'] = src.splitlines(keepends=True)
                   break
           else:
@@ -48,8 +56,12 @@ jobs:
 
           companion = Path('tutorials/mitra_classifier_predictor_inference_colab.ipynb')
           nb = json.loads(companion.read_text(encoding='utf-8'))
+
+          # Normalize duplicate-member protection to the pre-remediation anchor.
+          # The historical patch re-adds the guard; final validation proves it is
+          # present, so this temporary reversal cannot escape the workflow.
           for cell in nb['cells']:
-              src = ''.join(cell.get('source', [])) if isinstance(cell.get('source', []), list) else str(cell.get('source', ''))
+              src = get_source(cell)
               if 'def safe_extract_zip' not in src:
                   continue
               src = src.replace('        seen_members = set()\n', '', 1)
@@ -60,8 +72,43 @@ jobs:
               if i >= 0 and j >= 0:
                   src = src[:i] + src[j:]
               cell['source'] = src.splitlines(keepends=True)
-              companion.write_text(json.dumps(nb, indent=1, ensure_ascii=False) + '\n', encoding='utf-8')
               break
+          else:
+              raise RuntimeError('companion safe_extract_zip cell not found')
+
+          # Normalize the already-hardened feature-schema block to the historical
+          # patcher's exact before-state. This makes the patch idempotent while
+          # preserving the fail-closed result after the patch is re-applied.
+          current_preload = '''artifact_feature_columns = run_metadata['features']\nif (\n    not isinstance(artifact_feature_columns, list)\n    or not artifact_feature_columns\n    or any(not isinstance(name, str) or not name.strip() for name in artifact_feature_columns)\n    or len(set(artifact_feature_columns)) != len(artifact_feature_columns)\n):\n    raise RuntimeError(\n        'Predictor provenance features must be a non-empty list of unique, non-blank string column names.'\n    )\nprint('✓ Artifact feature schema validated before deserialization.')\n'''
+          strict_schema = '''FEATURE_COLUMNS = run_metadata.get('features')\nif (\n    not isinstance(FEATURE_COLUMNS, list)\n    or not FEATURE_COLUMNS\n    or any(not isinstance(name, str) or not name.strip() for name in FEATURE_COLUMNS)\n    or len(set(FEATURE_COLUMNS)) != len(FEATURE_COLUMNS)\n):\n    raise RuntimeError('Predictor provenance features must be a non-empty list of unique, non-empty strings before deserialization.')\nFEATURE_COLUMNS = list(FEATURE_COLUMNS)\n'''
+          current_postload = '''feature_metadata = getattr(predictor, 'feature_metadata_in', None)\nif feature_metadata is None:\n    raise RuntimeError('Loaded predictor does not expose feature_metadata_in; cannot reconcile artifact feature schema.')\npredictor_feature_columns = list(feature_metadata.get_features())\nif predictor_feature_columns != artifact_feature_columns:\n    raise RuntimeError('Artifact feature schema disagrees with the loaded predictor feature schema.')\nFEATURE_COLUMNS = list(artifact_feature_columns)\nprint('✓ Artifact feature schema reconciled with loaded predictor.')\n'''
+          new_feature_check = '''feature_metadata = getattr(predictor, 'feature_metadata_in', None)\nif feature_metadata is None:\n    raise RuntimeError('Loaded predictor does not expose feature_metadata_in; cannot verify artifact feature schema.')\npredictor_features = list(feature_metadata.get_features())\nif predictor_features != FEATURE_COLUMNS:\n    raise RuntimeError(\n        'Recorded feature schema does not match the deserialized predictor input schema. '\n        f'Recorded={FEATURE_COLUMNS}; predictor={predictor_features}'\n    )\nprint('✓ Recorded feature schema structurally validated before load and matched exactly after deserialization.')\n'''
+          old_feature_fallback = '''if run_metadata.get('features'):\n    FEATURE_COLUMNS = list(run_metadata['features'])\nelse:\n    feature_metadata = getattr(predictor, 'feature_metadata_in', None)\n    if feature_metadata is None:\n        raise RuntimeError('Could not determine required input feature columns from predictor metadata.')\n    FEATURE_COLUMNS = list(feature_metadata.get_features())\n'''
+
+          for cell in nb['cells']:
+              src = get_source(cell)
+              if 'required_provenance = [' not in src:
+                  continue
+              if current_preload in src:
+                  src = src.replace(current_preload, '', 1)
+              elif strict_schema in src:
+                  src = src.replace(strict_schema, '', 1)
+              elif "FEATURE_COLUMNS = run_metadata.get('features')" in src:
+                  raise RuntimeError('unexpected companion pre-load feature-schema shape')
+
+              if current_postload in src:
+                  src = src.replace(current_postload, old_feature_fallback, 1)
+              elif new_feature_check in src:
+                  src = src.replace(new_feature_check, old_feature_fallback, 1)
+              elif old_feature_fallback not in src:
+                  raise RuntimeError('unexpected companion post-load feature-schema shape')
+
+              cell['source'] = src.splitlines(keepends=True)
+              break
+          else:
+              raise RuntimeError('companion provenance cell not found')
+
+          companion.write_text(json.dumps(nb, indent=1, ensure_ascii=False) + '\n', encoding='utf-8')
           PY
 
       - name: Wire shared production-facing API into DIMER worker
@@ -128,7 +175,8 @@ jobs:
           nb = json.loads(path.read_text(encoding='utf-8'))
           changed = False
           for cell in nb['cells']:
-              src = ''.join(cell.get('source', [])) if isinstance(cell.get('source', []), list) else str(cell.get('source', ''))
+              source = cell.get('source', [])
+              src = ''.join(source) if isinstance(source, list) else str(source)
               if 'MODEL_DIR = MODEL_DIR' in src:
                   src = src.replace('\n\nMODEL_DIR = MODEL_DIR\n\n', '\n\n', 1)
                   cell['source'] = src.splitlines(keepends=True)
@@ -151,7 +199,7 @@ jobs:
 
       - name: Remove relay scaffolding and commit final remediation
         run: |
-          git rm -f scripts/relay_builder_fix_all.py scripts/relay_run_patcher.py .github/workflows/relay-builder-reviewer-fix.yml
+          git rm -f scripts/relay_builder_fix_all.py scripts/relay_run_patcher.py .github/workflows/relay-builder-reviewer-fix.yml .github/workflows/relay-inspect.yml
           git add -A
           git commit -m "fix(tutorials): resolve reviewer contract blockers"
           git push origin HEAD:fix/notebook-spec-v1-conformance
