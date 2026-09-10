@@ -27,7 +27,7 @@ build contract. Detail + evidence in each child repo's `docs/DIMER_PORTAL_CONTRA
 
 ## Real-stack verification (complete this session)
 
-- [x] Build → offline Mitra load → fine-tune → save → reload → predict, exercised by `.github/workflows/integration.yml` (manual/nightly GPU) and run live on the 5070 Ti 2026-08-19 (`problemType=multiclass`).
+- [x] Build → offline Mitra load → fine-tune → save → reload → predict was exercised live on the 5070 Ti on 2026-08-19 (`problemType=multiclass`). The repository does not currently contain `.github/workflows/integration.yml`; current notebook CI is static and must not be cited as clean-runtime execution evidence.
 
 ## Release gate (open — platform-owned)
 

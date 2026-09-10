@@ -300,6 +300,19 @@ def has_safe_direct_weights_copy_guard(code_cells: list[tuple[int, str]]) -> boo
     return False
 
 
+
+def validate_lockfile(path: Path) -> None:
+    require(path.exists(), f"missing notebook lockfile: {path}")
+    for line in path.read_text(encoding='utf-8').splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#') or stripped.startswith('--') or stripped.startswith('    #'):
+            continue
+        if stripped.startswith('    --hash='):
+            continue
+        token = stripped.split('\\', 1)[0].strip()
+        require('==' in token, f"unlocked requirement in {path.name}: {stripped}")
+
+
 def validate_training_tutorial() -> None:
     _, text, parsed_code = load_notebook(NOTEBOOK)
 
@@ -343,6 +356,16 @@ def validate_training_tutorial() -> None:
         "CC BY 4.0",
         "## AI use and provenance",
         "GPT-5.6 Sol High",
+        "**Profile:** `E2E`",
+        "DIMER Notebook Specification v1.0",
+        "requirements-colab.lock.txt",
+        "artifact_format_version",
+        "artifact-manifest.json",
+        "SHA-256:",
+        "Data disclosure warning",
+        "calibration itself is not established",
+        "Unsafe archive member path",
+        "Symlink entries are not allowed",
         "Agent Relay role",
         "provenance, not sign-off",
     ):
@@ -428,6 +451,14 @@ def validate_inference_tutorial() -> None:
         "GPT-5.6 Sol High",
         "Agent Relay role",
         "provenance, not sign-off",
+        "**Profile:** `ARTIFACT-INFERENCE`",
+        "DIMER Notebook Specification v1.0",
+        "requirements-inference.lock.txt",
+        "artifact_format_version",
+        "Required provenance validated",
+        "HF_HUB_OFFLINE",
+        "calibration for your deployment population has not been established",
+        "What a successful artifact-inference run proves",
     ):
         require(required in text, f"inference tutorial missing required marker: {required}")
 
@@ -501,6 +532,8 @@ def validate_docs() -> None:
 
 
 def main() -> int:
+    validate_lockfile(ROOT / "tutorials" / "requirements-colab.lock.txt")
+    validate_lockfile(ROOT / "tutorials" / "requirements-inference.lock.txt")
     validate_training_tutorial()
     validate_inference_tutorial()
     validate_docs()
