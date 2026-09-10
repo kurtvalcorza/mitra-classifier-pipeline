@@ -358,7 +358,7 @@ def validate_training_tutorial() -> None:
         CONFIG_SHA256,
         SAMPLE_REVISION,
         "autogluon.tabular[mitra]==1.5.0",
-        "DIMER ZIP",
+        "DIMER notebook package",
         "Pinned upstream",
         "Sample dataset (FreshRetailNet)",
         "Upload pre-split train/val/test",
@@ -396,6 +396,7 @@ def validate_training_tutorial() -> None:
         "DIMER Notebook Specification v1.0",
         "requirements-colab.lock.txt",
         "artifact_format_version",
+        "feature_schema_sha256",
         "artifact-manifest.json",
         "SHA-256:",
         "Data disclosure warning",
@@ -404,10 +405,13 @@ def validate_training_tutorial() -> None:
         "Symlink entries are not allowed",
         "Python 3.12",
         "PACKAGE_MANIFEST_FILENAME",
+        "MAX_DIMER_UPLOAD_BYTES",
+        "MAX_DIMER_EXPANDED_BYTES",
+        "DIMER notebook package",
         "dimer-model-manifest.json",
         "load_dimer_package",
         "manifest_version",
-        "legacy weights-only ZIPs are refused",
+        "DIMER itself is not claimed to emit this ZIP",
         "Reload artifact manifest verified",
         "Reload provenance validated",
         "Remote-code boundary",
@@ -515,6 +519,8 @@ def validate_inference_tutorial() -> None:
         "artifact-manifest.json must not list itself",
         "SUPPORTED_MODEL_REVISION",
         "Artifact format version",
+        "feature_schema_sha256",
+        "Loaded predictor feature schema does not match",
         "internal archive consistency",
         "Python 3.12",
         "This notebook is inference-only",
@@ -586,8 +592,22 @@ def validate_docs() -> None:
         "GPT-5.6 Sol High",
         "Agent Relay role",
         "provenance, not sign-off",
+        "DIMER_NOTEBOOK_PACKAGE.md",
+        "repository-defined",
     ):
         require(required in tutorial_readme, f"tutorial README missing marker: {required}")
+
+    package_doc = ROOT / "docs" / "DIMER_NOTEBOOK_PACKAGE.md"
+    package_script = ROOT / "scripts" / "build_dimer_notebook_package.py"
+    require(package_doc.exists(), "missing DIMER notebook-package contract document")
+    require(package_script.exists(), "missing DIMER notebook-package producer")
+    package_doc_text = package_doc.read_text(encoding="utf-8")
+    for required in ("Current DIMER platform checkpoint boundary", "Repository-defined notebook transport envelope", "model.safetensors", "config.json"):
+        require(required in package_doc_text, f"DIMER notebook-package contract missing marker: {required}")
+
+    deployment_text = (ROOT / "DEPLOYMENT.md").read_text(encoding="utf-8")
+    require("No `integration.yml` workflow exists on the current branch." in deployment_text, "deployment docs must state current integration-workflow absence")
+    require("the `integration` workflow exercises" not in deployment_text, "stale integration-workflow evidence claim remains in DEPLOYMENT.md")
 
 
 def main() -> int:

@@ -81,18 +81,14 @@ The fine-tuner image is built **`FROM pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runt
 `torch`/`CUDA` after `pip install` and fails on drift. Do not downgrade to `cuda12.4`/`torch2.5`:
 that lacks `sm_120` and dies with "no kernel image is available" on RTX 50-series / B200 GPUs.
 
-Two GitHub Actions workflows guard the repo:
+Current GitHub Actions validation is intentionally static:
 
-- **`ci`** (every push/PR) — compiles the deployable sources, runs the unit suite, and enforces
-  the shared dataset-resolution block is byte-identical across the validator/finetuner copies and
-  matches the cross-repo pinned SHA (so this repo and the standalone deployment repos cannot
-  drift). It deliberately does **not** install AutoGluon.
-- **`integration`** (manual `workflow_dispatch`; nightly only when the repo variable
-  `ENABLE_NIGHTLY_GPU` is `true`) — needs a **self-hosted runner labelled `gpu`** with the NVIDIA
-  Container Toolkit. It builds the image, loads Mitra offline from the pinned weights, fine-tunes
-  a tiny model, saves it, reloads the `TabularPredictor`, and predicts — catching torch/base-image
-  drift, Mitra API changes, offline-weight failures, and seed/metric propagation that the unit
-  suite cannot. Attach a GPU runner and set `ENABLE_NIGHTLY_GPU` to turn on the nightly run.
+- **`ci`** (every push/PR) — compiles the deployable sources, runs the unit suite, enforces
+  shared-code parity and notebook contracts, and self-tests the repository-defined DIMER notebook
+  package producer. It deliberately does **not** install AutoGluon or execute the notebooks end to end.
+- **No `integration.yml` workflow exists on the current branch.** The GPU save → reload → predict
+  evidence cited by the release checklist is the live 5070 Ti run from 2026-08-19, not an active
+  GitHub Actions workflow. Do not treat static CI as clean-runtime notebook or GPU integration evidence.
 
 ## Operations
 
@@ -119,9 +115,8 @@ Two GitHub Actions workflows guard the repo:
 ## Open item — inference serving
 
 DIMER deploys an inference service after training. This pipeline's artifact is an AutoGluon
-`TabularPredictor` directory; the `integration` workflow exercises the save → reload → predict
-round-trip on a GPU runner, so the artifact is verified to reload and serve predictions outside
-the training process. Whether DIMER's own inference-serving layer wraps a tabular predictor — as
+`TabularPredictor` directory; the live 5070 Ti verification on 2026-08-19 exercised the save → reload → predict
+round-trip outside the training process. That historical/manual evidence is distinct from current static CI. Whether DIMER's own inference-serving layer wraps a tabular predictor — as
 opposed to a vision model — is **not yet verified on the platform.** The platform team owns this
 check before the pipeline serves production traffic.
 

@@ -1,3 +1,8 @@
+#!/usr/bin/env python3
+"""Build the repository-defined Mitra notebook transport package from a DIMER checkpoint pair.
+
+The DIMER platform checkpoint contract remains a directory containing model.safetensors +
+config.json. This script wraps those two files in the self-describing ZIP consumed by the
 standalone Notebook Spec v1.0 tutorial; it does not claim DIMER itself emits this ZIP format.
 """
 from __future__ import annotations
@@ -108,3 +113,24 @@ def self_test() -> None:
             assert hashlib.sha256(z.read("model.safetensors")).hexdigest() == weights_sha
             assert hashlib.sha256(z.read("config.json")).hexdigest() == config_sha
     print("DIMER notebook-package producer self-test: OK")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--checkpoint-dir", type=Path)
+    parser.add_argument("--output", type=Path, default=Path("mitra-dimer-notebook-package.zip"))
+    parser.add_argument("--self-test", action="store_true")
+    args = parser.parse_args()
+    if args.self_test:
+        self_test()
+        return 0
+    if args.checkpoint_dir is None:
+        parser.error("--checkpoint-dir is required unless --self-test is used")
+    output = build_package(args.checkpoint_dir, args.output)
+    print(f"Wrote: {output}")
+    print(f"SHA-256: {sha256_file(output)}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

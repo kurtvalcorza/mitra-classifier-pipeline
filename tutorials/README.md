@@ -19,7 +19,7 @@ The lock inputs are committed as `requirements-colab.in` and `requirements-infer
 
 The declared primary runtime for both notebooks is **Google Colab with Python 3.12**. Generic Jupyter compatibility is not claimed because the workflows intentionally use Colab upload/download primitives. Runtime-error guidance in both notebooks uses the same Colab-only support boundary.
 
-For `MODEL_SOURCE = 'DIMER ZIP'`, Notebook Spec v1.0 expects a self-describing offline package containing exactly `dimer-model-manifest.json`, `model.safetensors`, and `config.json` at the archive root. The manifest must declare `manifest_version: 1.0`, model ID `autogluon/mitra-classifier`, immutable revision `c425e9fa0910a6be1c494321792e7ba2a1367b1a`, and SHA-256 values for both model files. Legacy weights-only DIMER ZIPs are refused rather than completed from the network.
+For `MODEL_SOURCE = 'DIMER notebook package'`, the tutorial consumes a **repository-defined** self-describing transport envelope built from the current DIMER checkpoint pair (`model.safetensors` + `config.json`) with `scripts/build_dimer_notebook_package.py`. DIMER itself is not claimed to emit this ZIP. The wrapper contains exactly `dimer-model-manifest.json`, `model.safetensors`, and `config.json`; see `docs/DIMER_NOTEBOOK_PACKAGE.md` for the producer and contract. The notebook enforces manifest identity/revision/digests plus compressed/expanded resource ceilings before staging.
 
 Both inference workflows reject duplicate CSV headers before pandas can rename them.
 Quoted column names and UTF-8 files with a byte-order mark are supported.
@@ -35,11 +35,11 @@ Quoted column names and UTF-8 files with a byte-order mark are supported.
 
 `mitra_classifier_colab.ipynb` is a standalone tutorial for the Mitra Classifier checkpoint distributed through the DIMER Model Repository.
 
-It does **not** depend on DIMER Workbench, DIMER APIs, or the DIMER validator/fine-tuner workers. Users can download the self-describing offline model package from DIMER and run the notebook independently in Google Colab. As a separate explicitly selected source mode, the notebook can instead retrieve the exact pinned upstream checkpoint associated with the DIMER release; a failed DIMER package validation never falls back to the network.
+It does **not** depend on DIMER Workbench, DIMER APIs, or the DIMER validator/fine-tuner workers. Users can obtain the DIMER checkpoint pair and wrap it with the repository producer before running the notebook independently in Google Colab. As a separate explicitly selected source mode, the notebook can instead retrieve the exact pinned upstream checkpoint associated with the DIMER release; a failed DIMER package validation never falls back to the network.
 
 The tutorial covers:
 
-- DIMER ZIP upload or pinned-upstream checkpoint source selection;
+- repository-defined DIMER notebook-package upload or pinned-upstream checkpoint source selection;
 - SHA-256 verification of `model.safetensors` and `config.json`;
 - an explicit post-staging resolver check that refuses to continue unless Hugging Face resolves the verified offline snapshot;
 - reporting the actual AutoGluon, PyTorch, CUDA-build, Python, and GPU runtime state used for the run;
@@ -83,7 +83,7 @@ It does **not** reacquire `model.safetensors` or `config.json`, does not call DI
 The end-user flow is therefore:
 
 ```text
-DIMER self-describing offline model package OR pinned upstream checkpoint
+repository-packaged DIMER checkpoint OR pinned upstream checkpoint
         ↓
 mitra_classifier_colab.ipynb
         ↓
@@ -160,7 +160,7 @@ These tutorials were developed with substantial AI assistance using **GPT-5.6 So
 - Provider/client: **OpenAI / ChatGPT**
 - Agent Relay role: **Builder**
 - Base-model developer: **AutoGluon team, Amazon Web Services (AWS)**
-- Distributed DIMER artifact: self-describing offline package containing the pinned model weights, configuration, and package manifest
+- DIMER checkpoint boundary: `model.safetensors` + `config.json`; the repository-defined notebook wrapper adds `dimer-model-manifest.json`
 - Model identity: the pinned revision and SHA-256 values above
 
 AI attribution is **provenance, not sign-off**. It does not authenticate authorship, imply endorsement by OpenAI, AWS, AutoGluon, or DIMER, or independently verify correctness. Executed checks and reproducible outputs remain the evidence for a particular run, and users should review the notebooks and their results before consequential use.
