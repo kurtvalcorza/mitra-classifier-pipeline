@@ -15,6 +15,10 @@ There are now two standalone Colab workflows. Both are aligned to **DIMER Notebo
 
 The exact dependency graphs used by the notebooks are committed as `requirements-colab.lock.txt` and `requirements-inference.lock.txt`; both release locks target Python 3.12. Release-grade status requires clean target-runtime execution evidence for the exact release revision; static CI alone is not execution evidence.
 
+The lock inputs are committed as `requirements-colab.in` and `requirements-inference.in`. CI verifies that each notebook's embedded install graph is byte-for-byte identical to its committed lock, preventing notebook/lock drift.
+
+For `MODEL_SOURCE = 'DIMER ZIP'`, Notebook Spec v1.0 expects a self-describing offline package containing exactly `dimer-model-manifest.json`, `model.safetensors`, and `config.json` at the archive root. The manifest must declare `manifest_version: 1.0`, model ID `autogluon/mitra-classifier`, immutable revision `c425e9fa0910a6be1c494321792e7ba2a1367b1a`, and SHA-256 values for both model files. Legacy weights-only DIMER ZIPs are refused rather than completed from the network.
+
 Both inference workflows reject duplicate CSV headers before pandas can rename them.
 Quoted column names and UTF-8 files with a byte-order mark are supported.
 
@@ -64,7 +68,7 @@ The inference tutorial:
 - rejects absolute/traversal/backslash/symlink archive paths, enforces extraction containment and a 4 GiB expanded-size ceiling;
 - requires and verifies `artifact-manifest.json` against the exact extracted file set, per-file sizes, and SHA-256 digests;
 - locates the saved AutoGluon predictor root via `predictor.pkl`;
-- reads `tutorial_run_metadata.json` when present;
+- requires and validates `tutorial_run_metadata.json` before deserialization;
 - reloads the saved predictor with `TabularPredictor.load(...)`;
 - shows model/task/feature/provenance information;
 - uploads one new CSV;

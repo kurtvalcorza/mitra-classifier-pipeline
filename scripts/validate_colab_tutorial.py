@@ -314,6 +314,40 @@ def validate_lockfile(path: Path) -> None:
         token = stripped.split('\\', 1)[0].strip()
         require('==' in token, f"unlocked requirement in {path.name}: {stripped}")
 
+def literal_string_assignment(code_cells: list[tuple[int, str]], name: str) -> str:
+    values: list[str] = []
+    for _, source in code_cells:
+        if not source.strip():
+            continue
+        tree = ast.parse(source)
+        for node in tree.body:
+            if not isinstance(node, ast.Assign):
+                continue
+            if not any(isinstance(target, ast.Name) and target.id == name for target in node.targets):
+                continue
+            require(
+                isinstance(node.value, ast.Constant) and isinstance(node.value.value, str),
+                f"{name} must be a literal string",
+            )
+            values.append(node.value.value)
+    require(len(values) == 1, f"expected exactly one literal assignment to {name}; found {len(values)}")
+    return values[0]
+
+
+def validate_lock_input(path: Path, expected: str) -> None:
+    require(path.exists(), f"missing lock input: {path}")
+    require(path.read_text(encoding='utf-8') == expected, f"unexpected lock input contents: {path.name}")
+
+
+def validate_embedded_lock(notebook: Path, lockfile: Path) -> None:
+    _, _, code = load_notebook(notebook)
+    embedded = literal_string_assignment(code, 'LOCKED_REQUIREMENTS')
+    committed = lockfile.read_text(encoding='utf-8')
+    require(
+        embedded == committed,
+        f"{notebook.name} embedded dependency graph drifted from {lockfile.name}",
+    )
+
 
 def validate_training_tutorial() -> None:
     _, text, parsed_code = load_notebook(NOTEBOOK)
@@ -353,7 +387,7 @@ def validate_training_tutorial() -> None:
         "gc.collect",
         "torch.cuda.empty_cache",
         "## 7. Reload smoke test",
-        "TabularPredictor.load(str(RELOAD_DIR))",
+        "TabularPredictor.load(str(reload_predictor_root))",
         "np.allclose",
         "CC BY 4.0",
         "## AI use and provenance",
@@ -369,7 +403,13 @@ def validate_training_tutorial() -> None:
         "Unsafe archive member path",
         "Symlink entries are not allowed",
         "Python 3.12",
-        "RELEASE_PACKAGE_MANIFEST",
+        "PACKAGE_MANIFEST_FILENAME",
+        "dimer-model-manifest.json",
+        "load_dimer_package",
+        "manifest_version",
+        "legacy weights-only ZIPs are refused",
+        "Reload artifact manifest verified",
+        "Reload provenance validated",
         "Remote-code boundary",
         "Baseline variability",
         "output column(s) reserved by this notebook",
@@ -434,8 +474,8 @@ def validate_training_tutorial() -> None:
         "Step 5 inference must import io and pandas locally",
     )
     require(
-        has_safe_direct_weights_copy_guard(parsed_code),
-        "direct model.safetensors upload must avoid copying a path onto itself",
+        "weights_from_dimer" not in code_text and "load_dimer_package" in code_text,
+        "DIMER ZIP path must use the manifest-validating offline package loader",
     )
 
 
@@ -471,6 +511,8 @@ def validate_inference_tutorial() -> None:
         "Backslash archive member paths are not allowed",
         "Artifact manifest file set mismatch",
         "Artifact manifest verified",
+        "outside the single predictor root",
+        "artifact-manifest.json must not list itself",
         "SUPPORTED_MODEL_REVISION",
         "Artifact format version",
         "internal archive consistency",
@@ -549,8 +591,20 @@ def validate_docs() -> None:
 
 
 def main() -> int:
-    validate_lockfile(ROOT / "tutorials" / "requirements-colab.lock.txt")
-    validate_lockfile(ROOT / "tutorials" / "requirements-inference.lock.txt")
+    colab_lock = ROOT / "tutorials" / "requirements-colab.lock.txt"
+    inference_lock = ROOT / "tutorials" / "requirements-inference.lock.txt"
+    validate_lock_input(
+        ROOT / "tutorials" / "requirements-colab.in",
+        "autogluon.tabular[mitra]==1.5.0\nlightgbm>=4.0,<4.8\n",
+    )
+    validate_lock_input(
+        ROOT / "tutorials" / "requirements-inference.in",
+        "autogluon.tabular[mitra]==1.5.0\n",
+    )
+    validate_lockfile(colab_lock)
+    validate_lockfile(inference_lock)
+    validate_embedded_lock(NOTEBOOK, colab_lock)
+    validate_embedded_lock(INFERENCE_NOTEBOOK, inference_lock)
     validate_training_tutorial()
     validate_inference_tutorial()
     validate_docs()
