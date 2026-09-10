@@ -413,6 +413,8 @@ def validate_training_tutorial() -> None:
         "Upload exactly two files downloaded from DIMER",
         "Reload artifact manifest verified",
         "Reload provenance validated",
+        "Reload feature schema validated before deserialization",
+        "Reload artifact feature schema reconciled with loaded predictor",
         "Remote-code boundary",
         "Baseline variability",
         "output column(s) reserved by this notebook",
@@ -512,6 +514,9 @@ def validate_inference_tutorial() -> None:
         "What a successful artifact-inference run proves",
         "MAX_EXPANDED_BYTES",
         "Backslash archive member paths are not allowed",
+        "Duplicate archive member path",
+        "Artifact feature schema validated before deserialization",
+        "Artifact feature schema reconciled with loaded predictor",
         "Artifact manifest file set mismatch",
         "Artifact manifest verified",
         "outside the single predictor root",
@@ -523,6 +528,16 @@ def validate_inference_tutorial() -> None:
         "This notebook is inference-only",
     ):
         require(required in text, f"inference tutorial missing required marker: {required}")
+
+    for forbidden_text in (
+        "DIMER ZIP",
+        "dimer-model-manifest.json",
+        "load_dimer_package",
+    ):
+        require(
+            forbidden_text not in text,
+            f"inference tutorial contains stale/unsupported DIMER package wording: {forbidden_text}",
+        )
 
     code_text = "\n".join(source for _, source in parsed_code)
     require(
