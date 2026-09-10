@@ -1,4 +1,4 @@
-# Agent Relay builder one-shot remediation; self-deletes on success.
+# Agent Relay builder one-shot remediation; all relay scaffolding self-deletes on success.
 name: Relay builder reviewer remediation
 
 on:
@@ -22,170 +22,34 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Restore intact immutable relay patcher
-        run: git show b69ec2cd1e9316608d2b85bc9739054bd441cfc2:scripts/relay_builder_fix_all.py > /tmp/relay_builder_fix_all.py
+      - name: Apply production-facing API remediation
+        run: python scripts/relay_builder_fix_all.py production
 
-      - name: Normalize already-fixed tutorial state for historical patch
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          def get_source(cell):
-              source = cell.get('source', [])
-              return ''.join(source) if isinstance(source, list) else str(source)
-
-          # The historical remediation expects MODEL_DIR immediately after the old
-          # two-file DIMER loader. Insert a temporary sentinel before the current
-          # install_offline_snapshot helper; it is removed after the patch lands.
-          e2e = Path('tutorials/mitra_classifier_colab.ipynb')
-          nb = json.loads(e2e.read_text(encoding='utf-8'))
-          for cell in nb['cells']:
-              src = get_source(cell)
-              if 'def load_dimer_files(weights_dest, config_dest):' in src:
-                  marker = '\n\ndef install_offline_snapshot'
-                  if marker not in src:
-                      raise RuntimeError('install_offline_snapshot marker not found after DIMER loader')
-                  if '\n\nMODEL_DIR = MODEL_DIR\n\n' not in src:
-                      src = src.replace(marker, '\n\nMODEL_DIR = MODEL_DIR' + marker, 1)
-                  cell['source'] = src.splitlines(keepends=True)
-                  break
-          else:
-              raise RuntimeError('DIMER loader cell not found')
-          e2e.write_text(json.dumps(nb, indent=1, ensure_ascii=False) + '\n', encoding='utf-8')
-
-          companion = Path('tutorials/mitra_classifier_predictor_inference_colab.ipynb')
-          nb = json.loads(companion.read_text(encoding='utf-8'))
-
-          # Normalize duplicate-member protection to the pre-remediation anchor.
-          # The historical patch re-adds the guard; final validation proves it is
-          # present, so this temporary reversal cannot escape the workflow.
-          for cell in nb['cells']:
-              src = get_source(cell)
-              if 'def safe_extract_zip' not in src:
-                  continue
-              src = src.replace('        seen_members = set()\n', '', 1)
-              start = '            normalized_member = portable_member.as_posix()\n'
-              end = '            member = Path(*portable_member.parts)\n'
-              i = src.find(start)
-              j = src.find(end, i if i >= 0 else 0)
-              if i >= 0 and j >= 0:
-                  src = src[:i] + src[j:]
-              cell['source'] = src.splitlines(keepends=True)
-              break
-          else:
-              raise RuntimeError('companion safe_extract_zip cell not found')
-
-          # Normalize the already-hardened feature-schema block to the historical
-          # patcher's exact before-state. This makes the patch idempotent while
-          # preserving the fail-closed result after the patch is re-applied.
-          current_preload = '''artifact_feature_columns = run_metadata['features']\nif (\n    not isinstance(artifact_feature_columns, list)\n    or not artifact_feature_columns\n    or any(not isinstance(name, str) or not name.strip() for name in artifact_feature_columns)\n    or len(set(artifact_feature_columns)) != len(artifact_feature_columns)\n):\n    raise RuntimeError(\n        'Predictor provenance features must be a non-empty list of unique, non-blank string column names.'\n    )\nprint('✓ Artifact feature schema validated before deserialization.')\n'''
-          strict_schema = '''FEATURE_COLUMNS = run_metadata.get('features')\nif (\n    not isinstance(FEATURE_COLUMNS, list)\n    or not FEATURE_COLUMNS\n    or any(not isinstance(name, str) or not name.strip() for name in FEATURE_COLUMNS)\n    or len(set(FEATURE_COLUMNS)) != len(FEATURE_COLUMNS)\n):\n    raise RuntimeError('Predictor provenance features must be a non-empty list of unique, non-empty strings before deserialization.')\nFEATURE_COLUMNS = list(FEATURE_COLUMNS)\n'''
-          current_postload = '''feature_metadata = getattr(predictor, 'feature_metadata_in', None)\nif feature_metadata is None:\n    raise RuntimeError('Loaded predictor does not expose feature_metadata_in; cannot reconcile artifact feature schema.')\npredictor_feature_columns = list(feature_metadata.get_features())\nif predictor_feature_columns != artifact_feature_columns:\n    raise RuntimeError('Artifact feature schema disagrees with the loaded predictor feature schema.')\nFEATURE_COLUMNS = list(artifact_feature_columns)\nprint('✓ Artifact feature schema reconciled with loaded predictor.')\n'''
-          new_feature_check = '''feature_metadata = getattr(predictor, 'feature_metadata_in', None)\nif feature_metadata is None:\n    raise RuntimeError('Loaded predictor does not expose feature_metadata_in; cannot verify artifact feature schema.')\npredictor_features = list(feature_metadata.get_features())\nif predictor_features != FEATURE_COLUMNS:\n    raise RuntimeError(\n        'Recorded feature schema does not match the deserialized predictor input schema. '\n        f'Recorded={FEATURE_COLUMNS}; predictor={predictor_features}'\n    )\nprint('✓ Recorded feature schema structurally validated before load and matched exactly after deserialization.')\n'''
-          old_feature_fallback = '''if run_metadata.get('features'):\n    FEATURE_COLUMNS = list(run_metadata['features'])\nelse:\n    feature_metadata = getattr(predictor, 'feature_metadata_in', None)\n    if feature_metadata is None:\n        raise RuntimeError('Could not determine required input feature columns from predictor metadata.')\n    FEATURE_COLUMNS = list(feature_metadata.get_features())\n'''
-
-          for cell in nb['cells']:
-              src = get_source(cell)
-              if 'required_provenance = [' not in src:
-                  continue
-              if current_preload in src:
-                  src = src.replace(current_preload, '', 1)
-              elif strict_schema in src:
-                  src = src.replace(strict_schema, '', 1)
-              elif "FEATURE_COLUMNS = run_metadata.get('features')" in src:
-                  raise RuntimeError('unexpected companion pre-load feature-schema shape')
-
-              if current_postload in src:
-                  src = src.replace(current_postload, old_feature_fallback, 1)
-              elif new_feature_check in src:
-                  src = src.replace(new_feature_check, old_feature_fallback, 1)
-              elif old_feature_fallback not in src:
-                  raise RuntimeError('unexpected companion post-load feature-schema shape')
-
-              cell['source'] = src.splitlines(keepends=True)
-              break
-          else:
-              raise RuntimeError('companion provenance cell not found')
-
-          companion.write_text(json.dumps(nb, indent=1, ensure_ascii=False) + '\n', encoding='utf-8')
-          PY
-
-      - name: Wire shared production-facing API into DIMER worker
-        id: production_patch
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -o pipefail
-          python /tmp/relay_builder_fix_all.py production 2>&1 | tee relay-production-patch.log
-
-      - name: Upload production patch diagnostics
-        if: always() && steps.production_patch.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: relay-production-patch-diagnostics
-          path: relay-production-patch.log
-
-      - name: Stop after production patch failure
-        if: steps.production_patch.outcome == 'failure'
-        run: exit 1
-
-      - name: Install lightweight validation dependencies
+      - name: Install validation dependencies
         run: pip install pandas numpy scikit-learn
 
-      - name: Validate production phase
+      - name: Validate production integration before pinning it
         run: |
           python -m py_compile finetuner/pipeline_api.py finetuner/train.py
           python scripts/check_shared.py
           python scripts/check_contract.py
+          grep -q 'pipeline_api.py' finetuner/Dockerfile
+          grep -q 'pipeline_api.py' finetuner/Dockerfile.gpu
+          grep -q 'scripts/test_pipeline_api_contract.py' .github/workflows/ci.yml
 
-      - name: Commit immutable worker/API integration ancestor
+      - name: Commit immutable production API ancestor
         run: |
-          git add finetuner/train.py finetuner/Dockerfile finetuner/Dockerfile.gpu .github/workflows/ci.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "refactor(finetuner): use shared Mitra pipeline API"
+          git add finetuner/pipeline_api.py finetuner/train.py finetuner/Dockerfile finetuner/Dockerfile.gpu .github/workflows/ci.yml scripts/test_pipeline_api_contract.py
+          git commit -m "refactor(finetuner): share production Mitra pipeline API"
           echo "API_REF=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "API_SHA=$(sha256sum finetuner/pipeline_api.py | awk '{print $1}')" >> "$GITHUB_ENV"
 
-      - name: Patch tutorials against immutable API revision
-        id: tutorial_patch
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -o pipefail
-          python /tmp/relay_builder_fix_all.py tutorials --api-ref "$API_REF" 2>&1 | tee relay-tutorial-patch.log
+      - name: Align tutorials to immutable production API and DIMER weights boundary
+        run: python scripts/relay_builder_fix_all.py tutorials --api-ref "$API_REF" --api-sha "$API_SHA"
 
-      - name: Upload tutorial patch diagnostics
-        if: always() && steps.tutorial_patch.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: relay-tutorial-patch-diagnostics
-          path: relay-tutorial-patch.log
-
-      - name: Stop after tutorial patch failure
-        if: steps.tutorial_patch.outcome == 'failure'
-        run: exit 1
-
-      - name: Remove temporary compatibility anchor
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          path = Path('tutorials/mitra_classifier_colab.ipynb')
-          nb = json.loads(path.read_text(encoding='utf-8'))
-          changed = False
-          for cell in nb['cells']:
-              source = cell.get('source', [])
-              src = ''.join(source) if isinstance(source, list) else str(source)
-              if 'MODEL_DIR = MODEL_DIR' in src:
-                  src = src.replace('\n\nMODEL_DIR = MODEL_DIR\n\n', '\n\n', 1)
-                  cell['source'] = src.splitlines(keepends=True)
-                  changed = True
-          if changed:
-              path.write_text(json.dumps(nb, indent=1, ensure_ascii=False) + '\n', encoding='utf-8')
-          PY
-
-      - name: Run durable repository checks before push
+      - name: Run durable repository checks
         run: |
           python scripts/check_shared.py
           python scripts/check_contract.py
@@ -197,9 +61,19 @@ jobs:
           python -m py_compile finetuner/pipeline_api.py finetuner/train.py finetuner/contract_entrypoint.py finetuner/contract_hardening.py
           python -m py_compile examples/build_freshretailnet_dataset.py
 
-      - name: Remove relay scaffolding and commit final remediation
+      - name: Assert final contract markers
+        run: |
+          grep -q 'DIMER hosts \*\*only `model.safetensors`\*\*' tutorials/README.md
+          grep -q 'PIPELINE_API.prepare_tabular_frame' tutorials/mitra_classifier_colab.ipynb
+          grep -q 'PIPELINE_API.fit_mitra_predictor' tutorials/mitra_classifier_colab.ipynb
+          grep -q 'PIPELINE_API.predict_mitra' tutorials/mitra_classifier_predictor_inference_colab.ipynb
+          ! grep -q 'Upload exactly two files downloaded from DIMER' tutorials/mitra_classifier_colab.ipynb
+
+      - name: Remove relay and diagnostic scaffolding
         run: |
           git rm -f scripts/relay_builder_fix_all.py scripts/relay_run_patcher.py .github/workflows/relay-builder-reviewer-fix.yml .github/workflows/relay-inspect.yml
           git add -A
-          git commit -m "fix(tutorials): resolve reviewer contract blockers"
-          git push origin HEAD:fix/notebook-spec-v1-conformance
+          git commit -m "fix(tutorials): resolve notebook-spec reviewer blockers"
+
+      - name: Push final builder state
+        run: git push origin HEAD:fix/notebook-spec-v1-conformance
