@@ -37,7 +37,7 @@ jobs:
           sudo mkdir -p /content
           sudo chown -R "$USER":"$USER" /content
           python -m pip install --upgrade pip==26.2.1
-          python -m pip install nbconvert==7.17.1 ipykernel==7.3.0
+          python -m pip install torch==2.9.1 nbconvert==7.17.1 ipykernel==7.3.0
 
       - name: Execute E2E default pinned-upstream path
         id: e2e
