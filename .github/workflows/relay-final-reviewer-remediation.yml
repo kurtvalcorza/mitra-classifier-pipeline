@@ -22,6 +22,24 @@ jobs:
           python-version: "3.12"
       - name: Apply focused reviewer remediation
         run: python scripts/relay_fix_reviewer_blockers.py
+      - name: Align validator invariant with two-file DIMER boundary
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/validate_colab_tutorial.py')
+          text = path.read_text(encoding='utf-8')
+          old = '''    require(
+              "weights_from_dimer" not in code_text and "load_dimer_package" in code_text,
+              "DIMER ZIP path must use the manifest-validating offline package loader",
+          )'''
+          new = '''    require(
+              "load_dimer_files" in code_text and "load_dimer_package" not in code_text,
+              "DIMER source path must use the explicit two-file loader matching the current platform boundary",
+          )'''
+          if text.count(old) != 1:
+              raise RuntimeError(f'expected one stale DIMER validator invariant; found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
       - name: Install lightweight CI dependencies
         run: pip install pandas numpy
       - name: Shared-block parity
