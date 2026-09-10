@@ -20,6 +20,11 @@ CONFIG_SHA256 = "2c96c24dd25f64e92753f6f2ba00cc7833b9923459403dcd8504e8700c0995d
 SAMPLE_REVISION = "8fc19e80ae3166ec6bf964d194a28c80e6ba3b1f"
 
 FORBIDDEN = (
+    "DIMER ZIP",
+    "dimer-model-manifest.json",
+    "load_dimer_package",
+    "PACKAGE_MANIFEST_FILENAME",
+    "PACKAGE_MANIFEST_VERSION",
     "mitra-classifier-finetuner",
     "mitra-classifier-dataset-validator",
     "load_breast_cancer",
@@ -358,7 +363,7 @@ def validate_training_tutorial() -> None:
         CONFIG_SHA256,
         SAMPLE_REVISION,
         "autogluon.tabular[mitra]==1.5.0",
-        "DIMER ZIP",
+        "DIMER files",
         "Pinned upstream",
         "Sample dataset (FreshRetailNet)",
         "Upload pre-split train/val/test",
@@ -403,11 +408,9 @@ def validate_training_tutorial() -> None:
         "Unsafe archive member path",
         "Symlink entries are not allowed",
         "Python 3.12",
-        "PACKAGE_MANIFEST_FILENAME",
-        "dimer-model-manifest.json",
-        "load_dimer_package",
-        "manifest_version",
-        "legacy weights-only ZIPs are refused",
+        "load_dimer_files",
+        "MOD7 provenance gap",
+        "Upload exactly two files downloaded from DIMER",
         "Reload artifact manifest verified",
         "Reload provenance validated",
         "Remote-code boundary",
@@ -474,8 +477,8 @@ def validate_training_tutorial() -> None:
         "Step 5 inference must import io and pandas locally",
     )
     require(
-        "weights_from_dimer" not in code_text and "load_dimer_package" in code_text,
-        "DIMER ZIP path must use the manifest-validating offline package loader",
+        "weights_from_dimer" not in code_text and "load_dimer_files" in code_text,
+        "DIMER files path must use the fail-closed digest-validating two-file loader",
     )
 
 
