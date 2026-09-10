@@ -1,0 +1,110 @@
+                raise RuntimeError(f'Unsafe archive member path: {info.filename!r}')
+            if mode == stat.S_IFLNK:
+                raise RuntimeError(f'Symlink entries are not allowed: {info.filename!r}')
+            if len(member.parts) != 1:
+                raise RuntimeError(
+                    f'DIMER notebook-package entries must be at the archive root; found {info.filename!r}.'
+                )
+            if member.name in by_name:
+                raise RuntimeError(f'Duplicate DIMER notebook-package member: {member.name!r}')
+            expanded_bytes += int(info.file_size)
+            if expanded_bytes > MAX_DIMER_EXPANDED_BYTES:
+                raise RuntimeError(
+                    f'DIMER notebook package exceeds the {MAX_DIMER_EXPANDED_BYTES / (1024 ** 3):.0f} GiB expanded-size ceiling.'
+                )
+            by_name[member.name] = info
+
+        actual_archive_files = set(by_name)
+        if actual_archive_files != expected_archive_files:
+            raise RuntimeError(
+                'DIMER notebook-package file set mismatch. '
+                f'Missing={sorted(expected_archive_files - actual_archive_files)}; '
+                f'unexpected={sorted(actual_archive_files - expected_archive_files)}'
+            )
+        if by_name[PACKAGE_MANIFEST_FILENAME].file_size > MAX_DIMER_MANIFEST_BYTES:
+            raise RuntimeError('DIMER notebook-package manifest exceeds the 1 MiB safety ceiling.')
+
+        try:
+            package_manifest = json.loads(
+                z.read(by_name[PACKAGE_MANIFEST_FILENAME]).decode('utf-8')
+            )
+        except Exception as exc:
+            raise RuntimeError('DIMER notebook-package manifest is not valid UTF-8 JSON.') from exc
+
+        if not isinstance(package_manifest, dict):
+            raise RuntimeError('DIMER notebook-package manifest must be a JSON object.')
+        if package_manifest.get('manifest_version') != PACKAGE_MANIFEST_VERSION:
+            raise RuntimeError(
+                f"Unsupported DIMER notebook-package manifest version: {package_manifest.get('manifest_version')!r}."
+            )
+        if package_manifest.get('model_id') != MODEL_ID:
+            raise RuntimeError(
+                f"DIMER notebook-package model identity mismatch: {package_manifest.get('model_id')!r}."
+            )
+        if package_manifest.get('revision') != PINNED_REVISION:
+            raise RuntimeError(
+                f"DIMER notebook-package revision mismatch: {package_manifest.get('revision')!r}."
+            )
+        manifest_files = package_manifest.get('files')
+        if not isinstance(manifest_files, dict) or set(manifest_files) != set(expected_release_files):
+            raise RuntimeError(
+                'DIMER notebook-package manifest must enumerate exactly model.safetensors and config.json.'
+            )
+
+        destinations = {
+            'model.safetensors': weights_dest,
+            'config.json': config_dest,
+        }
+        try:
+            for filename, expected_release_digest in expected_release_files.items():
+                declared_digest = str(manifest_files.get(filename, '')).lower()
+                if len(declared_digest) != 64 or any(ch not in '0123456789abcdef' for ch in declared_digest):
+                    raise RuntimeError(f'DIMER notebook-package manifest has invalid SHA-256 for {filename!r}.')
+                if declared_digest != expected_release_digest:
+                    raise RuntimeError(
+                        f'DIMER notebook-package manifest digest for {filename!r} does not match this notebook release.'
+                    )
+                destination = destinations[filename]
+                h = hashlib.sha256()
+                with z.open(by_name[filename]) as source, open(destination, 'wb') as target:
+                    for chunk in iter(lambda: source.read(1 << 20), b''):
+                        h.update(chunk)
+                        target.write(chunk)
+                actual_digest = h.hexdigest()
+                if actual_digest != declared_digest:
+                    raise RuntimeError(
+                        f'DIMER notebook-package payload digest mismatch for {filename!r}. '
+                        f'Expected {declared_digest}; got {actual_digest}.'
+                    )
+        except Exception:
+            weights_dest.unlink(missing_ok=True)
+            config_dest.unlink(missing_ok=True)
+            raise
+
+    print(
+        '✓ DIMER notebook-package manifest, identity, revision, exact file set, and payload digests verified:',
+        MODEL_ID,
+        PINNED_REVISION,
+    )
+
+'''
+    code = code[:start] + new_func + code[end:]
+    code = code.replace(
+        "MODEL_SOURCE = 'Pinned upstream'  # @param ['DIMER ZIP', 'Pinned upstream']",
+        "MODEL_SOURCE = 'Pinned upstream'  # @param ['DIMER notebook package', 'Pinned upstream']",
+    )
+    code = code.replace("if MODEL_SOURCE == 'DIMER ZIP':", "if MODEL_SOURCE == 'DIMER notebook package':")
+    set_src(step2_code, code)
+
+    export_md = find_cell(nb, "## 6. Export the reusable predictor", cell_type="markdown")
+    text = src(export_md)
+    text += "\n**Feature-schema binding:** the export hashes the ordered required feature-name list and records that digest in both provenance and the artifact manifest. The companion validates the schema structure and digest before deserialization, then cross-checks it against the loaded predictor.\n"
+    set_src(export_md, text)
+
+    export_code = find_cell(nb, "artifact_manifest = {", cell_type="code")
+    code = src(export_code)
+    code = replace_once(
+        code,
+        "metadata = {\n",
+        "feature_schema_json = json.dumps(list(FEATURE_COLUMNS), ensure_ascii=False, separators=(',', ':'))\nfeature_schema_sha256 = hashlib.sha256(feature_schema_json.encode('utf-8')).hexdigest()\nmetadata = {\n",
+        "main schema digest preamble",
