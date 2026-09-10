@@ -225,6 +225,20 @@ jobs:
               '"tutorial must pass MAX_MEMORY_USAGE_RATIO through the direct or shared-API fit path"',
           )
 
+          old_required = '        "predict_proba",\n        "as_multiclass=True",\n'
+          new_required = '        "PIPELINE_API.predict_mitra",\n        "PIPELINE_API.predict_mitra_proba",\n'
+          if old_required in src:
+              src = src.replace(old_required, new_required, 1)
+          elif new_required not in src:
+              raise RuntimeError('companion prediction markers missing from validator')
+
+          old_inference_checks = '    require("predict" in attrs, "inference tutorial must call predict(...)")\n    require("predict_proba" in attrs, "inference tutorial must call predict_proba(...)")\n    require(\n        predict_proba_calls_are_multiclass(parsed_code, minimum_calls=1),\n        "inference tutorial predict_proba must request as_multiclass=True",\n    )\n'
+          new_inference_checks = '    require("predict_mitra" in attrs, "inference tutorial must call shared-API predict_mitra(...)")\n    require("predict_mitra_proba" in attrs, "inference tutorial must call shared-API predict_mitra_proba(...)")\n    require(\n        "predict" not in attrs and "predict_proba" not in attrs,\n        "inference tutorial must not bypass the shared prediction API",\n    )\n'
+          if old_inference_checks in src:
+              src = src.replace(old_inference_checks, new_inference_checks, 1)
+          elif new_inference_checks not in src:
+              raise RuntimeError('companion direct-prediction validator block missing')
+
           required = (
               '"DIMER weights",',
               '"load_dimer_weights",',
@@ -232,6 +246,10 @@ jobs:
               '"weights_from_dimer" not in code_text and "load_dimer_weights" in code_text',
               'node.func.attr == "fit_mitra_predictor"',
               'keyword.arg == "max_memory_usage_ratio"',
+              '"PIPELINE_API.predict_mitra",',
+              '"PIPELINE_API.predict_mitra_proba",',
+              '"predict_mitra" in attrs',
+              '"predict_mitra_proba" in attrs',
           )
           for marker in required:
               if marker not in src:
