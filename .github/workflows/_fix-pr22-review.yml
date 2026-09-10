@@ -21,6 +21,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Preserve standalone runtime invariant
+        run: sed -i 's/DIMER_PACKAGE_MANIFEST/PACKAGE_MANIFEST/g' scripts/_fix_pr22_review.py
       - name: Apply reviewer remediation
         run: python scripts/_fix_pr22_review.py
       - name: Validate tutorial contract
