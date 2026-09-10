@@ -1,14 +1,11 @@
 # Temporary Agent Relay builder finalizer. Self-deletes on success.
 name: Relay finalize reviewer remediation
-
 on:
   push:
     branches: [fix/notebook-spec-v1-conformance]
     paths: [.github/workflows/relay-finalize.yml]
-
 permissions:
   contents: write
-
 jobs:
   finalize:
     runs-on: ubuntu-24.04
@@ -27,100 +24,111 @@ jobs:
           python - <<'PY'
           import ast, base64, zlib
           from pathlib import Path
-          wrapper = Path('/tmp/relay-wrapper.py').read_text()
-          tree = ast.parse(wrapper)
-          payload = next(
-              ast.literal_eval(node.value)
-              for node in tree.body
-              if isinstance(node, ast.Assign)
-              and any(isinstance(t, ast.Name) and t.id == '_PAYLOAD' for t in node.targets)
-          )
-          source = zlib.decompress(base64.b64decode(payload)).decode('utf-8')
-          old = 'val = replace_once(val, required_anchor, required_new, "validator shared API markers")'
-          new = 'val = val.replace(required_anchor, required_new, 1)'
-          if source.count(old) != 1:
-              raise RuntimeError(f'expected one historical validator replacement, found {source.count(old)}')
-          source = source.replace(old, new, 1)
-          Path('/tmp/relay.py').write_text(source, encoding='utf-8')
+          wrapper=Path('/tmp/relay-wrapper.py').read_text(); tree=ast.parse(wrapper)
+          payload=next(ast.literal_eval(n.value) for n in tree.body if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='_PAYLOAD' for t in n.targets))
+          src=zlib.decompress(base64.b64decode(payload)).decode('utf-8')
+          old='val = replace_once(val, required_anchor, required_new, "validator shared API markers")'
+          if src.count(old)!=1: raise RuntimeError(f'historical validator anchor count={src.count(old)}')
+          src=src.replace(old,'val = val.replace(required_anchor, required_new, 1)',1)
+          Path('/tmp/relay.py').write_text(src,encoding='utf-8')
           PY
 
-      - name: Normalize already-fixed notebook guards to historical before-state
+      - name: Normalize already-fixed guards to historical before-state
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
+          def text(c):
+              v=c.get('source',[]); return ''.join(v) if isinstance(v,list) else str(v)
 
-          def source(cell):
-              value = cell.get('source', [])
-              return ''.join(value) if isinstance(value, list) else str(value)
+          p=Path('tutorials/mitra_classifier_colab.ipynb'); nb=json.loads(p.read_text())
+          for c in nb['cells']:
+              s=text(c)
+              if 'def load_dimer_files(weights_dest, config_dest):' in s:
+                  marker='\n\ndef install_offline_snapshot'
+                  if marker not in s: raise RuntimeError('E2E loader boundary missing')
+                  c['source']=s.replace(marker,'\n\nMODEL_DIR = MODEL_DIR'+marker,1).splitlines(keepends=True); break
+          else: raise RuntimeError('E2E DIMER loader missing')
+          p.write_text(json.dumps(nb,indent=1,ensure_ascii=False)+'\n')
 
-          e2e = Path('tutorials/mitra_classifier_colab.ipynb')
-          nb = json.loads(e2e.read_text(encoding='utf-8'))
-          for cell in nb['cells']:
-              text = source(cell)
-              if 'def load_dimer_files(weights_dest, config_dest):' in text:
-                  marker = '\n\ndef install_offline_snapshot'
-                  if marker not in text:
-                      raise RuntimeError('E2E install_offline_snapshot marker missing')
-                  text = text.replace(marker, '\n\nMODEL_DIR = MODEL_DIR' + marker, 1)
-                  cell['source'] = text.splitlines(keepends=True)
-                  break
-          else:
-              raise RuntimeError('E2E DIMER loader missing')
-          e2e.write_text(json.dumps(nb, indent=1, ensure_ascii=False) + '\n', encoding='utf-8')
+          p=Path('tutorials/mitra_classifier_predictor_inference_colab.ipynb'); nb=json.loads(p.read_text())
+          for c in nb['cells']:
+              s=text(c)
+              if 'def safe_extract_zip' in s:
+                  s=s.replace('        seen_members = set()\n','',1)
+                  a='            normalized_member = portable_member.as_posix()\n'; b='            member = Path(*portable_member.parts)\n'
+                  i=s.find(a); j=s.find(b,i if i>=0 else 0)
+                  if i>=0 and j>=0: s=s[:i]+s[j:]
+                  c['source']=s.splitlines(keepends=True); break
+          else: raise RuntimeError('companion archive cell missing')
 
-          companion = Path('tutorials/mitra_classifier_predictor_inference_colab.ipynb')
-          nb = json.loads(companion.read_text(encoding='utf-8'))
-
-          for cell in nb['cells']:
-              text = source(cell)
-              if 'def safe_extract_zip' not in text:
-                  continue
-              text = text.replace('        seen_members = set()\n', '', 1)
-              start = '            normalized_member = portable_member.as_posix()\n'
-              end = '            member = Path(*portable_member.parts)\n'
-              i = text.find(start)
-              j = text.find(end, i if i >= 0 else 0)
-              if i >= 0 and j >= 0:
-                  text = text[:i] + text[j:]
-              cell['source'] = text.splitlines(keepends=True)
-              break
-          else:
-              raise RuntimeError('companion archive guard cell missing')
-
-          current_pre = '''artifact_feature_columns = run_metadata['features']\nif (\n    not isinstance(artifact_feature_columns, list)\n    or not artifact_feature_columns\n    or any(not isinstance(name, str) or not name.strip() for name in artifact_feature_columns)\n    or len(set(artifact_feature_columns)) != len(artifact_feature_columns)\n):\n    raise RuntimeError(\n        'Predictor provenance features must be a non-empty list of unique, non-blank string column names.'\n    )\nprint('✓ Artifact feature schema validated before deserialization.')\n'''
-          strict_pre = '''FEATURE_COLUMNS = run_metadata.get('features')\nif (\n    not isinstance(FEATURE_COLUMNS, list)\n    or not FEATURE_COLUMNS\n    or any(not isinstance(name, str) or not name.strip() for name in FEATURE_COLUMNS)\n    or len(set(FEATURE_COLUMNS)) != len(FEATURE_COLUMNS)\n):\n    raise RuntimeError('Predictor provenance features must be a non-empty list of unique, non-empty strings before deserialization.')\nFEATURE_COLUMNS = list(FEATURE_COLUMNS)\n'''
-          current_post = '''feature_metadata = getattr(predictor, 'feature_metadata_in', None)\nif feature_metadata is None:\n    raise RuntimeError('Loaded predictor does not expose feature_metadata_in; cannot reconcile artifact feature schema.')\npredictor_feature_columns = list(feature_metadata.get_features())\nif predictor_feature_columns != artifact_feature_columns:\n    raise RuntimeError('Artifact feature schema disagrees with the loaded predictor feature schema.')\nFEATURE_COLUMNS = list(artifact_feature_columns)\nprint('✓ Artifact feature schema reconciled with loaded predictor.')\n'''
-          patched_post = '''feature_metadata = getattr(predictor, 'feature_metadata_in', None)\nif feature_metadata is None:\n    raise RuntimeError('Loaded predictor does not expose feature_metadata_in; cannot verify artifact feature schema.')\npredictor_features = list(feature_metadata.get_features())\nif predictor_features != FEATURE_COLUMNS:\n    raise RuntimeError(\n        'Recorded feature schema does not match the deserialized predictor input schema. '\n        f'Recorded={FEATURE_COLUMNS}; predictor={predictor_features}'\n    )\nprint('✓ Recorded feature schema structurally validated before load and matched exactly after deserialization.')\n'''
-          old_post = '''if run_metadata.get('features'):\n    FEATURE_COLUMNS = list(run_metadata['features'])\nelse:\n    feature_metadata = getattr(predictor, 'feature_metadata_in', None)\n    if feature_metadata is None:\n        raise RuntimeError('Could not determine required input feature columns from predictor metadata.')\n    FEATURE_COLUMNS = list(feature_metadata.get_features())\n'''
-
-          for cell in nb['cells']:
-              text = source(cell)
-              if 'required_provenance = [' not in text:
-                  continue
-              if current_pre in text:
-                  text = text.replace(current_pre, '', 1)
-              elif strict_pre in text:
-                  text = text.replace(strict_pre, '', 1)
-              if current_post in text:
-                  text = text.replace(current_post, old_post, 1)
-              elif patched_post in text:
-                  text = text.replace(patched_post, old_post, 1)
-              elif old_post not in text:
-                  raise RuntimeError('companion schema reconciliation shape is unexpected')
-              cell['source'] = text.splitlines(keepends=True)
-              break
-          else:
-              raise RuntimeError('companion provenance cell missing')
-          companion.write_text(json.dumps(nb, indent=1, ensure_ascii=False) + '\n', encoding='utf-8')
+          current_pre="""artifact_feature_columns = run_metadata['features']
+if (
+    not isinstance(artifact_feature_columns, list)
+    or not artifact_feature_columns
+    or any(not isinstance(name, str) or not name.strip() for name in artifact_feature_columns)
+    or len(set(artifact_feature_columns)) != len(artifact_feature_columns)
+):
+    raise RuntimeError(
+        'Predictor provenance features must be a non-empty list of unique, non-blank string column names.'
+    )
+print('✓ Artifact feature schema validated before deserialization.')
+"""
+          strict_pre="""FEATURE_COLUMNS = run_metadata.get('features')
+if (
+    not isinstance(FEATURE_COLUMNS, list)
+    or not FEATURE_COLUMNS
+    or any(not isinstance(name, str) or not name.strip() for name in FEATURE_COLUMNS)
+    or len(set(FEATURE_COLUMNS)) != len(FEATURE_COLUMNS)
+):
+    raise RuntimeError('Predictor provenance features must be a non-empty list of unique, non-empty strings before deserialization.')
+FEATURE_COLUMNS = list(FEATURE_COLUMNS)
+"""
+          current_post="""feature_metadata = getattr(predictor, 'feature_metadata_in', None)
+if feature_metadata is None:
+    raise RuntimeError('Loaded predictor does not expose feature_metadata_in; cannot reconcile artifact feature schema.')
+predictor_feature_columns = list(feature_metadata.get_features())
+if predictor_feature_columns != artifact_feature_columns:
+    raise RuntimeError('Artifact feature schema disagrees with the loaded predictor feature schema.')
+FEATURE_COLUMNS = list(artifact_feature_columns)
+print('✓ Artifact feature schema reconciled with loaded predictor.')
+"""
+          patched_post="""feature_metadata = getattr(predictor, 'feature_metadata_in', None)
+if feature_metadata is None:
+    raise RuntimeError('Loaded predictor does not expose feature_metadata_in; cannot verify artifact feature schema.')
+predictor_features = list(feature_metadata.get_features())
+if predictor_features != FEATURE_COLUMNS:
+    raise RuntimeError(
+        'Recorded feature schema does not match the deserialized predictor input schema. '
+        f'Recorded={FEATURE_COLUMNS}; predictor={predictor_features}'
+    )
+print('✓ Recorded feature schema structurally validated before load and matched exactly after deserialization.')
+"""
+          old_post="""if run_metadata.get('features'):
+    FEATURE_COLUMNS = list(run_metadata['features'])
+else:
+    feature_metadata = getattr(predictor, 'feature_metadata_in', None)
+    if feature_metadata is None:
+        raise RuntimeError('Could not determine required input feature columns from predictor metadata.')
+    FEATURE_COLUMNS = list(feature_metadata.get_features())
+"""
+          for c in nb['cells']:
+              s=text(c)
+              if 'required_provenance = [' not in s: continue
+              if current_pre in s: s=s.replace(current_pre,'',1)
+              elif strict_pre in s: s=s.replace(strict_pre,'',1)
+              if current_post in s: s=s.replace(current_post,old_post,1)
+              elif patched_post in s: s=s.replace(patched_post,old_post,1)
+              elif old_post not in s: raise RuntimeError('unexpected companion schema shape')
+              c['source']=s.splitlines(keepends=True); break
+          else: raise RuntimeError('companion provenance cell missing')
+          p.write_text(json.dumps(nb,indent=1,ensure_ascii=False)+'\n')
           PY
 
       - name: Complete production shared-API migration
         run: python /tmp/relay.py production
-
       - name: Install validation dependencies
         run: pip install pandas numpy scikit-learn
-
       - name: Validate and commit production ancestor
         run: |
           python -m py_compile finetuner/pipeline_api.py finetuner/train.py
@@ -135,24 +143,37 @@ jobs:
       - name: Complete tutorial remediation against immutable API ancestor
         run: python /tmp/relay.py tutorials --api-ref "$API_REF"
 
+      - name: Route companion predictions through shared production API
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('tutorials/mitra_classifier_predictor_inference_colab.ipynb'); nb=json.loads(p.read_text())
+          old="predictions = predictor.predict(X)\nprobabilities = predictor.predict_proba(X, as_multiclass=True)\n"
+          new="predictions = PIPELINE_API.predict_mitra(predictor, X)\nprobabilities = PIPELINE_API.predict_mitra_proba(predictor, X)\n"
+          hits=0
+          for c in nb['cells']:
+              v=c.get('source',[]); s=''.join(v) if isinstance(v,list) else str(v)
+              if old in s:
+                  c['source']=s.replace(old,new,1).splitlines(keepends=True); hits+=1
+              elif new in s:
+                  hits+=1
+          if hits!=1: raise RuntimeError(f'companion prediction cell matches={hits}')
+          p.write_text(json.dumps(nb,indent=1,ensure_ascii=False)+'\n')
+          PY
+
       - name: Remove compatibility sentinel
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          path = Path('tutorials/mitra_classifier_colab.ipynb')
-          nb = json.loads(path.read_text(encoding='utf-8'))
-          changed = False
-          for cell in nb['cells']:
-              value = cell.get('source', [])
-              text = ''.join(value) if isinstance(value, list) else str(value)
-              if 'MODEL_DIR = MODEL_DIR' in text:
-                  text = text.replace('\n\nMODEL_DIR = MODEL_DIR\n\n', '\n\n', 1)
-                  cell['source'] = text.splitlines(keepends=True)
-                  changed = True
-          if not changed:
-              raise RuntimeError('temporary E2E compatibility sentinel was not found')
-          path.write_text(json.dumps(nb, indent=1, ensure_ascii=False) + '\n', encoding='utf-8')
+          p=Path('tutorials/mitra_classifier_colab.ipynb'); nb=json.loads(p.read_text()); changed=False
+          for c in nb['cells']:
+              v=c.get('source',[]); s=''.join(v) if isinstance(v,list) else str(v)
+              if 'MODEL_DIR = MODEL_DIR' in s:
+                  c['source']=s.replace('\n\nMODEL_DIR = MODEL_DIR\n\n','\n\n',1).splitlines(keepends=True); changed=True
+          if not changed: raise RuntimeError('temporary E2E sentinel missing')
+          p.write_text(json.dumps(nb,indent=1,ensure_ascii=False)+'\n')
           PY
 
       - name: Run durable repository acceptance checks
@@ -169,12 +190,8 @@ jobs:
 
       - name: Remove all relay scaffolding, commit final state, and push
         run: |
-          git rm -f \
-            scripts/relay_builder_fix_all.py \
-            scripts/relay_run_patcher.py \
-            .github/workflows/relay-builder-reviewer-fix.yml \
-            .github/workflows/relay-inspect.yml \
-            .github/workflows/relay-finalize.yml
+          git rm -f scripts/relay_builder_fix_all.py scripts/relay_run_patcher.py \
+            .github/workflows/relay-builder-reviewer-fix.yml .github/workflows/relay-inspect.yml .github/workflows/relay-finalize.yml
           git add -A
           git commit -m "fix(tutorials): resolve reviewer contract blockers"
           git push origin HEAD:fix/notebook-spec-v1-conformance
