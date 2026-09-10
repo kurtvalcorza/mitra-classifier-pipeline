@@ -19,7 +19,7 @@ The lock inputs are committed as `requirements-colab.in` and `requirements-infer
 
 The declared primary runtime for both notebooks is **Google Colab with Python 3.12**. Generic Jupyter compatibility is not claimed because the workflows intentionally use Colab upload/download primitives. Runtime-error guidance in both notebooks uses the same Colab-only support boundary.
 
-For `MODEL_SOURCE = 'DIMER notebook package'`, the tutorial consumes a **repository-defined** self-describing transport envelope built from the current DIMER checkpoint pair (`model.safetensors` + `config.json`) with `scripts/build_dimer_notebook_package.py`. DIMER itself is not claimed to emit this ZIP. The wrapper contains exactly `dimer-model-manifest.json`, `model.safetensors`, and `config.json`; see `docs/DIMER_NOTEBOOK_PACKAGE.md` for the producer and contract. The notebook enforces manifest identity/revision/digests plus compressed/expanded resource ceilings before staging.
+The repository's current DIMER deployment contract exposes an uploaded checkpoint as `model.safetensors` + `config.json`; it does not define a self-describing package-manifest producer. Accordingly, `MODEL_SOURCE = 'DIMER files'` accepts exactly those two files, verifies both against the pinned release digests, and explicitly records Notebook Spec MOD7 package-manifest provenance as pending. The separate `Pinned upstream` source remains fully pinned by immutable revision and digests.
 
 Both inference workflows reject duplicate CSV headers before pandas can rename them.
 Quoted column names and UTF-8 files with a byte-order mark are supported.

@@ -86,7 +86,7 @@ Current GitHub Actions validation is intentionally static:
 - **`ci`** (every push/PR) — compiles the deployable sources, runs the unit suite, enforces
   shared-code parity and notebook contracts, and self-tests the repository-defined DIMER notebook
   package producer. It deliberately does **not** install AutoGluon or execute the notebooks end to end.
-- **No `integration.yml` workflow exists on the current branch.** The GPU save → reload → predict
+- **`.github/workflows/integration.yml` is not present in the repository today.** The GPU save → reload → predict
   evidence cited by the release checklist is the live 5070 Ti run from 2026-08-19, not an active
   GitHub Actions workflow. Do not treat static CI as clean-runtime notebook or GPU integration evidence.
 
