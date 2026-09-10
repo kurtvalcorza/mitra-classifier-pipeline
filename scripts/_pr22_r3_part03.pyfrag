@@ -1,0 +1,110 @@
+standalone Notebook Spec v1.0 tutorial; it does not claim DIMER itself emits this ZIP format.
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import shutil
+import tempfile
+import zipfile
+from pathlib import Path
+
+MODEL_ID = "autogluon/mitra-classifier"
+PINNED_REVISION = "c425e9fa0910a6be1c494321792e7ba2a1367b1a"
+EXPECTED_WEIGHTS_SHA256 = "e06a055e91a3baeffc37f9cf634d9e69a27d904b6686131dc3b702f9c0126b19"
+EXPECTED_CONFIG_SHA256 = "2c96c24dd25f64e92753f6f2ba00cc7833b9923459403dcd8504e8700c0995df"
+MANIFEST_NAME = "dimer-model-manifest.json"
+MANIFEST_VERSION = "1.0"
+
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _zip_file(z: zipfile.ZipFile, source: Path, arcname: str) -> None:
+    info = zipfile.ZipInfo(arcname, date_time=(1980, 1, 1, 0, 0, 0))
+    info.compress_type = zipfile.ZIP_DEFLATED
+    info.external_attr = 0o100644 << 16
+    with source.open("rb") as src, z.open(info, "w") as dst:
+        shutil.copyfileobj(src, dst, length=1 << 20)
+
+
+def build_package(
+    checkpoint_dir: Path,
+    output: Path,
+    *,
+    model_id: str = MODEL_ID,
+    revision: str = PINNED_REVISION,
+    expected_weights_sha256: str = EXPECTED_WEIGHTS_SHA256,
+    expected_config_sha256: str = EXPECTED_CONFIG_SHA256,
+) -> Path:
+    checkpoint_dir = checkpoint_dir.resolve()
+    weights = checkpoint_dir / "model.safetensors"
+    config = checkpoint_dir / "config.json"
+    for path in (weights, config):
+        if not path.is_file():
+            raise FileNotFoundError(f"Missing required checkpoint file: {path}")
+
+    actual_weights = sha256_file(weights)
+    actual_config = sha256_file(config)
+    if actual_weights != expected_weights_sha256:
+        raise RuntimeError(f"model.safetensors SHA-256 mismatch: {actual_weights}")
+    if actual_config != expected_config_sha256:
+        raise RuntimeError(f"config.json SHA-256 mismatch: {actual_config}")
+
+    manifest = {
+        "manifest_version": MANIFEST_VERSION,
+        "model_id": model_id,
+        "revision": revision,
+        "files": {
+            "model.safetensors": actual_weights,
+            "config.json": actual_config,
+        },
+    }
+    manifest_bytes = (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+    output = output.resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.unlink(missing_ok=True)
+    with zipfile.ZipFile(output, "w") as z:
+        manifest_info = zipfile.ZipInfo(MANIFEST_NAME, date_time=(1980, 1, 1, 0, 0, 0))
+        manifest_info.compress_type = zipfile.ZIP_DEFLATED
+        manifest_info.external_attr = 0o100644 << 16
+        z.writestr(manifest_info, manifest_bytes)
+        _zip_file(z, weights, "model.safetensors")
+        _zip_file(z, config, "config.json")
+    return output
+
+
+def self_test() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        checkpoint = root / "checkpoint"
+        checkpoint.mkdir()
+        (checkpoint / "model.safetensors").write_bytes(b"test-weights")
+        (checkpoint / "config.json").write_text('{"dim": 1}\n', encoding="utf-8")
+        weights_sha = sha256_file(checkpoint / "model.safetensors")
+        config_sha = sha256_file(checkpoint / "config.json")
+        archive = build_package(
+            checkpoint,
+            root / "package.zip",
+            model_id="example/model",
+            revision="deadbeef",
+            expected_weights_sha256=weights_sha,
+            expected_config_sha256=config_sha,
+        )
+        with zipfile.ZipFile(archive) as z:
+            assert set(z.namelist()) == {MANIFEST_NAME, "model.safetensors", "config.json"}
+            manifest = json.loads(z.read(MANIFEST_NAME))
+            assert manifest["model_id"] == "example/model"
+            assert manifest["revision"] == "deadbeef"
+            assert manifest["files"]["model.safetensors"] == weights_sha
+            assert manifest["files"]["config.json"] == config_sha
+            assert hashlib.sha256(z.read("model.safetensors")).hexdigest() == weights_sha
+            assert hashlib.sha256(z.read("config.json")).hexdigest() == config_sha
+    print("DIMER notebook-package producer self-test: OK")
