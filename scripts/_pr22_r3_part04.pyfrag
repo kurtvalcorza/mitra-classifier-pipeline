@@ -1,0 +1,110 @@
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--checkpoint-dir", type=Path)
+    parser.add_argument("--output", type=Path, default=Path("mitra-dimer-notebook-package.zip"))
+    parser.add_argument("--self-test", action="store_true")
+    args = parser.parse_args()
+    if args.self_test:
+        self_test()
+        return 0
+    if args.checkpoint_dir is None:
+        parser.error("--checkpoint-dir is required unless --self-test is used")
+    output = build_package(args.checkpoint_dir, args.output)
+    print(f"Wrote: {output}")
+    print(f"SHA-256: {sha256_file(output)}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+''', encoding="utf-8")
+
+
+def write_package_doc() -> None:
+    PACKAGE_DOC.parent.mkdir(parents=True, exist_ok=True)
+    PACKAGE_DOC.write_text('''# DIMER notebook model-package contract
+
+This document separates two different artifact boundaries that must not be conflated.
+
+## Current DIMER platform checkpoint boundary
+
+The pipeline's current DIMER deployment contract accepts an uploaded checkpoint directory
+containing exactly the model files needed by Mitra at load time: `model.safetensors` and
+`config.json`, mounted through `DIMER_MODEL_DIR`. DIMER is **not** claimed here to emit a
+self-describing ZIP with a notebook manifest.
+
+## Repository-defined notebook transport envelope
+
+DIMER Notebook Specification v1.0 requires the standalone tutorial's offline package path to
+verify model identity, immutable revision, expected files, and digests before load. This repository
+therefore defines a small transport envelope for notebook use. It is built from the DIMER checkpoint
+pair by `scripts/build_dimer_notebook_package.py` and contains exactly:
+
+```text
+dimer-model-manifest.json
+model.safetensors
+config.json
+```
+
+The manifest schema is:
+
+```json
+{
+  "manifest_version": "1.0",
+  "model_id": "autogluon/mitra-classifier",
+  "revision": "c425e9fa0910a6be1c494321792e7ba2a1367b1a",
+  "files": {
+    "model.safetensors": "<sha256>",
+    "config.json": "<sha256>"
+  }
+}
+```
+
+For this release the producer refuses to package checkpoint bytes unless their SHA-256 values equal
+the pinned public Mitra release digests already enforced by the tutorial.
+
+## Build the notebook package
+
+Given a DIMER checkpoint directory containing the two files:
+
+```bash
+python scripts/build_dimer_notebook_package.py \
+  --checkpoint-dir /path/to/checkpoint \
+  --output mitra-dimer-notebook-package.zip
+```
+
+The script prints the resulting ZIP SHA-256. The tutorial's `MODEL_SOURCE = 'DIMER notebook package'`
+path then performs its own independent archive, manifest, model/revision, file-set, resource-ceiling,
+and payload-digest checks before staging either model file.
+
+## Evidence and scope
+
+The producer has a standard-library self-test exercised by repository CI. That test proves the
+repository-defined wrapper can emit the documented three-member envelope and correct manifest for
+known input bytes. It does **not** prove DIMER platform distribution of this ZIP; the native DIMER
+checkpoint boundary remains the two-file directory described above and in `DEPLOYMENT.md`.
+''', encoding="utf-8")
+
+
+def patch_readme() -> None:
+    text = TUTORIAL_README.read_text(encoding="utf-8")
+    text = text.replace(
+        "For `MODEL_SOURCE = 'DIMER ZIP'`, Notebook Spec v1.0 expects a self-describing offline package containing exactly `dimer-model-manifest.json`, `model.safetensors`, and `config.json` at the archive root. The manifest must declare `manifest_version: 1.0`, model ID `autogluon/mitra-classifier`, immutable revision `c425e9fa0910a6be1c494321792e7ba2a1367b1a`, and SHA-256 values for both model files. Legacy weights-only DIMER ZIPs are refused rather than completed from the network.",
+        "For `MODEL_SOURCE = 'DIMER notebook package'`, the tutorial consumes a **repository-defined** self-describing transport envelope built from the current DIMER checkpoint pair (`model.safetensors` + `config.json`) with `scripts/build_dimer_notebook_package.py`. DIMER itself is not claimed to emit this ZIP. The wrapper contains exactly `dimer-model-manifest.json`, `model.safetensors`, and `config.json`; see `docs/DIMER_NOTEBOOK_PACKAGE.md` for the producer and contract. The notebook enforces manifest identity/revision/digests plus compressed/expanded resource ceilings before staging.",
+    )
+    text = text.replace(
+        "Users can download the self-describing offline model package from DIMER and run the notebook independently in Google Colab.",
+        "Users can obtain the DIMER checkpoint pair and wrap it with the repository producer before running the notebook independently in Google Colab.",
+    )
+    text = text.replace("- DIMER ZIP upload or pinned-upstream checkpoint source selection;", "- repository-defined DIMER notebook-package upload or pinned-upstream checkpoint source selection;")
+    text = text.replace("DIMER self-describing offline model package OR pinned upstream checkpoint", "repository-packaged DIMER checkpoint OR pinned upstream checkpoint")
+    text = text.replace(
+        "- Distributed DIMER artifact: self-describing offline package containing the pinned model weights, configuration, and package manifest",
+        "- DIMER checkpoint boundary: `model.safetensors` + `config.json`; the repository-defined notebook wrapper adds `dimer-model-manifest.json`",
+    )
+    if "docs/DIMER_NOTEBOOK_PACKAGE.md" not in text:
+        raise RuntimeError("tutorial README package-doc link replacement did not apply")
+    TUTORIAL_README.write_text(text, encoding="utf-8")
+
