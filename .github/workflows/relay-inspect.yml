@@ -1,0 +1,26 @@
+name: Relay inspect patch plan
+on:
+  push:
+    branches: [fix/notebook-spec-v1-conformance]
+    paths: [.github/workflows/relay-inspect.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/notebook-spec-v1-conformance
+          fetch-depth: 0
+      - name: Print decoded tutorial patch region
+        run: |
+          git show b69ec2cd1e9316608d2b85bc9739054bd441cfc2:scripts/relay_builder_fix_all.py > /tmp/r.py
+          python - <<'PY'
+          import ast, base64, zlib
+          from pathlib import Path
+          s=Path('/tmp/r.py').read_text(); t=ast.parse(s)
+          p=next(ast.literal_eval(n.value) for n in t.body if isinstance(n,ast.Assign) and any(isinstance(x,ast.Name) and x.id=='_PAYLOAD' for x in n.targets))
+          lines=zlib.decompress(base64.b64decode(p)).decode().splitlines()
+          for i in range(220, 276): print(f'{i+1}: {lines[i]}')
+          PY
