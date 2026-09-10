@@ -5,7 +5,7 @@ on:
     branches:
       - fix/notebook-spec-v1-conformance
     paths:
-      - '.github/scripts/remediate_review_round2.py'
+      - '.github/scripts/remediate_review_round2_v2.py'
       - '.github/workflows/remediate-review-round2.yml'
 
 permissions:
@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Apply remediation
-        run: python .github/scripts/remediate_review_round2.py
+        run: python .github/scripts/remediate_review_round2_v2.py
       - name: Run notebook/static checks
         run: |
           pip install pandas numpy
@@ -33,11 +33,12 @@ jobs:
           python scripts/test_colab_csv_headers.py
           python scripts/test_issue16_hardening.py
           python -m compileall -q validator finetuner
-      - name: Commit remediation and remove temporary tooling
+      - name: Commit remediation and remove temporary/interim tooling
         run: |
           git config user.name 'Kurt Valcorza'
           git config user.email '102845719+kurtvalcorza@users.noreply.github.com'
-          git rm -f .github/scripts/remediate_review_round2.py .github/workflows/remediate-review-round2.yml
-          git add DEPLOYMENT.md scripts/validate_colab_tutorial.py tutorials/README.md tutorials/mitra_classifier_colab.ipynb tutorials/mitra_classifier_predictor_inference_colab.ipynb
+          git rm -f .github/scripts/remediate_review_round2.py .github/scripts/remediate_review_round2_v2.py .github/workflows/remediate-review-round2.yml
+          git rm -f docs/DIMER_NOTEBOOK_PACKAGE.md scripts/build_dimer_notebook_package.py
+          git add .github/workflows/ci.yml DEPLOYMENT.md scripts/validate_colab_tutorial.py tutorials/README.md tutorials/mitra_classifier_colab.ipynb tutorials/mitra_classifier_predictor_inference_colab.ipynb
           git commit -m 'fix(tutorials): close reviewer round-2 findings'
           git push origin HEAD:fix/notebook-spec-v1-conformance
