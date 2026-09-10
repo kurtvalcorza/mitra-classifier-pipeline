@@ -25,6 +25,24 @@ jobs:
           python-version: '3.12'
       - name: Apply scoped remediation
         run: python scripts/relay_fix_reviewer_blockers.py
+      - name: Align semantic DIMER validator assertion
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/validate_colab_tutorial.py')
+          text = path.read_text(encoding='utf-8')
+          old = '''    require(
+                  "weights_from_dimer" not in code_text and "load_dimer_package" in code_text,
+                  "DIMER ZIP path must use the manifest-validating offline package loader",
+              )'''
+          new = '''    require(
+                  "weights_from_dimer" not in code_text and "load_dimer_files" in code_text,
+                  "DIMER files path must use the fail-closed digest-validating two-file loader",
+              )'''
+          if text.count(old) != 1:
+              raise RuntimeError(f'expected one legacy semantic DIMER assertion; found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
       - name: Compile Python
         run: python -m py_compile scripts/relay_fix_reviewer_blockers.py scripts/validate_colab_tutorial.py validator/validate.py finetuner/train.py
       - name: Install lightweight validation dependencies
