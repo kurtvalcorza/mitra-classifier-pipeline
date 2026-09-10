@@ -28,7 +28,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          python scripts/relay_builder_fix_all.py production 2>&1 | tee relay-production-patch.log
+          python scripts/relay_run_patcher.py production 2>&1 | tee relay-production-patch.log
 
       - name: Upload production patch diagnostics
         if: always() && steps.production_patch.outcome == 'failure'
@@ -64,7 +64,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          python scripts/relay_builder_fix_all.py tutorials --api-ref "$API_REF" 2>&1 | tee relay-tutorial-patch.log
+          python scripts/relay_run_patcher.py tutorials --api-ref "$API_REF" 2>&1 | tee relay-tutorial-patch.log
 
       - name: Upload tutorial patch diagnostics
         if: always() && steps.tutorial_patch.outcome == 'failure'
@@ -91,7 +91,7 @@ jobs:
 
       - name: Remove relay scaffolding and commit final remediation
         run: |
-          git rm -f scripts/relay_builder_fix_all.py .github/workflows/relay-builder-reviewer-fix.yml
+          git rm -f scripts/relay_builder_fix_all.py scripts/relay_run_patcher.py .github/workflows/relay-builder-reviewer-fix.yml
           git add scripts/validate_colab_tutorial.py tutorials/README.md tutorials/mitra_classifier_colab.ipynb tutorials/mitra_classifier_predictor_inference_colab.ipynb RELEASE_CHECKLIST.md
           git commit -m "fix(tutorials): resolve reviewer contract blockers"
           git push origin HEAD:fix/notebook-spec-v1-conformance
