@@ -25,6 +25,13 @@ build contract. Detail + evidence in each child repo's `docs/DIMER_PORTAL_CONTRA
 - [x] `.gitignore` / `.dockerignore` exclude local dataset/result/model artifacts; cross-repo shared-code parity still enforced after the compatibility change.
 - [ ] Both images build from GitHub default branches **inside DIMER CodeBuild** — platform-owned (see release gate).
 
+## Notebook release status — Candidate
+
+- [x] E2E and artifact-inference notebooks declare DIMER Notebook Specification v1.0 profiles and pass repository static/regression checks.
+- [x] The DIMER notebook source path matches the repository's current checkpoint boundary: `model.safetensors` + `config.json`, with pinned digest verification and no silent network fallback.
+- [ ] Notebook Spec MOD7 package-manifest provenance for the DIMER source path — **platform contract pending**. This repository does not claim that DIMER emits a self-describing notebook package.
+- [ ] Clean Google Colab execution evidence recorded for the exact release revision. Static CI is not notebook execution evidence.
+
 ## Real-stack verification (complete this session)
 
 - [x] Build → offline Mitra load → fine-tune → save → reload → predict was exercised live on the 5070 Ti on 2026-08-19 (`problemType=multiclass`). The repository does not currently contain `.github/workflows/integration.yml`; current notebook CI is static and must not be cited as clean-runtime execution evidence.
