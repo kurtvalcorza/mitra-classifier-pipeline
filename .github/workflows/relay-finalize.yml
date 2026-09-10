@@ -176,13 +176,14 @@ jobs:
               ('"load_dimer_files",', '"load_dimer_weights",'),
               ('"Upload exactly two files downloaded from DIMER",', '"Upload exactly one file downloaded from DIMER: model.safetensors",'),
               ('"weights_from_dimer" not in code_text and "load_dimer_files" in code_text', '"weights_from_dimer" not in code_text and "load_dimer_weights" in code_text'),
-              ('"DIMER files path must use the fail-closed digest-validating two-file loader"', '"DIMER weights path must use the fail-closed digest-validating one-file loader with canonical local config"'),
           ]
           for old, new in replacements:
               if old in src:
                   src = src.replace(old, new)
               elif new not in src:
                   raise RuntimeError(f'validator contract anchor missing: {old}')
+          src = src.replace('DIMER files path', 'DIMER weights path')
+          src = src.replace('digest-validating two-file loader', 'digest-validating one-file loader with canonical local config')
           required = (
               '"DIMER weights",',
               '"load_dimer_weights",',
