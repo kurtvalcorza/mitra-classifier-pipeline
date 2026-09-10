@@ -1,0 +1,49 @@
+name: Relay fix reviewer blockers
+
+on:
+  push:
+    branches:
+      - fix/notebook-spec-v1-conformance
+    paths:
+      - 'scripts/relay_fix_reviewer_blockers.py'
+      - '.github/workflows/relay-fix-reviewer-blockers.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: ${{ !contains(github.event.head_commit.message, '[relay-reviewer-fix]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/notebook-spec-v1-conformance
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply scoped remediation
+        run: python scripts/relay_fix_reviewer_blockers.py
+      - name: Compile Python
+        run: python -m py_compile scripts/relay_fix_reviewer_blockers.py scripts/validate_colab_tutorial.py validator/validate.py finetuner/train.py
+      - name: Install lightweight validation dependencies
+        run: pip install -q pandas numpy
+      - name: Shared-block parity
+        run: python scripts/check_shared.py
+      - name: DIMER contract
+        run: python scripts/check_contract.py
+      - name: Notebook Spec validator
+        run: python scripts/validate_colab_tutorial.py
+      - name: CSV header regressions
+        run: python scripts/test_colab_csv_headers.py
+      - name: Issue 16 hardening regressions
+        run: python scripts/test_issue16_hardening.py
+      - name: Commit remediation and remove relay scaffolding
+        run: |
+          git config user.name 'agent-relay-builder'
+          git config user.email 'agent-relay-builder@users.noreply.github.com'
+          git rm scripts/relay_fix_reviewer_blockers.py .github/workflows/relay-fix-reviewer-blockers.yml
+          git add tutorials/mitra_classifier_colab.ipynb tutorials/README.md scripts/validate_colab_tutorial.py
+          git commit -m 'fix(tutorials): restore actual DIMER checkpoint boundary [relay-reviewer-fix]'
+          git push origin HEAD:fix/notebook-spec-v1-conformance
