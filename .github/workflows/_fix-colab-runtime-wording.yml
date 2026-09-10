@@ -1,5 +1,6 @@
 name: Normalize Colab runtime wording
 
+# One-shot cleanup after reviewer remediation; this workflow deletes itself on success.
 on:
   push:
     branches:
