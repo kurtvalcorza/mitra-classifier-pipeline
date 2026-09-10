@@ -25,6 +25,21 @@ jobs:
       - name: Restore intact immutable relay patcher
         run: git show b69ec2cd1e9316608d2b85bc9739054bd441cfc2:scripts/relay_builder_fix_all.py > /tmp/relay_builder_fix_all.py
 
+      - name: Print tutorial patch anchors
+        run: |
+          python - <<'PY'
+          import ast, base64, zlib
+          from pathlib import Path
+          source = Path('/tmp/relay_builder_fix_all.py').read_text()
+          tree = ast.parse(source)
+          payload = next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == '_PAYLOAD' for t in n.targets))
+          program = zlib.decompress(base64.b64decode(payload)).decode()
+          lines = program.splitlines()
+          for i, line in enumerate(lines, 1):
+              if 'E2E DIMER weights loader' in line:
+                  print('\n'.join(f'{j+1}: {lines[j]}' for j in range(max(0, i-12), min(len(lines), i+12))))
+          PY
+
       - name: Wire shared production-facing API into DIMER worker
         id: production_patch
         continue-on-error: true
