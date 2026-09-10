@@ -165,12 +165,13 @@ jobs:
           path.write_text(json.dumps(nb, indent=1, ensure_ascii=False) + '\n')
           PY
 
-      - name: Align static validator with single-file DIMER contract
+      - name: Align static validator with delegated shared-API contract
         run: |
           python - <<'PY'
           from pathlib import Path
           path = Path('scripts/validate_colab_tutorial.py')
           src = path.read_text(encoding='utf-8')
+
           replacements = [
               ('"DIMER files",', '"DIMER weights",'),
               ('"load_dimer_files",', '"load_dimer_weights",'),
@@ -184,11 +185,53 @@ jobs:
                   raise RuntimeError(f'validator contract anchor missing: {old}')
           src = src.replace('DIMER files path', 'DIMER weights path')
           src = src.replace('digest-validating two-file loader', 'digest-validating one-file loader with canonical local config')
+
+          start = src.index('def has_memory_guard(code_cells: list[tuple[int, str]]) -> bool:')
+          end = src.index('\n\ndef call_attributes', start)
+          memory_guard_lines = [
+              'def has_memory_guard(code_cells: list[tuple[int, str]]) -> bool:',
+              '    for _, source in code_cells:',
+              '        if not source.strip():',
+              '            continue',
+              '        for node in ast.walk(ast.parse(source)):',
+              '            if not isinstance(node, ast.Call):',
+              '                continue',
+              '            if isinstance(node.func, ast.Attribute) and node.func.attr == "fit":',
+              '                for keyword in node.keywords:',
+              '                    if keyword.arg != "ag_args_fit" or not isinstance(keyword.value, ast.Dict):',
+              '                        continue',
+              '                    for key, value in zip(keyword.value.keys, keyword.value.values):',
+              '                        if (',
+              '                            isinstance(key, ast.Constant)',
+              '                            and key.value == "max_memory_usage_ratio"',
+              '                            and isinstance(value, ast.Name)',
+              '                            and value.id == "MAX_MEMORY_USAGE_RATIO"',
+              '                        ):',
+              '                            return True',
+              '            if isinstance(node.func, ast.Attribute) and node.func.attr == "fit_mitra_predictor":',
+              '                for keyword in node.keywords:',
+              '                    if (',
+              '                        keyword.arg == "max_memory_usage_ratio"',
+              '                        and isinstance(keyword.value, ast.Name)',
+              '                        and keyword.value.id == "MAX_MEMORY_USAGE_RATIO"',
+              '                    ):',
+              '                        return True',
+              '    return False',
+              '',
+          ]
+          src = src[:start] + '\n'.join(memory_guard_lines) + src[end:]
+          src = src.replace(
+              '"tutorial must pass max_memory_usage_ratio through .fit(...)"',
+              '"tutorial must pass MAX_MEMORY_USAGE_RATIO through the direct or shared-API fit path"',
+          )
+
           required = (
               '"DIMER weights",',
               '"load_dimer_weights",',
               '"Upload exactly one file downloaded from DIMER: model.safetensors",',
               '"weights_from_dimer" not in code_text and "load_dimer_weights" in code_text',
+              'node.func.attr == "fit_mitra_predictor"',
+              'keyword.arg == "max_memory_usage_ratio"',
           )
           for marker in required:
               if marker not in src:
