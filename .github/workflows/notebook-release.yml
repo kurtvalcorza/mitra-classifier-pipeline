@@ -1,0 +1,185 @@
+name: Notebook release execution
+
+on:
+  pull_request:
+    paths:
+      - "tutorials/**"
+      - "examples/sample-data/**"
+      - "scripts/validate_colab_tutorial.py"
+      - ".github/workflows/notebook-release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  execute-notebooks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      DIMER_REPO_REF: ${{ github.event.pull_request.head.sha || github.sha }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12.14"
+
+      - name: Prepare clean notebook runtime
+        run: |
+          sudo mkdir -p /content
+          sudo chown -R "$USER":"$USER" /content
+          python -m pip install --upgrade pip==26.2.1
+          python -m pip install nbconvert==7.17.1 ipykernel==7.3.0
+
+      - name: Execute E2E default pinned-upstream path
+        id: e2e
+        run: |
+          jupyter nbconvert \
+            --to notebook \
+            --execute tutorials/mitra_classifier_colab.ipynb \
+            --output executed-mitra-classifier-e2e.ipynb \
+            --output-dir /content \
+            --ExecutePreprocessor.timeout=2700 \
+            --ExecutePreprocessor.kernel_name=python3
+
+      - name: Prepare external artifact shim and independent inference data
+        id: prepare-inference
+        run: |
+          mkdir -p /tmp/colab-shim/google/colab
+          cat > /tmp/colab-shim/google/__init__.py <<'PY'
+          from pkgutil import extend_path
+          __path__ = extend_path(__path__, __name__)
+          PY
+          cat > /tmp/colab-shim/google/colab/__init__.py <<'PY'
+          from . import files
+          PY
+          cat > /tmp/colab-shim/google/colab/files.py <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          _queue = None
+          _index = 0
+
+          def upload():
+              global _queue, _index
+              if _queue is None:
+                  _queue = json.loads(os.environ["COLAB_UPLOAD_QUEUE"])
+              if _index >= len(_queue):
+                  raise RuntimeError("No staged CI upload remains for this notebook call.")
+              paths = [Path(p) for p in _queue[_index]]
+              _index += 1
+              missing = [str(p) for p in paths if not p.is_file()]
+              if missing:
+                  raise FileNotFoundError(f"Missing staged CI upload(s): {missing}")
+              return {p.name: p.read_bytes() for p in paths}
+
+          def download(path):
+              p = Path(path)
+              if not p.is_file():
+                  raise FileNotFoundError(str(p))
+              print(f"CI download shim retained {p} as workflow evidence.")
+          PY
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+          import pandas as pd
+
+          sample = Path("examples/sample-data/freshretailnet-band-h7.zip")
+          with zipfile.ZipFile(sample) as zf:
+              test_name = next(name for name in zf.namelist() if Path(name).name == "test.csv")
+              with zf.open(test_name) as handle:
+                  frame = pd.read_csv(handle)
+          frame.drop(columns=["target"]).tail(64).to_csv("/content/mitra-classifier-independent-inference.csv", index=False)
+          PY
+          {
+            echo 'PYTHONPATH=/tmp/colab-shim'
+            echo 'COLAB_UPLOAD_QUEUE=[["/content/mitra-predictor.zip"],["/content/mitra-classifier-independent-inference.csv"]]'
+          } >> "$GITHUB_ENV"
+
+      - name: Execute ARTIFACT-INFERENCE against external producer artifact
+        id: artifact-inference
+        run: |
+          jupyter nbconvert \
+            --to notebook \
+            --execute tutorials/mitra_classifier_predictor_inference_colab.ipynb \
+            --output executed-mitra-classifier-artifact-inference.ipynb \
+            --output-dir /content \
+            --ExecutePreprocessor.timeout=1800 \
+            --ExecutePreprocessor.kernel_name=python3
+
+      - name: Assert release outputs
+        id: assert-outputs
+        run: |
+          test -f /content/mitra-predictor.zip
+          test -f /content/executed-mitra-classifier-e2e.ipynb
+          test -f /content/executed-mitra-classifier-artifact-inference.ipynb
+          test -f /content/predictions.csv
+
+      - name: Upload notebook release evidence
+        id: upload-evidence
+        if: ${{ always() && steps.e2e.outcome == 'success' && steps.prepare-inference.outcome == 'success' && steps.artifact-inference.outcome == 'success' && steps.assert-outputs.outcome == 'success' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mitra-classifier-notebook-release-evidence
+          path: |
+            /content/executed-mitra-classifier-e2e.ipynb
+            /content/executed-mitra-classifier-artifact-inference.ipynb
+            /content/mitra-predictor.zip
+            /content/mitra-classifier-independent-inference.csv
+            /content/predictions.csv
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Record release evidence summary
+        if: always()
+        env:
+          E2E_OUTCOME: ${{ steps.e2e.outcome }}
+          PREPARE_OUTCOME: ${{ steps.prepare-inference.outcome }}
+          INFERENCE_OUTCOME: ${{ steps.artifact-inference.outcome }}
+          OUTPUT_OUTCOME: ${{ steps.assert-outputs.outcome }}
+          UPLOAD_OUTCOME: ${{ steps.upload-evidence.outcome }}
+        run: |
+          if [[ "$E2E_OUTCOME" == "success" && "$PREPARE_OUTCOME" == "success" && "$INFERENCE_OUTCOME" == "success" && "$OUTPUT_OUTCOME" == "success" && "$UPLOAD_OUTCOME" == "success" ]]; then
+            RELEASE_STATUS="PASS"
+          else
+            RELEASE_STATUS="INCOMPLETE/FAIL"
+          fi
+          {
+            echo "## Mitra Classifier Notebook Spec v1 release execution"
+            echo
+            echo "- Candidate SHA: \`${DIMER_REPO_REF}\`"
+            echo "- Runtime substrate: \`${RUNNER_OS}\` / \`${RUNNER_ARCH}\`, Python \`$(python --version 2>&1)\`"
+            echo "- E2E default source: pinned immutable upstream checkpoint"
+            echo "- E2E execution: \`${E2E_OUTCOME}\`"
+            echo "- Independent external-input preparation: \`${PREPARE_OUTCOME}\`"
+            echo "- ARTIFACT-INFERENCE execution: \`${INFERENCE_OUTCOME}\`"
+            echo "- Required output assertions: \`${OUTPUT_OUTCOME}\`"
+            echo "- Evidence artifact upload: \`${UPLOAD_OUTCOME}\`"
+            echo "- Release evidence status: **${RELEASE_STATUS}**"
+            echo "- The optional DIMER two-file acquisition branch is not exercised by this CI release path."
+            echo "- Static checks remain separate and are not treated as execution evidence."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail closed unless execution evidence is complete
+        if: always()
+        env:
+          E2E_OUTCOME: ${{ steps.e2e.outcome }}
+          PREPARE_OUTCOME: ${{ steps.prepare-inference.outcome }}
+          INFERENCE_OUTCOME: ${{ steps.artifact-inference.outcome }}
+          OUTPUT_OUTCOME: ${{ steps.assert-outputs.outcome }}
+          UPLOAD_OUTCOME: ${{ steps.upload-evidence.outcome }}
+        run: |
+          [[ "$E2E_OUTCOME" == "success" ]]
+          [[ "$PREPARE_OUTCOME" == "success" ]]
+          [[ "$INFERENCE_OUTCOME" == "success" ]]
+          [[ "$OUTPUT_OUTCOME" == "success" ]]
+          [[ "$UPLOAD_OUTCOME" == "success" ]]
