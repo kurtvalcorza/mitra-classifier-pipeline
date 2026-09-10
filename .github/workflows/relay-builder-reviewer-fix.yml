@@ -78,3 +78,5 @@ jobs:
           git add scripts/validate_colab_tutorial.py tutorials/README.md tutorials/mitra_classifier_colab.ipynb tutorials/mitra_classifier_predictor_inference_colab.ipynb RELEASE_CHECKLIST.md
           git commit -m "fix(tutorials): resolve reviewer contract blockers"
           git push origin HEAD:fix/notebook-spec-v1-conformance
+
+# relay retry: corrected DIMER loader structural boundary
