@@ -30,7 +30,7 @@ build contract. Detail + evidence in each child repo's `docs/DIMER_PORTAL_CONTRA
 - [x] E2E and artifact-inference notebooks declare DIMER Notebook Specification v1.0 profiles and pass repository static/regression checks.
 - [x] The DIMER notebook source path matches the repository's current checkpoint boundary: `model.safetensors` + `config.json`, with pinned digest verification and no silent network fallback.
 - [x] CI/documentation evidence boundaries are reconciled: `ci.yml` is static validation only, and `DEPLOYMENT.md` does not claim a currently active GPU integration workflow.
-- [x] Native repository CI #146 passed on exact reviewer-handoff head `7fdaff46534c798573ab66b70552424b40a7b03c`; this is static/regression evidence only.
+- [x] Native repository CI passes on the reviewer-handoff revision; this is static/regression evidence only and is not clean-runtime notebook evidence.
 - [ ] Notebook Spec MOD7 package-manifest provenance for the DIMER source path — **platform contract pending**. This repository does not claim that DIMER emits a self-describing notebook package.
 - [ ] Clean Google Colab execution evidence recorded for the exact release revision. Static CI is not notebook execution evidence.
 
