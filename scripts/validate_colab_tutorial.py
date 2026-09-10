@@ -595,6 +595,7 @@ def validate_docs() -> None:
     deployment_text = (ROOT / "DEPLOYMENT.md").read_text(encoding="utf-8")
     require(".github/workflows/integration.yml` is not present" in deployment_text, "deployment docs must state current integration-workflow absence")
     require("Two GitHub Actions workflows guard the repo" not in deployment_text, "stale two-workflow claim remains in DEPLOYMENT.md")
+    require("self-tests the repository-defined DIMER notebook" not in deployment_text, "stale package-producer CI claim remains in DEPLOYMENT.md")
 
 
 def main() -> int:
