@@ -130,12 +130,13 @@ def patch_validator() -> None:
     new_training_proba = '''    training_attrs = call_attributes(parsed_code)
     require(
         "predict_mitra_proba" in training_attrs,
-        "training tutorial must route probability inference through the shared Mitra API",
+        "training tutorial must route primary probability inference through the shared Mitra API",
     )
-    require(
-        "predict_proba" not in training_attrs,
-        "training tutorial must not bypass the shared probability API",
-    )
+    if "predict_proba" in training_attrs:
+        require(
+            predict_proba_calls_are_multiclass(parsed_code, minimum_calls=1),
+            "direct reload-equivalence predict_proba calls must request as_multiclass=True",
+        )
 '''
     if old_training_proba in src:
         src = src.replace(old_training_proba, new_training_proba, 1)
