@@ -1,5 +1,5 @@
 # Agent Relay builder one-shot remediation; all relay scaffolding self-deletes on success.
-# Final trigger: allow explicit fresh-reload probability equivalence checks while primary inference uses the shared API.
+# Final trigger: validate schema/deserialization ordering using executable code cells, not prose mentions.
 name: Relay builder reviewer remediation
 
 on:
