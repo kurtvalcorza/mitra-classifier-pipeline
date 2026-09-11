@@ -19,7 +19,7 @@ The lock inputs are committed as `requirements-colab.in` and `requirements-infer
 
 The declared primary runtime for both notebooks is **Google Colab with Python 3.12**. Generic Jupyter compatibility is not claimed because the workflows intentionally use Colab upload/download primitives. Runtime-error guidance in both notebooks uses the same Colab-only support boundary.
 
-The current DIMER model-download boundary exposes `model.safetensors` + `config.json`, not a self-describing package manifest. `MODEL_SOURCE = 'DIMER files'` therefore requires exactly those two files and verifies both against the pinned release SHA-256 values before staging. The notebook records the intended model ID/revision but does not claim DIMER-side manifest provenance that the current producer does not emit; that Notebook Spec MOD7 provenance gap is why the notebook remains Candidate. A failed DIMER upload never falls back to the network.
+The repository `MODEL_CARD.md` states that DIMER hosts **only `model.safetensors`**; canonical `config.json` is reconstructed locally and digest-verified. `MODEL_SOURCE = 'DIMER weights'` therefore requires exactly the weights file, verifies its pinned SHA-256, reconstructs the exact 86-byte canonical config, and verifies the config digest before staging. The notebook records the intended model ID/revision but does not claim DIMER-side manifest provenance that the current producer does not emit; that Notebook Spec MOD7 provenance gap is why the notebook remains Candidate. A failed DIMER upload never falls back to the network.
 
 Both inference workflows reject duplicate CSV headers before pandas can rename them.
 Quoted column names and UTF-8 files with a byte-order mark are supported.
@@ -35,7 +35,7 @@ Quoted column names and UTF-8 files with a byte-order mark are supported.
 
 `mitra_classifier_colab.ipynb` is a standalone tutorial for the Mitra Classifier checkpoint distributed through the DIMER Model Repository.
 
-It does **not** depend on DIMER Workbench, DIMER APIs, or the DIMER validator/fine-tuner workers. Users can download `model.safetensors` and `config.json` from DIMER and run the notebook independently in Google Colab. As a separate explicitly selected source mode, the notebook can instead retrieve the exact pinned upstream checkpoint associated with the DIMER release; a failed or incomplete DIMER upload never falls back to the network.
+It does **not** depend on DIMER Workbench, DIMER APIs, or the DIMER validator/fine-tuner workers. Users can download `model.safetensors` from DIMER and run the notebook independently in Google Colab. As a separate explicitly selected source mode, the notebook can instead retrieve the exact pinned upstream checkpoint associated with the DIMER release; a failed or incomplete DIMER upload never falls back to the network.
 
 The tutorial covers:
 
@@ -83,7 +83,7 @@ It does **not** reacquire `model.safetensors` or `config.json`, does not call DI
 The end-user flow is therefore:
 
 ```text
-DIMER model.safetensors + config.json OR pinned upstream checkpoint
+DIMER model.safetensors OR pinned upstream checkpoint
         ↓
 mitra_classifier_colab.ipynb
         ↓
@@ -160,7 +160,11 @@ These tutorials were developed with substantial AI assistance using **GPT-5.6 So
 - Provider/client: **OpenAI / ChatGPT**
 - Agent Relay role: **Builder**
 - Base-model developer: **AutoGluon team, Amazon Web Services (AWS)**
-- Distributed DIMER artifact: `model.safetensors` + `config.json` (both pinned by SHA-256; no DIMER package manifest is currently supplied to this notebook)
+- Distributed DIMER artifact: `model.safetensors`; canonical `config.json` is reconstructed locally (both pinned by SHA-256; no DIMER package manifest is currently supplied to this notebook)
 - Model identity: the pinned revision and SHA-256 values above
 
 AI attribution is **provenance, not sign-off**. It does not authenticate authorship, imply endorsement by OpenAI, AWS, AutoGluon, or DIMER, or independently verify correctness. Executed checks and reproducible outputs remain the evidence for a particular run, and users should review the notebooks and their results before consequential use.
+
+### Production API parity
+
+Both notebooks load `finetuner/pipeline_api.py` from immutable revision `9c53a1cc563e75f9a1e60a2a6beefb5e62757bfb` and verify SHA-256 `47b40a412ef9ff427e27632e0e32141cb1c004c946c1575a79c622113bd08490` before import. The DIMER fine-tuner delegates preprocessing, validation, split/cap, fit/evaluate, and prediction behavior to the same module.
