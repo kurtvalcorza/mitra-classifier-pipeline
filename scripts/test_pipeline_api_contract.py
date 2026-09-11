@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -101,7 +102,49 @@ def main() -> None:
     )
     assert "PIPELINE_API.predict_mitra" in companion_text
     assert "PIPELINE_API.predict_mitra_proba" in companion_text
+
+    check_pipeline_api_pin_parity(nb_text, companion_text)
     print("Shared production-facing Mitra pipeline API contract: PASS")
+
+
+def check_pipeline_api_pin_parity(nb_text: str, companion_text: str) -> None:
+    """Worker<->tutorial parity is only durable if the module the notebooks fetch is the module
+    the worker ships. Both notebooks download ``finetuner/pipeline_api.py`` from a pinned
+    revision and refuse to import it unless its SHA-256 equals ``PIPELINE_API_SHA256``; the
+    README states the same pin. Any edit to the shared module therefore has to re-pin both
+    notebooks and the README in the same change, or the tutorials keep executing the old copy
+    while the worker runs the new one. Hash LF-normalized bytes so a CRLF checkout matches the
+    blob GitHub serves."""
+    import hashlib
+
+    api_bytes = (ROOT / "finetuner" / "pipeline_api.py").read_bytes().replace(b"\r\n", b"\n")
+    api_sha = hashlib.sha256(api_bytes).hexdigest()
+    sha_re = re.compile(r"PIPELINE_API_SHA256 = '([0-9a-f]{64})'")
+    rev_re = re.compile(r"PIPELINE_API_REVISION = '([0-9a-f]{40})'")
+    revisions: set[str] = set()
+    for name, text in (("E2E notebook", nb_text), ("companion notebook", companion_text)):
+        pins = set(sha_re.findall(text))
+        assert pins == {api_sha}, (
+            f"{name} PIPELINE_API_SHA256 {sorted(pins)} != sha256(LF finetuner/pipeline_api.py) "
+            f"{api_sha}; re-pin PIPELINE_API_REVISION/PIPELINE_API_SHA256 in both notebooks and "
+            "tutorials/README.md in the same change as the shared module"
+        )
+        found = rev_re.findall(text)
+        assert len(set(found)) == 1, f"{name} must pin exactly one PIPELINE_API_REVISION, found {found}"
+        revisions.update(found)
+    assert len(revisions) == 1, f"notebooks pin different PIPELINE_API_REVISION values: {sorted(revisions)}"
+    revision = revisions.pop()
+
+    readme = (ROOT / "tutorials" / "README.md").read_text(encoding="utf-8")
+    heading = "### Production API parity"
+    assert heading in readme, "tutorials/README.md lost the 'Production API parity' section"
+    section = readme.split(heading, 1)[1].split("\n### ", 1)[0]
+    assert f"immutable revision `{revision}`" in section, (
+        f"tutorials/README.md 'Production API parity' does not cite notebook revision {revision}"
+    )
+    assert f"verify SHA-256 `{api_sha}`" in section, (
+        f"tutorials/README.md 'Production API parity' does not cite sha256(LF finetuner/pipeline_api.py) {api_sha}"
+    )
 
 
 if __name__ == "__main__":
