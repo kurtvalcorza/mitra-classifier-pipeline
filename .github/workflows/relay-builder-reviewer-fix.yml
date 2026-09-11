@@ -37,13 +37,13 @@ jobs:
           actual_decoded = hashlib.sha256(decoded).hexdigest()
           if actual_decoded != expected_decoded:
               raise SystemExit(f'decoded finalizer integrity failure: {actual_decoded}')
-          Path('/tmp/relay_builder_finalizer.py').write_bytes(decoded)
+          Path('scripts/.relay_builder_finalizer.py').write_bytes(decoded)
           print('verified finalizer:', actual_decoded)
           PY
-          python -m py_compile /tmp/relay_builder_finalizer.py
+          python -m py_compile scripts/.relay_builder_finalizer.py
 
       - name: Apply production-facing API remediation
-        run: python /tmp/relay_builder_finalizer.py production
+        run: python scripts/.relay_builder_finalizer.py production
 
       - name: Install validation dependencies
         run: pip install pandas numpy scikit-learn
@@ -67,7 +67,7 @@ jobs:
           echo "API_SHA=$(sha256sum finetuner/pipeline_api.py | awk '{print $1}')" >> "$GITHUB_ENV"
 
       - name: Align tutorials to immutable production API and DIMER weights boundary
-        run: python /tmp/relay_builder_finalizer.py tutorials --api-ref "$API_REF" --api-sha "$API_SHA"
+        run: python scripts/.relay_builder_finalizer.py tutorials --api-ref "$API_REF" --api-sha "$API_SHA"
 
       - name: Run durable repository checks
         run: |
@@ -91,6 +91,7 @@ jobs:
 
       - name: Remove relay and diagnostic scaffolding
         run: |
+          rm -f scripts/.relay_builder_finalizer.py
           git rm -rf .relay
           git rm -f scripts/relay_builder_fix_all.py scripts/relay_run_patcher.py .github/workflows/relay-builder-reviewer-fix.yml .github/workflows/relay-inspect.yml
           git add -A
