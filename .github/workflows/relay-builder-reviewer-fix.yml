@@ -1,4 +1,4 @@
-# Agent Relay builder one-shot remediation; connector performs workflow-file cleanup after validated non-workflow push.
+# Agent Relay builder one-shot remediation; connector applies durable workflow files after validated non-workflow push.
 name: Relay builder reviewer remediation
 
 on:
@@ -99,10 +99,11 @@ jobs:
           ! grep -q 'DIMER ZIP' tutorials/mitra_classifier_colab.ipynb
           ! grep -q 'Upload exactly two files downloaded from DIMER' tutorials/mitra_classifier_colab.ipynb
 
-      - name: Stage desired CI workflow and remove non-workflow relay scaffolding
+      - name: Stage desired workflows and remove non-workflow relay scaffolding
         run: |
           cp .github/workflows/ci.yml scripts/relay_desired_ci.yml
-          git checkout "$GITHUB_SHA" -- .github/workflows/ci.yml
+          cp .github/workflows/notebook-release.yml scripts/relay_desired_notebook_release.yml
+          git checkout "$GITHUB_SHA" -- .github/workflows/ci.yml .github/workflows/notebook-release.yml
           rm -f scripts/.relay_builder_finalizer.py
           git rm -rf .relay
           git rm -f scripts/relay_builder_fix_all.py scripts/relay_run_patcher.py scripts/relay_validator_postprocess.py
