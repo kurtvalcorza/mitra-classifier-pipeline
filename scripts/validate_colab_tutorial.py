@@ -446,6 +446,16 @@ def validate_training_tutorial() -> None:
         re.search(r"\bDIMER_[A-Z0-9_]+\b", code_text) is None,
         "standalone tutorial must not depend on DIMER_* runtime variables",
     )
+    require(
+        "p.name != 'artifact-manifest.json'" not in code_text,
+        "artifact manifest producer must not exclude nested files by basename",
+    )
+    require(
+        "artifact_manifest_path = (active_path / 'artifact-manifest.json').resolve()" in code_text
+        and "p.resolve() != artifact_manifest_path" in code_text
+        and "artifact_manifest_path.write_text" in code_text,
+        "artifact manifest producer must exclude only the canonical root manifest path",
+    )
     imports = repo_internal_imports(parsed_code)
     require(
         not imports,
