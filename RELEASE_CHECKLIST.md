@@ -27,7 +27,7 @@ build contract. Detail + evidence in each child repo's `docs/DIMER_PORTAL_CONTRA
 
 ## Real-stack verification (complete this session)
 
-- [x] Build → offline Mitra load → fine-tune → save → reload → predict was exercised live on the 5070 Ti on 2026-08-19 (`problemType=multiclass`). The repository does not currently contain `.github/workflows/integration.yml`; the durable notebook-release workflow runs on GitHub-hosted Ubuntu as execution-regression evidence, but it is not supported Google Colab clean-runtime evidence.
+- [x] Build → offline Mitra load → fine-tune → save → reload → predict was exercised live on the 5070 Ti on 2026-08-19 (`problemType=multiclass`). The repository does not currently contain `.github/workflows/integration.yml`; the durable Notebook integration-smoke workflow runs on GitHub-hosted Ubuntu as execution-regression evidence only; it is not supported Google Colab clean-runtime evidence.
 - [x] Static tutorial contract validation enforces pre-deserialization feature-schema shape/uniqueness, post-load schema reconciliation, and duplicate predictor-ZIP member rejection. This is static contract evidence, not clean-runtime notebook execution evidence.
 
 ## Release gate (open — platform-owned)

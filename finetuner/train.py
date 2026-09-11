@@ -17,7 +17,7 @@ DIMER contract:
     write result.json to DIMER_RESULT_PATH; POST DIMER_DONE_CALLBACK when done
   - DIMER_TRAIN_DEVICE = "cuda:0" | "cpu"
   - DIMER_HYPERPARAMETERS_JSON / DIMER_PREPROCESSING_ARGS_JSON = the dimer-pipeline.json fields
-  - DIMER_MODEL_DIR (optional) = a directory holding DIMER-hosted model.safetensors; canonical config.json is reconstructed locally when absent
+  - DIMER_MODEL_DIR (optional) = a directory holding DIMER-hosted model.safetensors; canonical config.json is always reconstructed locally
   - DIMER_MITRA_REVISION (optional) = required base-model revision (defaults to the pinned one)
 """
 from __future__ import annotations
@@ -46,6 +46,7 @@ from pipeline_api import (
     EXPECTED_WEIGHTS_SHA256 as PIPELINE_EXPECTED_WEIGHTS_SHA256,
     MITRA_CLASS_LIMIT as PIPELINE_MITRA_CLASS_LIMIT,
     MITRA_MODEL_KEY as PIPELINE_MITRA_MODEL_KEY,
+    materialize_dimer_checkpoint as pipeline_materialize_dimer_checkpoint,
     MITRA_ROW_LIMIT as PIPELINE_MITRA_ROW_LIMIT,
     PINNED_MITRA_REVISION as PIPELINE_PINNED_MITRA_REVISION,
     evaluate_mitra as pipeline_evaluate_mitra,
@@ -399,38 +400,31 @@ def _hf_hub_dir() -> Path:
 
 
 def _install_uploaded_weights(model_dir: Path) -> tuple[str, str, str, str]:
-    # MODEL_CARD.md says DIMER hosts model.safetensors only. A provided config must still match.
+    """Install the one-file DIMER checkpoint into an isolated offline HF snapshot.
+
+    MODEL_CARD.md defines the DIMER boundary as model.safetensors only. The canonical
+    config.json is always reconstructed by the shared production pipeline API; any
+    unrelated config.json present in DIMER_MODEL_DIR is intentionally ignored.
+    """
     msf = model_dir / "model.safetensors"
     if not msf.exists():
         raise FileNotFoundError(f"DIMER_MODEL_DIR {model_dir} must contain model.safetensors")
-    sha = _sha256_file(str(msf))
-    if sha != EXPECTED_WEIGHTS_SHA256:
-        raise RuntimeError(
-            f"Uploaded DIMER model.safetensors has SHA-256 {sha}, expected {EXPECTED_WEIGHTS_SHA256}."
-        )
-    cfgf = model_dir / "config.json"
-    if cfgf.exists():
-        config_bytes = cfgf.read_bytes()
-        config_source = "platform-provided"
-    else:
-        config_bytes = CANONICAL_CONFIG_BYTES
-        config_source = "repository-canonical"
-    config_sha = hashlib.sha256(config_bytes).hexdigest()
-    if len(config_bytes) != 86 or config_sha != EXPECTED_CONFIG_SHA256:
-        raise RuntimeError(
-            f"Mitra config.json has SHA-256 {config_sha} / {len(config_bytes)} bytes; expected {EXPECTED_CONFIG_SHA256} / 86 bytes."
-        )
-    commit = sha[:40]
+
+    commit = EXPECTED_WEIGHTS_SHA256[:40]
     repo = _hf_hub_dir() / ("models--" + BASE_MODEL.replace("/", "--"))
     snap = repo / "snapshots" / commit
     snap.mkdir(parents=True, exist_ok=True)
     (repo / "refs").mkdir(parents=True, exist_ok=True)
-    shutil.copy(msf, snap / "model.safetensors")
-    (snap / "config.json").write_bytes(config_bytes)
+
+    digests = pipeline_materialize_dimer_checkpoint(
+        msf.read_bytes(),
+        snap / "model.safetensors",
+        snap / "config.json",
+    )
     (repo / "refs" / "main").write_text(commit)
     os.environ["HF_HUB_OFFLINE"] = "1"
     os.environ["TRANSFORMERS_OFFLINE"] = "1"
-    return commit, sha, config_sha, config_source
+    return commit, digests["weights_sha256"], digests["config_sha256"], "repository-canonical"
 
 def resolve_and_verify_weights(cfg: Config) -> dict[str, Any]:
     """Resolve the weights AutoGluon's Mitra loader will actually use, record provenance,

@@ -39,7 +39,7 @@ It does **not** depend on DIMER Workbench, DIMER APIs, or the DIMER validator/fi
 
 The tutorial covers:
 
-- DIMER two-file checkpoint upload or pinned-upstream checkpoint source selection;
+- DIMER `model.safetensors` upload or pinned-upstream checkpoint source selection;
 - SHA-256 verification of `model.safetensors` and `config.json`;
 - an explicit post-staging resolver check that refuses to continue unless Hugging Face resolves the verified offline snapshot;
 - reporting the actual AutoGluon, PyTorch, CUDA-build, Python, and GPU runtime state used for the run;

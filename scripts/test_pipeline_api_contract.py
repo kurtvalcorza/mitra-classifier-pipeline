@@ -65,6 +65,7 @@ def main() -> None:
 
     worker = (ROOT / "finetuner" / "train.py").read_text(encoding="utf-8")
     for marker in (
+        "pipeline_materialize_dimer_checkpoint",
         "pipeline_prepare_tabular_frame",
         "pipeline_validate_classification_target",
         "pipeline_stratified_holdout",
@@ -73,6 +74,8 @@ def main() -> None:
         "pipeline_evaluate_mitra",
     ):
         assert marker in worker, f"worker is not delegated through {marker}"
+
+    assert 'config_source = "platform-provided"' not in worker
 
     nb = json.loads((ROOT / "tutorials" / "mitra_classifier_colab.ipynb").read_text(encoding="utf-8"))
     nb_text = "\n".join(
