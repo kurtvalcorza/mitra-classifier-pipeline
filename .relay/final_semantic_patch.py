@@ -1,0 +1,80 @@
+from pathlib import Path
+import re
+
+train_path = Path('finetuner/train.py')
+train = train_path.read_text(encoding='utf-8')
+import_anchor = '    MITRA_MODEL_KEY as PIPELINE_MITRA_MODEL_KEY,\n'
+import_line = '    materialize_dimer_checkpoint as pipeline_materialize_dimer_checkpoint,\n'
+if import_line not in train:
+    if train.count(import_anchor) != 1:
+        raise SystemExit('pipeline API import anchor mismatch')
+    train = train.replace(import_anchor, import_anchor + import_line, 1)
+
+replacement = '''def _install_uploaded_weights(model_dir: Path) -> tuple[str, str, str, str]:
+    """Install the one-file DIMER checkpoint into an isolated offline HF snapshot.
+
+    MODEL_CARD.md defines the DIMER boundary as model.safetensors only. The canonical
+    config.json is always reconstructed by the shared production pipeline API; any
+    unrelated config.json present in DIMER_MODEL_DIR is intentionally ignored.
+    """
+    msf = model_dir / "model.safetensors"
+    if not msf.exists():
+        raise FileNotFoundError(f"DIMER_MODEL_DIR {model_dir} must contain model.safetensors")
+
+    commit = EXPECTED_WEIGHTS_SHA256[:40]
+    repo = _hf_hub_dir() / ("models--" + BASE_MODEL.replace("/", "--"))
+    snap = repo / "snapshots" / commit
+    snap.mkdir(parents=True, exist_ok=True)
+    (repo / "refs").mkdir(parents=True, exist_ok=True)
+
+    digests = pipeline_materialize_dimer_checkpoint(
+        msf.read_bytes(),
+        snap / "model.safetensors",
+        snap / "config.json",
+    )
+    (repo / "refs" / "main").write_text(commit)
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    os.environ["TRANSFORMERS_OFFLINE"] = "1"
+    return commit, digests["weights_sha256"], digests["config_sha256"], "repository-canonical"
+'''
+pattern = r'def _install_uploaded_weights\(model_dir: Path\).*?(?=\n\ndef resolve_and_verify_weights\()'
+train, count = re.subn(pattern, replacement.rstrip(), train, count=1, flags=re.S)
+if count != 1:
+    raise SystemExit(f'_install_uploaded_weights replacement count={count}')
+train = train.replace(
+    'DIMER_MODEL_DIR (optional) = a directory holding DIMER-hosted model.safetensors; canonical config.json is reconstructed locally when absent',
+    'DIMER_MODEL_DIR (optional) = a directory holding DIMER-hosted model.safetensors; canonical config.json is always reconstructed locally',
+)
+train_path.write_text(train, encoding='utf-8')
+
+test_path = Path('scripts/test_pipeline_api_contract.py')
+test = test_path.read_text(encoding='utf-8')
+marker = '        "pipeline_materialize_dimer_checkpoint",\n'
+anchor = '        "pipeline_prepare_tabular_frame",\n'
+if marker not in test:
+    if test.count(anchor) != 1:
+        raise SystemExit('worker contract marker anchor mismatch')
+    test = test.replace(anchor, marker + anchor, 1)
+canonical_assert = '    assert \'config_source = "platform-provided"\' not in worker\n'
+worker_anchor = '    nb = json.loads((ROOT / "tutorials" / "mitra_classifier_colab.ipynb").read_text(encoding="utf-8"))\n'
+if canonical_assert not in test:
+    if test.count(worker_anchor) != 1:
+        raise SystemExit('worker canonical-config assertion anchor mismatch')
+    test = test.replace(worker_anchor, canonical_assert + '\n' + worker_anchor, 1)
+test_path.write_text(test, encoding='utf-8')
+
+readme_path = Path('tutorials/README.md')
+readme = readme_path.read_text(encoding='utf-8')
+readme = readme.replace(
+    '- DIMER two-file checkpoint upload or pinned-upstream checkpoint source selection;',
+    '- DIMER `model.safetensors` upload or pinned-upstream checkpoint source selection;',
+)
+readme_path.write_text(readme, encoding='utf-8')
+
+checklist_path = Path('RELEASE_CHECKLIST.md')
+checklist = checklist_path.read_text(encoding='utf-8')
+checklist = checklist.replace(
+    'the durable notebook-release workflow runs on GitHub-hosted Ubuntu as execution-regression evidence, but it is not supported Google Colab clean-runtime evidence.',
+    'the durable Notebook integration-smoke workflow runs on GitHub-hosted Ubuntu as execution-regression evidence only; it is not supported Google Colab clean-runtime evidence.',
+)
+checklist_path.write_text(checklist, encoding='utf-8')
