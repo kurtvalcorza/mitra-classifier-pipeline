@@ -185,20 +185,21 @@ def patch_validator() -> None:
 
     inference_anchor = "    for forbidden_text in (\n"
     inference_check = (
+        '    code_sequence = "\\n".join(source for _, source in parsed_code)\n'
         '    preload_candidates = (\n'
         '        "FEATURE_COLUMNS = run_metadata.get(\'features\')",\n'
         '        "artifact_feature_columns = run_metadata[\'features\']",\n'
         '    )\n'
-        '    preload_positions = [text.find(marker) for marker in preload_candidates if marker in text]\n'
+        '    preload_positions = [code_sequence.find(marker) for marker in preload_candidates if marker in code_sequence]\n'
         '    require(preload_positions, "inference tutorial must validate declared feature schema before deserialization")\n'
-        '    load_position = text.find("TabularPredictor.load")\n'
+        '    load_position = code_sequence.find("TabularPredictor.load")\n'
         '    require(load_position >= 0 and min(preload_positions) < load_position, "feature-schema validation must precede TabularPredictor.load")\n'
         '    postload_markers = (\n'
         '        "predictor_features != FEATURE_COLUMNS",\n'
         '        "predictor_feature_columns != artifact_feature_columns",\n'
         '    )\n'
         '    require(\n'
-        '        "feature_metadata_in" in text and any(marker in text[load_position:] for marker in postload_markers),\n'
+        '        "feature_metadata_in" in code_sequence and any(marker in code_sequence[load_position:] for marker in postload_markers),\n'
         '        "inference tutorial must reconcile declared feature schema with the loaded predictor",\n'
         '    )\n\n'
     )
