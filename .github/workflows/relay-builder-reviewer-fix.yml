@@ -76,10 +76,25 @@ jobs:
       - name: Align tutorials to immutable production API and DIMER weights boundary
         run: python scripts/.relay_builder_finalizer.py tutorials --api-ref "$API_REF" --api-sha "$API_SHA"
 
-      - name: Make notebook validation structural rather than prose-pinned
+      - name: Normalize generated notebook wording and structural validation
         run: |
           python - <<'PY'
+          import json
           from pathlib import Path
+
+          for notebook_name in (
+              'tutorials/mitra_classifier_colab.ipynb',
+              'tutorials/mitra_classifier_predictor_inference_colab.ipynb',
+          ):
+              notebook_path = Path(notebook_name)
+              notebook = json.loads(notebook_path.read_text(encoding='utf-8'))
+              for cell in notebook.get('cells', []):
+                  value = cell.get('source', [])
+                  source = ''.join(value) if isinstance(value, list) else str(value)
+                  source = source.replace('DIMER ZIP', 'DIMER-hosted weights')
+                  cell['source'] = source.splitlines(keepends=True)
+              notebook_path.write_text(json.dumps(notebook, indent=1, ensure_ascii=False) + '\n', encoding='utf-8')
+
           path = Path('scripts/validate_colab_tutorial.py')
           src = path.read_text(encoding='utf-8')
           for literal in (
@@ -156,6 +171,7 @@ jobs:
           grep -q 'PIPELINE_API.prepare_tabular_frame' tutorials/mitra_classifier_colab.ipynb
           grep -q 'PIPELINE_API.fit_mitra_predictor' tutorials/mitra_classifier_colab.ipynb
           grep -q 'PIPELINE_API.predict_mitra' tutorials/mitra_classifier_predictor_inference_colab.ipynb
+          ! grep -q 'DIMER ZIP' tutorials/mitra_classifier_colab.ipynb
           ! grep -q 'Upload exactly two files downloaded from DIMER' tutorials/mitra_classifier_colab.ipynb
 
       - name: Remove relay and diagnostic scaffolding
