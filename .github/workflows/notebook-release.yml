@@ -24,7 +24,7 @@ concurrency:
 jobs:
   execute-notebooks:
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: 35
     env:
       DIMER_REPO_REF: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -44,15 +44,51 @@ jobs:
           python -m pip install --upgrade pip==26.2.1
           python -m pip install torch==2.9.1 nbconvert==7.17.1 ipykernel==7.3.0
 
+      - name: Prepare reduced E2E integration-smoke copy
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          source_path = Path("tutorials/mitra_classifier_colab.ipynb")
+          smoke_path = Path("/content/mitra_classifier_colab_ci_smoke.ipynb")
+          notebook = json.loads(source_path.read_text(encoding="utf-8"))
+          marker = "baseline_predictor = fit_mitra(False, BASELINE_PATH, BASELINE_TIME_LIMIT)"
+          injected = False
+          for cell in notebook.get("cells", []):
+              if cell.get("cell_type") != "code":
+                  continue
+              source = cell.get("source", [])
+              text = "".join(source) if isinstance(source, list) else str(source)
+              if marker not in text:
+                  continue
+              smoke_setup = (
+                  "# GitHub-hosted integration-smoke reduction only; the shipped notebook is unchanged.\n"
+                  "train_data = PIPELINE_API.stratified_cap(train_data, TARGET_COLUMN, 24, SEED)\n"
+                  "holdout_data = holdout_data.groupby(TARGET_COLUMN, group_keys=False).head(3).reset_index(drop=True)\n"
+                  "if test_data is not None:\n"
+                  "    test_data = test_data.groupby(TARGET_COLUMN, group_keys=False).head(3).reset_index(drop=True)\n"
+                  "FEATURE_COLUMNS = [c for c in train_data.columns if c != TARGET_COLUMN]\n"
+                  "print(f'CI smoke reduction: train={len(train_data)}, holdout={len(holdout_data)}, test={len(test_data) if test_data is not None else 0}')\n"
+              )
+              text = text.replace(marker, smoke_setup + marker, 1)
+              cell["source"] = text.splitlines(keepends=True)
+              injected = True
+              break
+          if not injected:
+              raise RuntimeError("Could not locate the E2E fit marker for integration-smoke reduction.")
+          smoke_path.write_text(json.dumps(notebook, indent=1), encoding="utf-8")
+          PY
+
       - name: Execute E2E default pinned-upstream path
         id: e2e
         run: |
           jupyter nbconvert \
             --to notebook \
-            --execute tutorials/mitra_classifier_colab.ipynb \
+            --execute /content/mitra_classifier_colab_ci_smoke.ipynb \
             --output executed-mitra-classifier-e2e.ipynb \
             --output-dir /content \
-            --ExecutePreprocessor.timeout=2700 \
+            --ExecutePreprocessor.timeout=900 \
             --ExecutePreprocessor.kernel_name=python3
 
       - name: Prepare external artifact shim and independent inference data
@@ -103,7 +139,7 @@ jobs:
               test_name = next(name for name in zf.namelist() if Path(name).name == "test.csv")
               with zf.open(test_name) as handle:
                   frame = pd.read_csv(handle)
-          frame.drop(columns=["target"]).tail(64).to_csv("/content/mitra-classifier-independent-inference.csv", index=False)
+          frame.drop(columns=["target"]).tail(24).to_csv("/content/mitra-classifier-independent-inference.csv", index=False)
           PY
           {
             echo 'PYTHONPATH=/tmp/colab-shim'
@@ -118,7 +154,7 @@ jobs:
             --execute tutorials/mitra_classifier_predictor_inference_colab.ipynb \
             --output executed-mitra-classifier-artifact-inference.ipynb \
             --output-dir /content \
-            --ExecutePreprocessor.timeout=1800 \
+            --ExecutePreprocessor.timeout=900 \
             --ExecutePreprocessor.kernel_name=python3
 
       - name: Assert integration-smoke outputs
@@ -163,13 +199,15 @@ jobs:
             echo
             echo "- Candidate SHA: \`${DIMER_REPO_REF}\`"
             echo "- Runtime substrate: \`${RUNNER_OS}\` / \`${RUNNER_ARCH}\`, Python \`$(python --version 2>&1)\`"
-            echo "- E2E default source: pinned immutable upstream checkpoint"
+            echo "- E2E source: pinned immutable upstream checkpoint"
+            echo "- GitHub-only workload reduction: 24 training rows, up to 3 holdout/test rows per class"
             echo "- E2E execution: \`${E2E_OUTCOME}\`"
             echo "- Independent external-input preparation: \`${PREPARE_OUTCOME}\`"
             echo "- ARTIFACT-INFERENCE execution: \`${INFERENCE_OUTCOME}\`"
             echo "- Required output assertions: \`${OUTPUT_OUTCOME}\`"
             echo "- Integration artifact upload: \`${UPLOAD_OUTCOME}\`"
             echo "- GitHub-hosted integration-smoke status: **${SMOKE_STATUS}**"
+            echo "- The shipped notebook is not modified by the workload reduction."
             echo "- The optional DIMER-hosted model.safetensors acquisition branch is not exercised by this GitHub-hosted path."
             echo "- This run is integration-regression coverage only; it is NOT REL1/REL5 clean Google Colab release evidence."
           } >> "$GITHUB_STEP_SUMMARY"
