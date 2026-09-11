@@ -80,6 +80,7 @@ jobs:
         run: |
           python - <<'PY'
           import json
+          import re
           from pathlib import Path
 
           for notebook_name in (
@@ -107,8 +108,135 @@ jobs:
               '        "This notebook does not demonstrate",\n',
               '        "Agent Relay role",\n',
               '        "provenance, not sign-off",\n',
+              '        "as_multiclass=True",\n',
+              '        "predict_proba",\n',
           ):
               src = src.replace(literal, '')
+
+          memory_guard = '''def has_memory_guard(code_cells: list[tuple[int, str]]) -> bool:
+    for _, source in code_cells:
+        if not source.strip():
+            continue
+        for node in ast.walk(ast.parse(source)):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+                continue
+            if node.func.attr == "fit_mitra_predictor":
+                for keyword in node.keywords:
+                    if (
+                        keyword.arg == "max_memory_usage_ratio"
+                        and isinstance(keyword.value, ast.Name)
+                        and keyword.value.id == "MAX_MEMORY_USAGE_RATIO"
+                    ):
+                        return True
+            if node.func.attr == "fit":
+                for keyword in node.keywords:
+                    if keyword.arg != "ag_args_fit" or not isinstance(keyword.value, ast.Dict):
+                        continue
+                    for key, value in zip(keyword.value.keys, keyword.value.values):
+                        if (
+                            isinstance(key, ast.Constant)
+                            and key.value == "max_memory_usage_ratio"
+                            and isinstance(value, ast.Name)
+                            and value.id == "MAX_MEMORY_USAGE_RATIO"
+                        ):
+                            return True
+    return False
+'''
+          src, n = re.subn(
+              r'def has_memory_guard\(code_cells: list\[tuple\[int, str\]\]\) -> bool:.*?(?=\n\ndef call_attributes)',
+              memory_guard.rstrip(),
+              src,
+              count=1,
+              flags=re.S,
+          )
+          if n != 1:
+              raise RuntimeError(f'has_memory_guard replacement count={n}')
+
+          fit_gate = '''def has_current_fit_completion_gate(code_cells: list[tuple[int, str]]) -> bool:
+    for _, source in code_cells:
+        if not source.strip():
+            continue
+        tree = ast.parse(source)
+        false_positions: list[int] = []
+        fit_positions: list[int] = []
+        true_positions: list[int] = []
+        for position, node in enumerate(tree.body):
+            if not isinstance(node, ast.Assign):
+                continue
+            names = [t.id for t in node.targets if isinstance(t, ast.Name)]
+            if "FIT_RUN_COMPLETED" in names and isinstance(node.value, ast.Constant):
+                if node.value.value is False:
+                    false_positions.append(position)
+                elif node.value.value is True:
+                    true_positions.append(position)
+            if isinstance(node.value, ast.Call):
+                func = node.value.func
+                if (
+                    isinstance(func, ast.Name) and func.id == "fit_mitra"
+                    or isinstance(func, ast.Attribute) and func.attr == "fit_mitra_predictor"
+                ):
+                    fit_positions.append(position)
+        if (
+            false_positions
+            and fit_positions
+            and true_positions
+            and min(false_positions) < min(fit_positions) < max(true_positions)
+        ):
+            return True
+    return False
+'''
+          src, n = re.subn(
+              r'def has_current_fit_completion_gate\(code_cells: list\[tuple\[int, str\]\]\) -> bool:.*?(?=\n\ndef predict_proba_calls_are_multiclass)',
+              fit_gate.rstrip(),
+              src,
+              count=1,
+              flags=re.S,
+          )
+          if n != 1:
+              raise RuntimeError(f'fit completion gate replacement count={n}')
+
+          old_training_proba = '''    require(
+        predict_proba_calls_are_multiclass(parsed_code, minimum_calls=3),
+        "every training-tutorial predict_proba call must request as_multiclass=True",
+    )
+'''
+          new_training_proba = '''    training_attrs = call_attributes(parsed_code)
+    require(
+        "predict_mitra_proba" in training_attrs,
+        "training tutorial must route probability inference through the shared Mitra API",
+    )
+    require(
+        "predict_proba" not in training_attrs,
+        "training tutorial must not bypass the shared probability API",
+    )
+'''
+          if old_training_proba in src:
+              src = src.replace(old_training_proba, new_training_proba, 1)
+          elif new_training_proba not in src:
+              raise RuntimeError('training probability validation block missing')
+          src = src.replace(
+              'require(has_memory_guard(parsed_code), "tutorial must pass max_memory_usage_ratio through .fit(...)")',
+              'require(has_memory_guard(parsed_code), "tutorial must pass MAX_MEMORY_USAGE_RATIO through the direct or shared-API fit path")',
+          )
+
+          old_inference = '''    require("predict" in attrs, "inference tutorial must call predict(...)")
+    require("predict_proba" in attrs, "inference tutorial must call predict_proba(...)")
+    require(
+        predict_proba_calls_are_multiclass(parsed_code, minimum_calls=1),
+        "inference tutorial predict_proba must request as_multiclass=True",
+    )
+'''
+          new_inference = '''    require("predict_mitra" in attrs, "inference tutorial must call shared-API predict_mitra(...)")
+    require("predict_mitra_proba" in attrs, "inference tutorial must call shared-API predict_mitra_proba(...)")
+    require(
+        "predict" not in attrs and "predict_proba" not in attrs,
+        "inference tutorial must not bypass the shared prediction API",
+    )
+'''
+          if old_inference in src:
+              src = src.replace(old_inference, new_inference, 1)
+          elif new_inference not in src:
+              raise RuntimeError('inference prediction validation block missing')
 
           train_anchor = '    for forbidden in FORBIDDEN:\n'
           train_check = (
