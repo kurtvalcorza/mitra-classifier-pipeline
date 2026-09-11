@@ -6,6 +6,9 @@ on:
       - "tutorials/**"
       - "examples/sample-data/**"
       - "scripts/validate_colab_tutorial.py"
+      - "scripts/test_pipeline_api_contract.py"
+      - "finetuner/pipeline_api.py"
+      - "finetuner/train.py"
       - ".github/workflows/notebook-release.yml"
   workflow_dispatch:
 
@@ -164,9 +167,9 @@ jobs:
             echo "- ARTIFACT-INFERENCE execution: \`${INFERENCE_OUTCOME}\`"
             echo "- Required output assertions: \`${OUTPUT_OUTCOME}\`"
             echo "- Evidence artifact upload: \`${UPLOAD_OUTCOME}\`"
-            echo "- Release evidence status: **${RELEASE_STATUS}**"
+            echo "- GitHub-hosted execution regression status: **${RELEASE_STATUS}**"
             echo "- The optional DIMER two-file acquisition branch is not exercised by this CI release path."
-            echo "- Static checks remain separate and are not treated as execution evidence."
+            echo "- Static checks remain separate. This GitHub-hosted run is execution-regression evidence, not supported Google Colab release evidence."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail closed unless execution evidence is complete
