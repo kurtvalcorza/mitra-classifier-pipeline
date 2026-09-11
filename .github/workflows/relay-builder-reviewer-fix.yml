@@ -22,7 +22,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Verify and reconstruct remediation finalizer
+      - name: Verify, reconstruct, and adapt remediation finalizer
         run: |
           python - <<'PY'
           import base64, hashlib, zlib
@@ -37,8 +37,15 @@ jobs:
           actual_decoded = hashlib.sha256(decoded).hexdigest()
           if actual_decoded != expected_decoded:
               raise SystemExit(f'decoded finalizer integrity failure: {actual_decoded}')
-          Path('scripts/.relay_builder_finalizer.py').write_bytes(decoded)
-          print('verified finalizer:', actual_decoded)
+          source = decoded.decode('utf-8')
+          old = "r'def _evaluate\\(.*?(?=\\n\\n_MITRA_METRIC_MAP)'"
+          new = "r'def _evaluate\\(.*?(?=\\n\\n# DIMER/AutoGluon eval-metric name|\\n\\n_MITRA_METRIC_MAP)'"
+          if source.count(old) != 1:
+              raise SystemExit(f'worker evaluate compatibility anchor count: {source.count(old)}')
+          source = source.replace(old, new, 1)
+          Path('scripts/.relay_builder_finalizer.py').write_text(source, encoding='utf-8')
+          print('verified payload:', actual_decoded)
+          print('adapted only worker evaluate lookahead for existing explanatory comment')
           PY
           python -m py_compile scripts/.relay_builder_finalizer.py
 
@@ -93,7 +100,10 @@ jobs:
         run: |
           rm -f scripts/.relay_builder_finalizer.py
           git rm -rf .relay
-          git rm -f scripts/relay_builder_fix_all.py scripts/relay_run_patcher.py .github/workflows/relay-builder-reviewer-fix.yml .github/workflows/relay-inspect.yml
+          git rm -f scripts/relay_builder_fix_all.py scripts/relay_run_patcher.py \
+            .github/workflows/relay-builder-reviewer-fix.yml \
+            .github/workflows/relay-inspect.yml \
+            .github/workflows/relay-finalize.yml
           git add -A
           git commit -m "fix(tutorials): resolve notebook-spec reviewer blockers"
 
