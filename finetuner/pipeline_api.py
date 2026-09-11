@@ -6,6 +6,7 @@ parsing, callbacks, and artifact-export plumbing in ``train.py``; keep model/dat
 """
 from __future__ import annotations
 
+import hashlib
 import random
 from pathlib import Path
 from typing import Iterable
@@ -21,6 +22,39 @@ CANONICAL_CONFIG_BYTES = b'{"dim": 512, "dim_output": 10, "n_layers": 12, "n_hea
 MITRA_MODEL_KEY = "MITRA"
 MITRA_ROW_LIMIT = 10_000
 MITRA_CLASS_LIMIT = 10
+MAX_DIMER_WEIGHTS_BYTES = 1 * 1024**3
+
+
+def materialize_dimer_checkpoint(
+    weights_payload: bytes,
+    weights_dest: str | Path,
+    config_dest: str | Path,
+    *,
+    max_weights_bytes: int = MAX_DIMER_WEIGHTS_BYTES,
+) -> dict[str, str]:
+    # MODEL_CARD.md: DIMER hosts model.safetensors only. Reconstruct canonical config locally.
+    if not isinstance(weights_payload, (bytes, bytearray)):
+        raise TypeError("DIMER model.safetensors payload must be bytes.")
+    payload = bytes(weights_payload)
+    if len(payload) > max_weights_bytes:
+        raise ValueError(
+            f"DIMER model.safetensors is {len(payload):,} bytes; refusing payload above {max_weights_bytes:,} bytes."
+        )
+    weights_digest = hashlib.sha256(payload).hexdigest()
+    if weights_digest != EXPECTED_WEIGHTS_SHA256:
+        raise RuntimeError(
+            f"DIMER model.safetensors checksum mismatch. Expected {EXPECTED_WEIGHTS_SHA256}; got {weights_digest}."
+        )
+    config_digest = hashlib.sha256(CANONICAL_CONFIG_BYTES).hexdigest()
+    if len(CANONICAL_CONFIG_BYTES) != 86 or config_digest != EXPECTED_CONFIG_SHA256:
+        raise RuntimeError("Repository canonical Mitra config bytes failed their pinned invariant.")
+    weights_path = Path(weights_dest)
+    config_path = Path(config_dest)
+    weights_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    weights_path.write_bytes(payload)
+    config_path.write_bytes(CANONICAL_CONFIG_BYTES)
+    return {"weights_sha256": weights_digest, "config_sha256": config_digest}
 
 
 def seed_everything(seed: int) -> None:
@@ -216,7 +250,7 @@ def fit_mitra_predictor(
 
 def evaluate_mitra(predictor, frame: pd.DataFrame) -> dict[str, float]:
     raw = predictor.evaluate(frame, auxiliary_metrics=True, silent=True)
-    return {str(k): float(v) for k, v in raw.items()}
+    return {str(k): float(-v if "log_loss" in str(k) else v) for k, v in raw.items()}
 
 
 def predict_mitra(predictor, frame: pd.DataFrame):

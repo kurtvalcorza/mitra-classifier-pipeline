@@ -23,6 +23,12 @@ def expect_raises(fn, exc_type=Exception):
 
 
 def main() -> None:
+    import hashlib
+    # canonical config source-of-truth
+    assert api.BASE_MODEL == 'autogluon/mitra-classifier'
+    assert api.PINNED_MITRA_REVISION == 'c425e9fa0910a6be1c494321792e7ba2a1367b1a'
+    assert len(api.CANONICAL_CONFIG_BYTES) == 86
+    assert hashlib.sha256(api.CANONICAL_CONFIG_BYTES).hexdigest() == api.EXPECTED_CONFIG_SHA256
     frame = pd.DataFrame({"x": range(20), "drop": range(20), "target": [0, 1] * 10})
     clean, features, mutations = api.prepare_tabular_frame(
         frame, "target", drop_columns=["drop", "target"], name="train.csv"

@@ -17,7 +17,7 @@ DIMER contract:
     write result.json to DIMER_RESULT_PATH; POST DIMER_DONE_CALLBACK when done
   - DIMER_TRAIN_DEVICE = "cuda:0" | "cpu"
   - DIMER_HYPERPARAMETERS_JSON / DIMER_PREPROCESSING_ARGS_JSON = the dimer-pipeline.json fields
-  - DIMER_MODEL_DIR (optional) = a directory holding uploaded model.safetensors + config.json
+  - DIMER_MODEL_DIR (optional) = a directory holding DIMER-hosted model.safetensors; canonical config.json is reconstructed locally when absent
   - DIMER_MITRA_REVISION (optional) = required base-model revision (defaults to the pinned one)
 """
 from __future__ import annotations
@@ -39,19 +39,33 @@ import numpy as np
 import pandas as pd
 import requests
 
-TEMPLATE_NAME = "mitra-classifier-finetuner"
-BASE_MODEL = "autogluon/mitra-classifier"
-# Pinned weights revision and its model.safetensors SHA-256. The loaded weights are verified
-# against this checksum before fitting; a mismatch fails the run.
-PINNED_MITRA_REVISION = "c425e9fa0910a6be1c494321792e7ba2a1367b1a"
-EXPECTED_WEIGHTS_SHA256 = "e06a055e91a3baeffc37f9cf634d9e69a27d904b6686131dc3b702f9c0126b19"
-# config.json is checksum-enforced too: it carries the architecture Mitra builds before loading
-# the weights, so a drifted config with matching weights would still change the model.
-EXPECTED_CONFIG_SHA256 = "2c96c24dd25f64e92753f6f2ba00cc7833b9923459403dcd8504e8700c0995df"
+from pipeline_api import (
+    BASE_MODEL as PIPELINE_BASE_MODEL,
+    CANONICAL_CONFIG_BYTES,
+    EXPECTED_CONFIG_SHA256 as PIPELINE_EXPECTED_CONFIG_SHA256,
+    EXPECTED_WEIGHTS_SHA256 as PIPELINE_EXPECTED_WEIGHTS_SHA256,
+    MITRA_CLASS_LIMIT as PIPELINE_MITRA_CLASS_LIMIT,
+    MITRA_MODEL_KEY as PIPELINE_MITRA_MODEL_KEY,
+    MITRA_ROW_LIMIT as PIPELINE_MITRA_ROW_LIMIT,
+    PINNED_MITRA_REVISION as PIPELINE_PINNED_MITRA_REVISION,
+    evaluate_mitra as pipeline_evaluate_mitra,
+    fit_mitra_predictor as pipeline_fit_mitra_predictor,
+    prepare_tabular_frame as pipeline_prepare_tabular_frame,
+    require_class_coverage as pipeline_require_class_coverage,
+    seed_everything as pipeline_seed_everything,
+    stratified_cap as pipeline_stratified_cap,
+    stratified_holdout as pipeline_stratified_holdout,
+    validate_classification_target as pipeline_validate_classification_target,
+)
 
-MITRA_MODEL_KEY = "MITRA"
-MITRA_ROW_LIMIT = 10_000  # hard upstream ceiling
-MITRA_CLASS_LIMIT = 10    # Mitra classifies at most 10 classes
+TEMPLATE_NAME = "mitra-classifier-finetuner"
+BASE_MODEL = PIPELINE_BASE_MODEL
+PINNED_MITRA_REVISION = PIPELINE_PINNED_MITRA_REVISION
+EXPECTED_WEIGHTS_SHA256 = PIPELINE_EXPECTED_WEIGHTS_SHA256
+EXPECTED_CONFIG_SHA256 = PIPELINE_EXPECTED_CONFIG_SHA256
+MITRA_MODEL_KEY = PIPELINE_MITRA_MODEL_KEY
+MITRA_ROW_LIMIT = PIPELINE_MITRA_ROW_LIMIT
+MITRA_CLASS_LIMIT = PIPELINE_MITRA_CLASS_LIMIT
 MIN_ROWS_FOR_SPLIT = 20   # below this, don't carve a holdout out of train
 
 # ============================================================================
@@ -355,16 +369,9 @@ def _notify_from_env() -> dict[str, Any]:
 
 
 def _seed_everything(seed: int) -> None:
-    import random
-
-    random.seed(seed)
-    np.random.seed(seed)
+    pipeline_seed_everything(seed)
     try:
         import torch
-
-        torch.manual_seed(seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
     except ImportError:
@@ -391,29 +398,39 @@ def _hf_hub_dir() -> Path:
     return Path(home) / "hub"
 
 
-def _install_uploaded_weights(model_dir: Path) -> tuple[str, str]:
-    """Materialize an uploaded checkpoint into the HF cache for BASE_MODEL so AutoGluon's
-    Mitra loader (which only accepts a repo id) serves these exact bytes offline.
-    Returns (synthetic_commit, sha256)."""
-    msf, cfgf = model_dir / "model.safetensors", model_dir / "config.json"
-    if not msf.exists() or not cfgf.exists():
-        raise FileNotFoundError(
-            f"DIMER_MODEL_DIR {model_dir} must contain model.safetensors and config.json"
-        )
+def _install_uploaded_weights(model_dir: Path) -> tuple[str, str, str, str]:
+    # MODEL_CARD.md says DIMER hosts model.safetensors only. A provided config must still match.
+    msf = model_dir / "model.safetensors"
+    if not msf.exists():
+        raise FileNotFoundError(f"DIMER_MODEL_DIR {model_dir} must contain model.safetensors")
     sha = _sha256_file(str(msf))
-    commit = sha[:40]  # deterministic synthetic revision from content
+    if sha != EXPECTED_WEIGHTS_SHA256:
+        raise RuntimeError(
+            f"Uploaded DIMER model.safetensors has SHA-256 {sha}, expected {EXPECTED_WEIGHTS_SHA256}."
+        )
+    cfgf = model_dir / "config.json"
+    if cfgf.exists():
+        config_bytes = cfgf.read_bytes()
+        config_source = "platform-provided"
+    else:
+        config_bytes = CANONICAL_CONFIG_BYTES
+        config_source = "repository-canonical"
+    config_sha = hashlib.sha256(config_bytes).hexdigest()
+    if len(config_bytes) != 86 or config_sha != EXPECTED_CONFIG_SHA256:
+        raise RuntimeError(
+            f"Mitra config.json has SHA-256 {config_sha} / {len(config_bytes)} bytes; expected {EXPECTED_CONFIG_SHA256} / 86 bytes."
+        )
+    commit = sha[:40]
     repo = _hf_hub_dir() / ("models--" + BASE_MODEL.replace("/", "--"))
     snap = repo / "snapshots" / commit
     snap.mkdir(parents=True, exist_ok=True)
     (repo / "refs").mkdir(parents=True, exist_ok=True)
-    for name in ("model.safetensors", "config.json"):
-        dst = snap / name
-        if not dst.exists():
-            shutil.copy(model_dir / name, dst)
+    shutil.copy(msf, snap / "model.safetensors")
+    (snap / "config.json").write_bytes(config_bytes)
     (repo / "refs" / "main").write_text(commit)
     os.environ["HF_HUB_OFFLINE"] = "1"
-    return commit, sha
-
+    os.environ["TRANSFORMERS_OFFLINE"] = "1"
+    return commit, sha, config_sha, config_source
 
 def resolve_and_verify_weights(cfg: Config) -> dict[str, Any]:
     """Resolve the weights AutoGluon's Mitra loader will actually use, record provenance,
@@ -427,14 +444,15 @@ def resolve_and_verify_weights(cfg: Config) -> dict[str, Any]:
         "expectedConfigSha256": EXPECTED_CONFIG_SHA256,
     }
     if cfg.model_dir is not None:
-        # _install sets HF_HUB_OFFLINE=1 before huggingface_hub is first imported (it reads the
-        # flag at import time), so AutoGluon's loader serves the uploaded bytes from the cache.
-        commit, sha = _install_uploaded_weights(cfg.model_dir)
-        config_sha = _sha256_file(str(cfg.model_dir / "config.json"))
+        commit, sha, config_sha, config_source = _install_uploaded_weights(cfg.model_dir)
         prov.update({
-            "source": "uploaded", "baseModelRevision": commit, "weightsSha256": sha,
-            "configSha256": config_sha, "enforced": False,
-            "note": "Uploaded weights used verbatim; not checked against the public pinned checksum.",
+            "source": "dimer-upload",
+            "baseModelRevision": commit,
+            "weightsSha256": sha,
+            "configSha256": config_sha,
+            "configSource": config_source,
+            "enforced": True,
+            "note": "DIMER-hosted weights and repository-canonical config verified against the pinned release.",
         })
         return prov
 
@@ -472,143 +490,75 @@ def resolve_and_verify_weights(cfg: Config) -> dict[str, Any]:
 # --- Data preparation (class-preserving) ---
 
 def _stratified_cap(train: pd.DataFrame, target_col: str, ceiling: int, seed: int) -> pd.DataFrame:
-    """Sample train down to <= ceiling rows while keeping every class present. Guarantees at
-    least one row per class (a plain stratified split can round a tiny class to zero), then
-    fills the remaining budget at random."""
-    if len(train) <= ceiling:
-        return train
-    classes_before = set(train[target_col].unique())
-    if ceiling < len(classes_before):
-        raise ValueError(
-            f"max_train_rows ({ceiling}) is below the class count ({len(classes_before)}); "
-            f"cannot keep every class."
-        )
-    rng = np.random.RandomState(seed)
-    keep: list[Any] = []
-    for cls in sorted(classes_before, key=str):
-        idx = train.index[train[target_col] == cls].to_numpy()
-        keep.append(int(rng.choice(idx, size=1)[0]))
-    keep_set = set(keep)
-    remaining = np.array([i for i in train.index.to_numpy() if i not in keep_set])
-    need = ceiling - len(keep)
-    if need > 0 and len(remaining) > 0:
-        extra = rng.choice(remaining, size=min(need, len(remaining)), replace=False)
-        keep.extend(int(i) for i in extra)
-    capped = train.loc[keep]
-    if set(capped[target_col].unique()) != classes_before:
-        raise RuntimeError("class-preserving cap dropped a class; refusing to train.")
-    return capped
-
+    return pipeline_stratified_cap(train, target_col, ceiling, seed)
 
 def _stratified_holdout(train: pd.DataFrame, target_col: str, val_frac: float,
                         seed: int) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Carve a stratified holdout so every class stays represented in both train and val.
-
-    The requested fraction is converted to an integer holdout size clamped so that both splits
-    can hold every class: a scikit-learn stratified split requires the validation size and the
-    training size to each be at least the class count. A fraction too small to satisfy that
-    (e.g. 50 rows, 10 classes, split 0.05) is raised as a clear error rather than crashing deep
-    in scikit-learn."""
-    from sklearn.model_selection import train_test_split
-
-    counts = train[target_col].value_counts()
-    n_classes = int(counts.size)
-    if (counts < 2).any():
-        raise ValueError(
-            f"class(es) with fewer than 2 rows cannot be split: "
-            f"{counts[counts < 2].to_dict()}"
-        )
-    n = len(train)
-    n_val = int(round(n * val_frac))
-    n_val = min(max(n_val, n_classes), n - n_classes)  # val >= classes AND train >= classes
-    if n_val < n_classes or n - n_val < n_classes:
-        raise ValueError(
-            f"cannot build a stratified holdout: {n} usable rows, {n_classes} classes, "
-            f"validation_split={val_frac}. Provide more rows, fewer classes, or a larger split."
-        )
-    tr, va = train_test_split(
-        train, test_size=n_val, random_state=seed, stratify=train[target_col]
-    )
-    if set(tr[target_col].unique()) != set(train[target_col].unique()):
-        raise RuntimeError("stratified split left a class out of train; refusing to train.")
-    return tr, va
-
+    return pipeline_stratified_holdout(train, target_col, val_frac, seed)
 
 def _prepare_frames(cfg: Config, source: DatasetSource) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame | None, int]:
-    """Return (train, val, test, num_classes). Non-null-target rows only; the cap and holdout
-    split are class-preserving so no class is silently lost."""
     train_path = source.resolve_single("train")
     if train_path is None:
         raise FileNotFoundError("no train.csv in the dataset (validator should have caught this)")
-    train = source.read_csv(train_path)
-    if cfg.target_column not in train.columns:
-        raise KeyError(f"target column '{cfg.target_column}' not in {list(train.columns)}")
-
-    # Never drop the target, even if a malformed config lists it in drop_columns.
-    drop = [c for c in cfg.drop_columns if c in train.columns and c != cfg.target_column]
-    train = train.drop(columns=drop).dropna(subset=[cfg.target_column])
-
+    train, features, mutations = pipeline_prepare_tabular_frame(
+        source.read_csv(train_path), cfg.target_column, drop_columns=cfg.drop_columns, name="train.csv"
+    )
+    pipeline_validate_classification_target(
+        train, cfg.target_column, name="train.csv", min_rows=1, max_features=500,
+        min_classes=2, max_classes=MITRA_CLASS_LIMIT, min_class_count=1,
+    )
+    if mutations["dropped_feature_columns"] or mutations["null_target_rows_dropped"]:
+        log(f"train.csv preprocessing mutations: {mutations}")
     classes_all = set(train[cfg.target_column].unique())
     num_classes = len(classes_all)
-    if num_classes < 2:
-        raise ValueError(
-            f"target '{cfg.target_column}' has {num_classes} distinct class(es); "
-            f"classification needs at least 2."
-        )
-    if num_classes > MITRA_CLASS_LIMIT:
-        raise ValueError(
-            f"target '{cfg.target_column}' has {num_classes} classes; Mitra supports at most "
-            f"{MITRA_CLASS_LIMIT}. Reduce the number of classes (e.g. merge rare labels)."
-        )
 
-    def _prep_holdout(df: pd.DataFrame) -> pd.DataFrame:
-        cols = [c for c in cfg.drop_columns if c in df.columns and c != cfg.target_column]
-        return df.drop(columns=cols).dropna(subset=[cfg.target_column])
+    def _prep_holdout(stem: str) -> pd.DataFrame | None:
+        p = source.resolve_single(stem)
+        if p is None:
+            return None
+        frame, eval_features, eval_mutations = pipeline_prepare_tabular_frame(
+            source.read_csv(p), cfg.target_column, drop_columns=cfg.drop_columns, name=f"{stem}.csv"
+        )
+        if set(eval_features) != set(features):
+            raise ValueError(f"{stem}.csv feature column names do not match train.csv.")
+        frame = frame.reindex(columns=features + [cfg.target_column])
+        if eval_mutations["dropped_feature_columns"] or eval_mutations["null_target_rows_dropped"]:
+            log(f"{stem}.csv preprocessing mutations: {eval_mutations}")
+        return frame
 
-    val_path = source.resolve_single("val")
-    if val_path is not None:
-        val = _prep_holdout(source.read_csv(val_path))
-    else:
+    val = _prep_holdout("val")
+    if val is None:
         val_frac = min(max(cfg.validation_split, 0.0), 0.4)
         if val_frac > 0 and len(train) > MIN_ROWS_FOR_SPLIT:
-            train, val = _stratified_holdout(train, cfg.target_column, val_frac, cfg.seed)
+            train, val = pipeline_stratified_holdout(train, cfg.target_column, val_frac, cfg.seed)
         else:
             val = pd.DataFrame(columns=train.columns)
-
     ceiling = min(cfg.max_train_rows, MITRA_ROW_LIMIT)
     if len(train) > ceiling:
         log(f"Class-preserving sample of train {len(train)} -> {ceiling} rows (seed={cfg.seed}).")
-        train = _stratified_cap(train, cfg.target_column, ceiling, cfg.seed)
-
-    # The problem type is fixed by the labels present across the whole cleaned train set.
+        train = pipeline_stratified_cap(train, cfg.target_column, ceiling, cfg.seed)
     if set(train[cfg.target_column].unique()) != classes_all:
         raise RuntimeError("training class set changed after split/cap; refusing to train.")
-
-    test_path = source.resolve_single("test")
-    test = _prep_holdout(source.read_csv(test_path)) if test_path is not None else None
-
-    return (train.reset_index(drop=True), val.reset_index(drop=True),
-            test.reset_index(drop=True) if test is not None else None, num_classes)
-
+    test = _prep_holdout("test")
+    if len(val) > 0:
+        pipeline_require_class_coverage(train, val, cfg.target_column, "validation split")
+    if test is not None and len(test) > 0:
+        pipeline_require_class_coverage(train, test, cfg.target_column, "test split")
+    return (
+        train.reset_index(drop=True), val.reset_index(drop=True),
+        test.reset_index(drop=True) if test is not None else None, num_classes,
+    )
 
 def _evaluate(cfg: Config, predictor, frame: pd.DataFrame) -> dict[str, Any]:
-    """AutoGluon's own evaluation is authoritative — it knows the label mapping. Cap the
-    evaluation set for memory."""
     if cfg.max_eval_rows and len(frame) > cfg.max_eval_rows:
         log(f"Capping evaluation set {len(frame)} -> {cfg.max_eval_rows} rows (seed={cfg.seed}).")
         frame = frame.sample(n=cfg.max_eval_rows, random_state=cfg.seed)
     out: dict[str, Any] = {"rows": int(len(frame))}
     try:
-        raw = predictor.evaluate(frame, auxiliary_metrics=True, silent=True)
-        # AutoGluon reports higher-is-better and sign-flips loss metrics; present log_loss in
-        # its conventional positive (lower-is-better) form for downstream consumers.
-        out["evaluation"] = {
-            k: float(-v if "log_loss" in k else v) for k, v in raw.items()
-        }
+        out["evaluation"] = pipeline_evaluate_mitra(predictor, frame)
     except Exception as exc:  # noqa: BLE001
         out["evaluationError"] = str(exc)
     return out
-
 
 # DIMER/AutoGluon eval-metric name -> Mitra's native early-stopping metric. Unmapped names
 # fall back to Mitra's default and only drive AutoGluon's reported metric.
@@ -652,83 +602,45 @@ def _fit_and_evaluate(cfg: Config, train: pd.DataFrame, val: pd.DataFrame,
     if requested_cpu:
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
     else:
-        # Honor the requested CUDA index. DIMER may send 'cuda:0', a bare '0', or another index;
-        # pinning CUDA_VISIBLE_DEVICES to it makes that GPU the one AutoGluon/torch actually use
-        # instead of silently defaulting to device 0.
         os.environ["CUDA_VISIBLE_DEVICES"] = device.split(":", 1)[1]
     if device != cfg.train_device.strip().lower():
         log(f"DIMER_TRAIN_DEVICE {cfg.train_device!r} normalized to {device!r}.")
     _seed_everything(cfg.seed)
     try:
         import torch
-
         gpu_available = bool(torch.cuda.is_available())
     except Exception:  # noqa: BLE001
         gpu_available = False
     use_gpu = gpu_available and not requested_cpu
     device_fallback_reason = None
     if not requested_cpu and not gpu_available:
-        device_fallback_reason = (
-            f"DIMER requested device {cfg.train_device!r} but torch reports no CUDA device; "
-            f"running on CPU (the default DIMER deployment provisions no GPU node pool)."
-        )
+        device_fallback_reason = f"DIMER requested device {cfg.train_device!r} but torch reports no CUDA device; running on CPU."
         log(device_fallback_reason)
-
     fine_tune = cfg.fine_tune
     if not use_gpu and fine_tune:
         why = "no GPU is available" if not gpu_available else "CPU was requested"
         log(f"Running zero-shot (fine_tune=False): {why}; Mitra fine-tuning requires a GPU.")
         fine_tune = False
-    # Propagate the run seed and (when mappable) the eval metric into Mitra itself, not just
-    # AutoGluon's reporting: "seed" seeds Mitra's val-split/augmentation RNG (ConfigRun.seed),
-    # and "metric" drives its fine-tune early-stopping. NOTE: AutoGluon 1.5.0's Mitra disables
-    # its global set_seed (an upstream FIXME), so a fixed seed makes the internal split
-    # reproducible but not the full fit — a known upstream limit, not a bug here.
-    mitra_hp: dict[str, Any] = {"fine_tune": fine_tune, "seed": cfg.seed}
-    if fine_tune and cfg.fine_tune_steps:
-        mitra_hp["fine_tune_steps"] = cfg.fine_tune_steps
     mitra_metric = _mitra_metric(cfg.eval_metric)
-    if mitra_metric is not None:
-        mitra_hp["metric"] = mitra_metric
-    else:
-        log(f"eval_metric '{cfg.eval_metric}' has no Mitra-native early-stopping equivalent; "
-            f"Mitra keeps its default metric (AutoGluon still reports '{cfg.eval_metric}').")
-
+    if mitra_metric is None:
+        log(f"eval_metric '{cfg.eval_metric}' has no Mitra-native early-stopping equivalent; Mitra keeps its default metric.")
     problem_type = "binary" if num_classes == 2 else "multiclass"
-
-    from autogluon.tabular import TabularPredictor
-
     cfg.output_dir.mkdir(parents=True, exist_ok=True)
     predictor_path = cfg.output_dir / "mitra_predictor"
-
-    predictor = TabularPredictor(
-        label=cfg.target_column,
+    predictor = pipeline_fit_mitra_predictor(
+        train,
+        target_column=cfg.target_column,
         problem_type=problem_type,
         eval_metric=cfg.eval_metric,
-        path=str(predictor_path),
+        output_path=predictor_path,
+        fine_tune=fine_tune,
+        seed=cfg.seed,
+        time_limit=cfg.time_limit,
+        fine_tune_steps=cfg.fine_tune_steps if fine_tune else None,
+        mitra_metric=mitra_metric,
         verbosity=2,
     )
-    predictor.fit(
-        train,
-        hyperparameters={MITRA_MODEL_KEY: mitra_hp},
-        fit_weighted_ensemble=False,
-        time_limit=cfg.time_limit,
-    )
-
     trained = list(predictor.model_names())
-    if not trained:
-        raise RuntimeError(
-            f"{MITRA_MODEL_KEY} did not train. A common cause is AutoGluon's memory guard "
-            f"(it needs the projected footprint under the available-RAM threshold). Request "
-            f"a larger GPU/memory profile for this pipeline, then re-run. Check the fit log "
-            f"for 'Not enough memory to safely train model'."
-        )
-    if not any("mitra" in m.lower() for m in trained):
-        raise RuntimeError(
-            f"expected Mitra but AutoGluon trained {trained} — refusing to report a result "
-            f"for a model that was not the one requested"
-        )
-
     metrics: dict[str, Any] = {
         "trainedModels": trained,
         "trainRows": int(len(train)),
@@ -743,10 +655,8 @@ def _fit_and_evaluate(cfg: Config, train: pd.DataFrame, val: pd.DataFrame,
         "evalMetric": cfg.eval_metric,
         "mitraMetric": mitra_metric or "<mitra-default>",
         "mitraSeed": cfg.seed,
+        "requestedValidationSplit": cfg.validation_split,
     }
-    # Transparency: the holdout size can differ from the requested fraction — the stratified
-    # split widens a too-small fraction to fit every class, and size caps can shift it too.
-    metrics["requestedValidationSplit"] = cfg.validation_split
     if len(val) > 0:
         val_eval = _evaluate(cfg, predictor, val)
         metrics["valRows"] = val_eval["rows"]
@@ -761,20 +671,16 @@ def _fit_and_evaluate(cfg: Config, train: pd.DataFrame, val: pd.DataFrame,
         if headline is not None:
             metrics["headlineMetric"] = cfg.eval_metric
             metrics["headlineScore"] = float(headline)
-            log(f"Holdout {cfg.eval_metric}={headline:.4f} on {metrics['valRows']} rows "
-                f"({num_classes} classes).")
+            log(f"Holdout {cfg.eval_metric}={headline:.4f} on {metrics['valRows']} rows ({num_classes} classes).")
     else:
         metrics["valRows"] = 0
         metrics["note"] = "No validation rows available; trained on all rows without holdout."
-
     if test is not None and len(test) > 0:
         test_eval = _evaluate(cfg, predictor, test)
         metrics["test"] = {"rows": test_eval["rows"], "evaluation": test_eval.get("evaluation", {})}
         log(f"Test evaluated on {test_eval['rows']} rows.")
-
     metrics["artifactPath"] = str(predictor_path)
     return metrics
-
 
 # --- DIMER artifact contract, model-id lock, and GPU burst (engineering docs §5, §3) ---
 
