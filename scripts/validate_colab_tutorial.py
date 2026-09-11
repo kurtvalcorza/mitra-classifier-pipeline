@@ -572,6 +572,21 @@ def validate_inference_tutorial() -> None:
             f"inference tutorial contains stale/unsupported DIMER package wording: {forbidden_text}",
         )
 
+    code_sequence = "\n".join(source for _, source in parsed_code)
+    api_load_pos = code_sequence.find("PIPELINE_API = load_pinned_pipeline_api()")
+    require(api_load_pos >= 0, "inference tutorial must load the pinned production pipeline API")
+    for assignment in (
+        "MODEL_ID = 'autogluon/mitra-classifier'",
+        "PINNED_REVISION = 'c425e9fa0910a6be1c494321792e7ba2a1367b1a'",
+        "EXPECTED_WEIGHTS_SHA256 = 'e06a055e91a3baeffc37f9cf634d9e69a27d904b6686131dc3b702f9c0126b19'",
+        "EXPECTED_CONFIG_SHA256 = '2c96c24dd25f64e92753f6f2ba00cc7833b9923459403dcd8504e8700c0995df'",
+    ):
+        assignment_pos = code_sequence.find(assignment)
+        require(
+            0 <= assignment_pos < api_load_pos,
+            f"inference tutorial must define {assignment.split(' = ', 1)[0]} before production-API compatibility checks",
+        )
+
     code_text = "\n".join(source for _, source in parsed_code)
     require(
         re.search(r"\bDIMER_[A-Z0-9_]+\b", code_text) is None,
