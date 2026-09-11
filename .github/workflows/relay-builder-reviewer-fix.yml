@@ -1,4 +1,5 @@
 # Agent Relay builder one-shot remediation; all relay scaffolding self-deletes on success.
+# Final trigger: validator delegation checks are staged in scripts/relay_validator_postprocess.py.
 name: Relay builder reviewer remediation
 
 on:
