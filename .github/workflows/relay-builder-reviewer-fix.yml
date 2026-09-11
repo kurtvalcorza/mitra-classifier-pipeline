@@ -76,7 +76,7 @@ jobs:
       - name: Align tutorials to immutable production API and DIMER weights boundary
         run: python scripts/.relay_builder_finalizer.py tutorials --api-ref "$API_REF" --api-sha "$API_SHA"
 
-      - name: Make provenance validation structural rather than prose-pinned
+      - name: Make notebook validation structural rather than prose-pinned
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -86,6 +86,12 @@ jobs:
               '        "MOD7 provenance gap",\n',
               '        "Artifact feature schema validated before deserialization",\n',
               '        "Artifact feature schema reconciled with loaded predictor",\n',
+              '        "Remote-code boundary",\n',
+              '        "Baseline variability",\n',
+              '        "output column(s) reserved by this notebook",\n',
+              '        "This notebook does not demonstrate",\n',
+              '        "Agent Relay role",\n',
+              '        "provenance, not sign-off",\n',
           ):
               src = src.replace(literal, '')
 
@@ -94,6 +100,10 @@ jobs:
               '    require(\n'
               '        "MOD7" in text and "provenance" in text.lower() and "producer" in text.lower(),\n'
               '        "tutorial must explicitly document the DIMER MOD7 producer-provenance status",\n'
+              '    )\n'
+              '    require(\n'
+              '        "limitation" in text.lower() or "does not" in text.lower(),\n'
+              '        "tutorial must state interpretation or capability limitations",\n'
               '    )\n\n'
           )
           if train_check not in src:
