@@ -120,6 +120,15 @@ Each split has 17 features plus a three-class `target` (`low`, `mid`, `high`) re
 
 The sample is intended for tutorial and smoke-test use, **not benchmarking**.
 
+### Additional sample portfolio
+
+The build/evaluate/export notebook also offers two immutable, digest-verified companion archives from repository revision `3cdd68e427bd3fd652369924c5d0f05cca9d9b89`:
+
+- `telco-customer-churn.zip` — 1,440 / 480 / 480 train/validation/test rows, target `Churn`, mixed numeric and nominal-string features. The committed training split contains two exact duplicate labelled rows inherited from the sampled source; the notebook intentionally reports them for inspection.
+- `adult-census-income.zip` — 1,500 / 500 / 500 rows, target `class`, mixed demographic features. Adult contains sensitive/proxy attributes including race, sex, and native-country; this tutorial does not establish fairness or suitability for consequential decisions.
+
+Both archives are tutorial fixtures, not benchmark or deployment evidence. See the [sample dataset card](../examples/sample-data/DATASET_CARD.md) for source IDs, licences, split details, reproducibility, duplicate, and fairness notes.
+
 ## BYOD split guidance
 
 The single-CSV upload path uses a stratified random holdout and assumes rows are approximately IID. It should not be used blindly for time-dependent, panel, grouped, lagged, rolling-window, or other leakage-sensitive data.
