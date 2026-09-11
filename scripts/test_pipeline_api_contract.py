@@ -104,6 +104,7 @@ def main() -> None:
     assert "PIPELINE_API.predict_mitra_proba" in companion_text
 
     check_pipeline_api_pin_parity(nb_text, companion_text)
+    check_worker_partition_coverage_rule()
     print("Shared production-facing Mitra pipeline API contract: PASS")
 
 
@@ -145,6 +146,51 @@ def check_pipeline_api_pin_parity(nb_text: str, companion_text: str) -> None:
     assert f"verify SHA-256 `{api_sha}`" in section, (
         f"tutorials/README.md 'Production API parity' does not cite sha256(LF finetuner/pipeline_api.py) {api_sha}"
     )
+
+
+def check_worker_partition_coverage_rule() -> None:
+    """The worker must accept every val/test partition the validator accepts. The validator's
+    contract rule (TABULAR_CLASSIFICATION_DATASET_SPEC.md ``val_labels_subset_train`` /
+    ``test_labels_subset_train``) is subset-only: a user-supplied partition may not contain a
+    class train never saw, but it need not contain every training class -- an embargoed or
+    chronological test window can legitimately lack a rare one. Round-4 review R4-P2-COVERAGE:
+    at c1a7333 the worker rejected train {0,1,2} / test {0,1} at data preparation."""
+    import tempfile
+    import types
+
+    if "requests" not in sys.modules:  # train.py imports it at module scope; CI does not install it
+        try:
+            import requests  # noqa: F401
+        except ImportError:
+            sys.modules["requests"] = types.ModuleType("requests")
+    import train as worker  # noqa: E402
+
+    def frame(classes: list[int], rows_per_class: int) -> pd.DataFrame:
+        labels = [c for c in classes for _ in range(rows_per_class)]
+        return pd.DataFrame({"x": range(len(labels)), "y": [v % 3 for v in range(len(labels))], "target": labels})
+
+    def prepare(train_classes, val_classes, test_classes):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            frame(train_classes, 10).to_csv(root / "train.csv", index=False)
+            frame(val_classes, 3).to_csv(root / "val.csv", index=False)
+            if test_classes is not None:
+                frame(test_classes, 3).to_csv(root / "test.csv", index=False)
+            cfg = types.SimpleNamespace(
+                target_column="target", drop_columns=[], validation_split=0.2, max_train_rows=10_000, seed=0
+            )
+            return worker._prepare_frames(cfg, worker.DatasetSource(root))
+
+    # validator-accepted: holdout labels are a subset of train; a train class is absent from test
+    train, val, test, num_classes = prepare([0, 1, 2], [0, 1, 2], [0, 1])
+    assert num_classes == 3 and set(train.target.unique()) == {0, 1, 2}
+    assert set(test.target.unique()) == {0, 1}, "worker must accept a test partition lacking a trained class"
+    # ...and absent from val as well
+    _, val, _, _ = prepare([0, 1, 2], [1, 2], [0, 1, 2])
+    assert set(val.target.unique()) == {1, 2}, "worker must accept a val partition lacking a trained class"
+    # validator-rejected: an unseen class must still fail, in both partitions
+    expect_raises(lambda: prepare([0, 1, 2], [0, 1, 2], [0, 3]), ValueError)
+    expect_raises(lambda: prepare([0, 1, 2], [0, 3], [0, 1, 2]), ValueError)
 
 
 if __name__ == "__main__":

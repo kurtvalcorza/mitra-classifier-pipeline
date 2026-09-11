@@ -490,6 +490,25 @@ def _stratified_holdout(train: pd.DataFrame, target_col: str, val_frac: float,
                         seed: int) -> tuple[pd.DataFrame, pd.DataFrame]:
     return pipeline_stratified_holdout(train, target_col, val_frac, seed)
 
+def _require_labels_subset_train(
+    train_frame: pd.DataFrame, eval_frame: pd.DataFrame, target_column: str, eval_name: str
+) -> None:
+    """The validator's rule for a user-supplied val/test partition
+    (TABULAR_CLASSIFICATION_DATASET_SPEC.md ``{stem}_labels_subset_train``): every label in the
+    partition must appear in train, but the partition need not contain every training class --
+    an embargoed or chronological evaluation window may legitimately lack a rare one. Anything
+    the validator accepts must reach the fit, so this is deliberately not the stricter
+    both-directions check applied to the holdout the worker carves itself."""
+    train_classes = set(train_frame[target_column].dropna().unique())
+    eval_classes = set(eval_frame[target_column].dropna().unique())
+    unseen = sorted(eval_classes - train_classes, key=str)
+    if unseen:
+        raise ValueError(
+            f"{eval_name} contains unseen target classes not present in training: {unseen}. "
+            "The model cannot be scored on a class it never saw; fix the partition."
+        )
+
+
 def _prepare_frames(cfg: Config, source: DatasetSource) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame | None, int]:
     train_path = source.resolve_single("train")
     if train_path is None:
@@ -520,7 +539,8 @@ def _prepare_frames(cfg: Config, source: DatasetSource) -> tuple[pd.DataFrame, p
             log(f"{stem}.csv preprocessing mutations: {eval_mutations}")
         return frame
 
-    val = _prep_holdout("val")
+    user_val = _prep_holdout("val")
+    val = user_val
     if val is None:
         val_frac = min(max(cfg.validation_split, 0.0), 0.4)
         if val_frac > 0 and len(train) > MIN_ROWS_FOR_SPLIT:
@@ -534,10 +554,15 @@ def _prepare_frames(cfg: Config, source: DatasetSource) -> tuple[pd.DataFrame, p
     if set(train[cfg.target_column].unique()) != classes_all:
         raise RuntimeError("training class set changed after split/cap; refusing to train.")
     test = _prep_holdout("test")
-    if len(val) > 0:
+    # User-supplied partitions are held to the validator's contract rule (labels must be a
+    # subset of train's); only the holdout carved here must also cover every training class.
+    if user_val is not None:
+        if len(user_val) > 0:
+            _require_labels_subset_train(train, user_val, cfg.target_column, "validation split")
+    elif len(val) > 0:
         pipeline_require_class_coverage(train, val, cfg.target_column, "validation split")
     if test is not None and len(test) > 0:
-        pipeline_require_class_coverage(train, test, cfg.target_column, "test split")
+        _require_labels_subset_train(train, test, cfg.target_column, "test split")
     return (
         train.reset_index(drop=True), val.reset_index(drop=True),
         test.reset_index(drop=True) if test is not None else None, num_classes,
