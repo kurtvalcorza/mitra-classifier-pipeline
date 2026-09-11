@@ -1,0 +1,38 @@
+name: Relay manifest producer parity fix
+
+on:
+  push:
+    branches:
+      - fix/notebook-spec-v1-conformance
+    paths:
+      - ".github/workflows/relay-manifest-producer-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/notebook-spec-v1-conformance
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Apply manifest producer parity fix
+        run: python scripts/relay_fix_manifest_producer.py
+      - name: Verify static notebook contract
+        run: python scripts/validate_colab_tutorial.py
+      - name: Publish permanent fix
+        run: |
+          START_SHA=$(git rev-parse HEAD)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tutorials/mitra_classifier_colab.ipynb scripts/validate_colab_tutorial.py
+          git rm scripts/relay_fix_manifest_producer.py
+          git commit -m "fix(tutorials): align manifest producer file-set boundary"
+          git fetch origin fix/notebook-spec-v1-conformance
+          test "$(git rev-parse origin/fix/notebook-spec-v1-conformance)" = "$START_SHA"
+          git push origin HEAD:fix/notebook-spec-v1-conformance
