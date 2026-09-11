@@ -20,6 +20,11 @@ CONFIG_SHA256 = "2c96c24dd25f64e92753f6f2ba00cc7833b9923459403dcd8504e8700c0995d
 SAMPLE_REVISION = "8fc19e80ae3166ec6bf964d194a28c80e6ba3b1f"
 
 FORBIDDEN = (
+    "DIMER ZIP",
+    "dimer-model-manifest.json",
+    "load_dimer_package",
+    "PACKAGE_MANIFEST_FILENAME",
+    "PACKAGE_MANIFEST_VERSION",
     "mitra-classifier-finetuner",
     "mitra-classifier-dataset-validator",
     "load_breast_cancer",
@@ -142,25 +147,29 @@ def has_memory_guard(code_cells: list[tuple[int, str]]) -> bool:
         if not source.strip():
             continue
         for node in ast.walk(ast.parse(source)):
-            if not (
-                isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Attribute)
-                and node.func.attr == "fit"
-            ):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
                 continue
-            for keyword in node.keywords:
-                if keyword.arg != "ag_args_fit" or not isinstance(keyword.value, ast.Dict):
-                    continue
-                for key, value in zip(keyword.value.keys, keyword.value.values):
+            if node.func.attr == "fit_mitra_predictor":
+                for keyword in node.keywords:
                     if (
-                        isinstance(key, ast.Constant)
-                        and key.value == "max_memory_usage_ratio"
-                        and isinstance(value, ast.Name)
-                        and value.id == "MAX_MEMORY_USAGE_RATIO"
+                        keyword.arg == "max_memory_usage_ratio"
+                        and isinstance(keyword.value, ast.Name)
+                        and keyword.value.id == "MAX_MEMORY_USAGE_RATIO"
                     ):
                         return True
+            if node.func.attr == "fit":
+                for keyword in node.keywords:
+                    if keyword.arg != "ag_args_fit" or not isinstance(keyword.value, ast.Dict):
+                        continue
+                    for key, value in zip(keyword.value.keys, keyword.value.values):
+                        if (
+                            isinstance(key, ast.Constant)
+                            and key.value == "max_memory_usage_ratio"
+                            and isinstance(value, ast.Name)
+                            and value.id == "MAX_MEMORY_USAGE_RATIO"
+                        ):
+                            return True
     return False
-
 
 def call_attributes(code_cells: list[tuple[int, str]]) -> set[str]:
     attrs: set[str] = set()
@@ -196,17 +205,19 @@ def has_current_fit_completion_gate(code_cells: list[tuple[int, str]]) -> bool:
         fit_positions: list[int] = []
         true_positions: list[int] = []
         for position, node in enumerate(tree.body):
-            if isinstance(node, ast.Assign):
-                names = [t.id for t in node.targets if isinstance(t, ast.Name)]
-                if "FIT_RUN_COMPLETED" in names and isinstance(node.value, ast.Constant):
-                    if node.value.value is False:
-                        false_positions.append(position)
-                    elif node.value.value is True:
-                        true_positions.append(position)
+            if not isinstance(node, ast.Assign):
+                continue
+            names = [t.id for t in node.targets if isinstance(t, ast.Name)]
+            if "FIT_RUN_COMPLETED" in names and isinstance(node.value, ast.Constant):
+                if node.value.value is False:
+                    false_positions.append(position)
+                elif node.value.value is True:
+                    true_positions.append(position)
+            if isinstance(node.value, ast.Call):
+                func = node.value.func
                 if (
-                    isinstance(node.value, ast.Call)
-                    and isinstance(node.value.func, ast.Name)
-                    and node.value.func.id == "fit_mitra"
+                    (isinstance(func, ast.Name) and func.id == "fit_mitra")
+                    or (isinstance(func, ast.Attribute) and func.attr == "fit_mitra_predictor")
                 ):
                     fit_positions.append(position)
         if (
@@ -217,7 +228,6 @@ def has_current_fit_completion_gate(code_cells: list[tuple[int, str]]) -> bool:
         ):
             return True
     return False
-
 
 def predict_proba_calls_are_multiclass(
     code_cells: list[tuple[int, str]], minimum_calls: int
@@ -300,6 +310,55 @@ def has_safe_direct_weights_copy_guard(code_cells: list[tuple[int, str]]) -> boo
     return False
 
 
+
+def validate_lockfile(path: Path) -> None:
+    require(path.exists(), f"missing notebook lockfile: {path}")
+    lock_text = path.read_text(encoding='utf-8')
+    require('/home/runner/' not in lock_text, f"runner-local path leaked into {path.name}")
+    for line in lock_text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#') or stripped.startswith('--') or stripped.startswith('    #'):
+            continue
+        if stripped.startswith('    --hash='):
+            continue
+        token = stripped.split('\\', 1)[0].strip()
+        require('==' in token, f"unlocked requirement in {path.name}: {stripped}")
+
+def literal_string_assignment(code_cells: list[tuple[int, str]], name: str) -> str:
+    values: list[str] = []
+    for _, source in code_cells:
+        if not source.strip():
+            continue
+        tree = ast.parse(source)
+        for node in tree.body:
+            if not isinstance(node, ast.Assign):
+                continue
+            if not any(isinstance(target, ast.Name) and target.id == name for target in node.targets):
+                continue
+            require(
+                isinstance(node.value, ast.Constant) and isinstance(node.value.value, str),
+                f"{name} must be a literal string",
+            )
+            values.append(node.value.value)
+    require(len(values) == 1, f"expected exactly one literal assignment to {name}; found {len(values)}")
+    return values[0]
+
+
+def validate_lock_input(path: Path, expected: str) -> None:
+    require(path.exists(), f"missing lock input: {path}")
+    require(path.read_text(encoding='utf-8') == expected, f"unexpected lock input contents: {path.name}")
+
+
+def validate_embedded_lock(notebook: Path, lockfile: Path) -> None:
+    _, _, code = load_notebook(notebook)
+    embedded = literal_string_assignment(code, 'LOCKED_REQUIREMENTS')
+    committed = lockfile.read_text(encoding='utf-8')
+    require(
+        embedded == committed,
+        f"{notebook.name} embedded dependency graph drifted from {lockfile.name}",
+    )
+
+
 def validate_training_tutorial() -> None:
     _, text, parsed_code = load_notebook(NOTEBOOK)
 
@@ -309,7 +368,7 @@ def validate_training_tutorial() -> None:
         CONFIG_SHA256,
         SAMPLE_REVISION,
         "autogluon.tabular[mitra]==1.5.0",
-        "DIMER ZIP",
+        "DIMER weights",
         "Pinned upstream",
         "Sample dataset (FreshRetailNet)",
         "Upload pre-split train/val/test",
@@ -327,7 +386,6 @@ def validate_training_tutorial() -> None:
         "require_min_training_class_count",
         "Capped training split",
         "Inference CSV contains duplicate column names",
-        "as_multiclass=True",
         "torch_version",
         "fine_tune_steps_requested",
         "one-row accuracy resolution",
@@ -338,15 +396,44 @@ def validate_training_tutorial() -> None:
         "gc.collect",
         "torch.cuda.empty_cache",
         "## 7. Reload smoke test",
-        "TabularPredictor.load(str(RELOAD_DIR))",
+        "TabularPredictor.load(str(reload_predictor_root))",
         "np.allclose",
         "CC BY 4.0",
         "## AI use and provenance",
         "GPT-5.6 Sol High",
-        "Agent Relay role",
-        "provenance, not sign-off",
+        "**Profile:** `E2E`",
+        "DIMER Notebook Specification v1.0",
+        "requirements-colab.lock.txt",
+        "artifact_format_version",
+        "artifact-manifest.json",
+        "SHA-256:",
+        "Data disclosure warning",
+        "calibration itself is not established",
+        "Unsafe archive member path",
+        "Symlink entries are not allowed",
+        "Python 3.12",
+        "load_dimer_weights",
+        "Upload model.safetensors downloaded from DIMER",
+        "Reload artifact manifest verified",
+        "Reload provenance validated",
+        "Reload feature schema validated before deserialization",
+        "Reload artifact feature schema reconciled with loaded predictor",
+        "PIPELINE_API_REVISION",
+        "PIPELINE_API_SHA256",
+        "PIPELINE_API.prepare_tabular_frame",
+        "PIPELINE_API.fit_mitra_predictor",
+        "Canonical 86-byte config.json reconstructed locally",
     ):
         require(required in text, f"missing required tutorial marker: {required}")
+
+    require(
+        "MOD7" in text and "provenance" in text.lower() and "producer" in text.lower(),
+        "tutorial must explicitly document the DIMER MOD7 producer-provenance status",
+    )
+    require(
+        "limitation" in text.lower() or "does not" in text.lower(),
+        "tutorial must state interpretation or capability limitations",
+    )
 
     for forbidden in FORBIDDEN:
         require(
@@ -358,6 +445,16 @@ def validate_training_tutorial() -> None:
     require(
         re.search(r"\bDIMER_[A-Z0-9_]+\b", code_text) is None,
         "standalone tutorial must not depend on DIMER_* runtime variables",
+    )
+    require(
+        "p.name != 'artifact-manifest.json'" not in code_text,
+        "artifact manifest producer must not exclude nested files by basename",
+    )
+    require(
+        "artifact_manifest_path = (active_path / 'artifact-manifest.json').resolve()" in code_text
+        and "p.resolve() != artifact_manifest_path" in code_text
+        and "artifact_manifest_path.write_text" in code_text,
+        "artifact manifest producer must exclude only the canonical root manifest path",
     )
     imports = repo_internal_imports(parsed_code)
     require(
@@ -377,7 +474,7 @@ def validate_training_tutorial() -> None:
             f"every top-level assignment to {name} must be the literal default {expected!r}",
         )
 
-    require(has_memory_guard(parsed_code), "tutorial must pass max_memory_usage_ratio through .fit(...)")
+    require(has_memory_guard(parsed_code), "tutorial must pass MAX_MEMORY_USAGE_RATIO through the direct or shared-API fit path")
     require(
         "ag.max_memory_usage_ratio" not in memory_guard_keys(parsed_code),
         "tutorial must not use the prefixed ag.max_memory_usage_ratio key",
@@ -394,17 +491,23 @@ def validate_training_tutorial() -> None:
         text.count("require_min_training_class_count(train_data") >= 2,
         "training class counts must be checked before and after the optional 10k cap",
     )
+    training_attrs = call_attributes(parsed_code)
     require(
-        predict_proba_calls_are_multiclass(parsed_code, minimum_calls=3),
-        "every training-tutorial predict_proba call must request as_multiclass=True",
+        "predict_mitra_proba" in training_attrs,
+        "training tutorial must route primary probability inference through the shared Mitra API",
     )
+    if "predict_proba" in training_attrs:
+        require(
+            predict_proba_calls_are_multiclass(parsed_code, minimum_calls=1),
+            "direct reload-equivalence predict_proba calls must request as_multiclass=True",
+        )
     require(
         inference_step_is_self_contained(parsed_code),
         "Step 5 inference must import io and pandas locally",
     )
     require(
-        has_safe_direct_weights_copy_guard(parsed_code),
-        "direct model.safetensors upload must avoid copying a path onto itself",
+        "weights_from_dimer" not in code_text and "load_dimer_weights" in code_text,
+        "DIMER weights path must use the fail-closed weights-only loader",
     )
 
 
@@ -421,15 +524,78 @@ def validate_inference_tutorial() -> None:
         "TabularPredictor.load",
         "FEATURE_COLUMNS",
         "Inference CSV contains duplicate column names",
-        "predict_proba",
-        "as_multiclass=True",
         "predictions.csv",
         "## AI use and provenance",
         "GPT-5.6 Sol High",
-        "Agent Relay role",
-        "provenance, not sign-off",
+        "**Profile:** `ARTIFACT-INFERENCE`",
+        "DIMER Notebook Specification v1.0",
+        "requirements-inference.lock.txt",
+        "artifact_format_version",
+        "Required provenance validated",
+        "HF_HUB_OFFLINE",
+        "calibration for your deployment population has not been established",
+        "What a successful artifact-inference run proves",
+        "MAX_EXPANDED_BYTES",
+        "Backslash archive member paths are not allowed",
+        "Duplicate archive member path",
+        "Artifact manifest file set mismatch",
+        "Artifact manifest verified",
+        "outside the single predictor root",
+        "artifact-manifest.json must not list itself",
+        "SUPPORTED_MODEL_REVISION",
+        "Artifact format version",
+        "internal archive consistency",
+        "Python 3.12",
+        "This notebook is inference-only",
+        "PIPELINE_API_REVISION",
+        "PIPELINE_API_SHA256",
+        "PIPELINE_API.predict_mitra",
+        "PIPELINE_API.predict_mitra_proba",
     ):
         require(required in text, f"inference tutorial missing required marker: {required}")
+
+    code_sequence = "\n".join(source for _, source in parsed_code)
+    preload_candidates = (
+        "FEATURE_COLUMNS = run_metadata.get('features')",
+        "artifact_feature_columns = run_metadata['features']",
+    )
+    preload_positions = [code_sequence.find(marker) for marker in preload_candidates if marker in code_sequence]
+    require(preload_positions, "inference tutorial must validate declared feature schema before deserialization")
+    load_position = code_sequence.find("TabularPredictor.load")
+    require(load_position >= 0 and min(preload_positions) < load_position, "feature-schema validation must precede TabularPredictor.load")
+    postload_markers = (
+        "predictor_features != FEATURE_COLUMNS",
+        "predictor_feature_columns != artifact_feature_columns",
+    )
+    require(
+        "feature_metadata_in" in code_sequence and any(marker in code_sequence[load_position:] for marker in postload_markers),
+        "inference tutorial must reconcile declared feature schema with the loaded predictor",
+    )
+
+    for forbidden_text in (
+        "DIMER ZIP",
+        "dimer-model-manifest.json",
+        "load_dimer_package",
+    ):
+        require(
+            forbidden_text not in text,
+            f"inference tutorial contains stale/unsupported DIMER package wording: {forbidden_text}",
+        )
+
+    code_sequence = "\n".join(source for _, source in parsed_code)
+    api_load_pos = code_sequence.find("PIPELINE_API = load_pinned_pipeline_api()")
+    require(api_load_pos >= 0, "inference tutorial must load the pinned production pipeline API")
+    for assignment in (
+        "MODEL_ID = 'autogluon/mitra-classifier'",
+        "PINNED_REVISION = 'c425e9fa0910a6be1c494321792e7ba2a1367b1a'",
+        "EXPECTED_WEIGHTS_SHA256 = 'e06a055e91a3baeffc37f9cf634d9e69a27d904b6686131dc3b702f9c0126b19'",
+        "EXPECTED_CONFIG_SHA256 = '2c96c24dd25f64e92753f6f2ba00cc7833b9923459403dcd8504e8700c0995df'",
+    ):
+        assignment_pos = code_sequence.find(assignment)
+        require(
+            0 <= assignment_pos < api_load_pos,
+            f"inference tutorial must define {assignment.split(' = ', 1)[0]} before production-API compatibility checks",
+        )
 
     code_text = "\n".join(source for _, source in parsed_code)
     require(
@@ -456,11 +622,11 @@ def validate_inference_tutorial() -> None:
     attrs = call_attributes(parsed_code)
     require("fit" not in attrs, "inference tutorial must not call .fit(...)")
     require("load" in attrs, "inference tutorial must load an exported predictor")
-    require("predict" in attrs, "inference tutorial must call predict(...)")
-    require("predict_proba" in attrs, "inference tutorial must call predict_proba(...)")
+    require("predict_mitra" in attrs, "inference tutorial must call shared-API predict_mitra(...)")
+    require("predict_mitra_proba" in attrs, "inference tutorial must call shared-API predict_mitra_proba(...)")
     require(
-        predict_proba_calls_are_multiclass(parsed_code, minimum_calls=1),
-        "inference tutorial predict_proba must request as_multiclass=True",
+        "predict" not in attrs and "predict_proba" not in attrs,
+        "inference tutorial must not bypass the shared prediction API",
     )
     require(
         not direct_tabular_predictor_construction(parsed_code),
@@ -494,13 +660,25 @@ def validate_docs() -> None:
         "predictions.csv",
         "## AI use and provenance",
         "GPT-5.6 Sol High",
-        "Agent Relay role",
-        "provenance, not sign-off",
     ):
         require(required in tutorial_readme, f"tutorial README missing marker: {required}")
 
 
 def main() -> int:
+    colab_lock = ROOT / "tutorials" / "requirements-colab.lock.txt"
+    inference_lock = ROOT / "tutorials" / "requirements-inference.lock.txt"
+    validate_lock_input(
+        ROOT / "tutorials" / "requirements-colab.in",
+        "autogluon.tabular[mitra]==1.5.0\nlightgbm>=4.0,<4.8\n",
+    )
+    validate_lock_input(
+        ROOT / "tutorials" / "requirements-inference.in",
+        "autogluon.tabular[mitra]==1.5.0\n",
+    )
+    validate_lockfile(colab_lock)
+    validate_lockfile(inference_lock)
+    validate_embedded_lock(NOTEBOOK, colab_lock)
+    validate_embedded_lock(INFERENCE_NOTEBOOK, inference_lock)
     validate_training_tutorial()
     validate_inference_tutorial()
     validate_docs()

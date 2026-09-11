@@ -6,7 +6,20 @@
 [![Upstream](https://img.shields.io/badge/Upstream-autogluon%2Fautogluon-181717?style=flat&logo=github&logoColor=white)](https://github.com/autogluon/autogluon)
 [![arXiv](https://img.shields.io/badge/arXiv-2510.21204-b31b1b.svg)](https://arxiv.org/abs/2510.21204)
 
-There are now two standalone Colab workflows:
+There are now two standalone Colab workflows. Both are aligned to **DIMER Notebook Specification v1.0** and declare their normative profile explicitly.
+
+| Notebook | Profile | Spec | Release status |
+|---|---|---|---|
+| `mitra_classifier_colab.ipynb` | `E2E` | v1.0 | Candidate — static checks enforced; clean Colab execution of the release revision pending |
+| `mitra_classifier_predictor_inference_colab.ipynb` | `ARTIFACT-INFERENCE` | v1.0 | Candidate — static checks enforced; clean Colab execution of the release revision pending |
+
+The exact dependency graphs used by the notebooks are committed as `requirements-colab.lock.txt` and `requirements-inference.lock.txt`; both release locks target Python 3.12. Release-grade status requires clean target-runtime execution evidence for the exact release revision; static CI alone is not execution evidence.
+
+The lock inputs are committed as `requirements-colab.in` and `requirements-inference.in`. CI verifies that each notebook's embedded install graph is byte-for-byte identical to its committed lock, preventing notebook/lock drift.
+
+The declared primary runtime for both notebooks is **Google Colab with Python 3.12**. Generic Jupyter compatibility is not claimed because the workflows intentionally use Colab upload/download primitives. Runtime-error guidance in both notebooks uses the same Colab-only support boundary.
+
+The repository `MODEL_CARD.md` states that DIMER hosts **only `model.safetensors`**; canonical `config.json` is reconstructed locally and digest-verified. `MODEL_SOURCE = 'DIMER weights'` therefore requires exactly the weights file, verifies its pinned SHA-256, reconstructs the exact 86-byte canonical config, and verifies the config digest before staging. The current single-file DIMER distribution is not an offline ZIP/snapshot, so Notebook Spec MOD7's package-manifest condition is not triggered today. If DIMER later distributes an offline ZIP/snapshot, the notebook must validate that producer provenance before model loading. The notebooks remain Candidate because clean supported-Colab release evidence is still pending. A failed DIMER upload never falls back to the network.
 
 Both inference workflows reject duplicate CSV headers before pandas can rename them.
 Quoted column names and UTF-8 files with a byte-order mark are supported.
@@ -22,11 +35,11 @@ Quoted column names and UTF-8 files with a byte-order mark are supported.
 
 `mitra_classifier_colab.ipynb` is a standalone tutorial for the Mitra Classifier checkpoint distributed through the DIMER Model Repository.
 
-It does **not** depend on DIMER Workbench, DIMER APIs, or the DIMER validator/fine-tuner workers. Users can download the model weights from DIMER and run the notebook independently in Google Colab. If the DIMER download is unavailable, the notebook can retrieve the exact pinned upstream checkpoint associated with the DIMER release.
+It does **not** depend on DIMER Workbench, DIMER APIs, or the DIMER validator/fine-tuner workers. Users can download `model.safetensors` from DIMER and run the notebook independently in Google Colab. As a separate explicitly selected source mode, the notebook can instead retrieve the exact pinned upstream checkpoint associated with the DIMER release; a failed or incomplete DIMER upload never falls back to the network.
 
 The tutorial covers:
 
-- DIMER ZIP upload or pinned-upstream checkpoint fallback;
+- DIMER `model.safetensors` upload or pinned-upstream checkpoint source selection;
 - SHA-256 verification of `model.safetensors` and `config.json`;
 - an explicit post-staging resolver check that refuses to continue unless Hugging Face resolves the verified offline snapshot;
 - reporting the actual AutoGluon, PyTorch, CUDA-build, Python, and GPU runtime state used for the run;
@@ -53,10 +66,11 @@ The inference tutorial:
 
 - installs `autogluon.tabular[mitra]==1.5.0`;
 - uploads exactly one `mitra-predictor.zip`;
-- computes the uploaded archive's SHA-256 for provenance;
-- rejects path traversal and symlink entries before extraction;
+- computes the uploaded archive's SHA-256 and verifies it when an expected digest is supplied;
+- rejects absolute/traversal/backslash/symlink archive paths, enforces extraction containment and a 4 GiB expanded-size ceiling;
+- requires and verifies `artifact-manifest.json` against the exact extracted file set, per-file sizes, and SHA-256 digests;
 - locates the saved AutoGluon predictor root via `predictor.pkl`;
-- reads `tutorial_run_metadata.json` when present;
+- requires and validates `tutorial_run_metadata.json` before deserialization;
 - reloads the saved predictor with `TabularPredictor.load(...)`;
 - shows model/task/feature/provenance information;
 - uploads one new CSV;
@@ -136,7 +150,7 @@ The build/evaluate/export notebook refuses to run a checkpoint whose checksum do
 
 `tutorial_run_metadata.json` records the actual AutoGluon, PyTorch, CUDA-build, and Python versions; checkpoint identity; row counts and row-cap status; requested fine-tuning steps/time limit; selected evaluation metric; memory-guard ratio; and holdout/independent-test metrics. A time limit can truncate the requested fine-tune schedule, so the metadata records that caveat rather than claiming an exact completed step count that AutoGluon does not expose here.
 
-The inference notebook reads this metadata when available and checks its recorded AutoGluon version against the active runtime before loading the predictor.
+The artifact-inference notebook requires this metadata and validates its artifact format/version, immutable model identity/revision, pinned weight/config digests, feature schema, and AutoGluon runtime before deserializing the predictor.
 
 ## AI use and provenance
 
@@ -146,7 +160,11 @@ These tutorials were developed with substantial AI assistance using **GPT-5.6 So
 - Provider/client: **OpenAI / ChatGPT**
 - Agent Relay role: **Builder**
 - Base-model developer: **AutoGluon team, Amazon Web Services (AWS)**
-- Distributed DIMER artifact: `model.safetensors`
+- Distributed DIMER artifact: `model.safetensors`; canonical `config.json` is reconstructed locally (both pinned by SHA-256; no DIMER package manifest is currently supplied to this notebook)
 - Model identity: the pinned revision and SHA-256 values above
 
 AI attribution is **provenance, not sign-off**. It does not authenticate authorship, imply endorsement by OpenAI, AWS, AutoGluon, or DIMER, or independently verify correctness. Executed checks and reproducible outputs remain the evidence for a particular run, and users should review the notebooks and their results before consequential use.
+
+### Production API parity
+
+Both notebooks load `finetuner/pipeline_api.py` from immutable revision `9c53a1cc563e75f9a1e60a2a6beefb5e62757bfb` and verify SHA-256 `47b40a412ef9ff427e27632e0e32141cb1c004c946c1575a79c622113bd08490` before import. The DIMER fine-tuner delegates preprocessing, validation, split/cap, fit/evaluate, and prediction behavior to the same module.

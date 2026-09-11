@@ -5,5 +5,5 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 RUN python -c "import torch; v=torch.__version__; c=torch.version.cuda; assert v.startswith('2.8'); assert c and c.startswith('12.8')"
 ENV DIMER_TASK_TYPE=tabular_classification
-COPY train.py contract_hardening.py contract_entrypoint.py ./
+COPY train.py pipeline_api.py contract_hardening.py contract_entrypoint.py ./
 CMD ["python", "contract_entrypoint.py"]
