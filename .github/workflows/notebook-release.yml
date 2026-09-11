@@ -1,4 +1,4 @@
-name: Notebook release execution
+name: Notebook integration smoke
 
 on:
   pull_request:
@@ -12,6 +12,8 @@ on:
       - ".github/workflows/notebook-release.yml"
   workflow_dispatch:
 
+# GitHub-hosted notebook execution is integration-regression coverage only.
+# It is NOT DIMER Notebook Spec REL1/REL5 clean Google Colab release evidence.
 permissions:
   contents: read
 
@@ -35,7 +37,7 @@ jobs:
         with:
           python-version: "3.12.14"
 
-      - name: Prepare clean notebook runtime
+      - name: Prepare clean GitHub-hosted notebook runtime
         run: |
           sudo mkdir -p /content
           sudo chown -R "$USER":"$USER" /content
@@ -89,7 +91,7 @@ jobs:
               p = Path(path)
               if not p.is_file():
                   raise FileNotFoundError(str(p))
-              print(f"CI download shim retained {p} as workflow evidence.")
+              print(f"CI download shim retained {p} as integration-smoke output.")
           PY
           python - <<'PY'
           import zipfile
@@ -119,7 +121,7 @@ jobs:
             --ExecutePreprocessor.timeout=1800 \
             --ExecutePreprocessor.kernel_name=python3
 
-      - name: Assert release outputs
+      - name: Assert integration-smoke outputs
         id: assert-outputs
         run: |
           test -f /content/mitra-predictor.zip
@@ -127,12 +129,12 @@ jobs:
           test -f /content/executed-mitra-classifier-artifact-inference.ipynb
           test -f /content/predictions.csv
 
-      - name: Upload notebook release evidence
+      - name: Upload notebook integration-smoke artifacts
         id: upload-evidence
         if: ${{ always() && steps.e2e.outcome == 'success' && steps.prepare-inference.outcome == 'success' && steps.artifact-inference.outcome == 'success' && steps.assert-outputs.outcome == 'success' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: mitra-classifier-notebook-release-evidence
+          name: mitra-classifier-notebook-integration-smoke
           path: |
             /content/executed-mitra-classifier-e2e.ipynb
             /content/executed-mitra-classifier-artifact-inference.ipynb
@@ -142,7 +144,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Record release evidence summary
+      - name: Record integration-smoke summary
         if: always()
         env:
           E2E_OUTCOME: ${{ steps.e2e.outcome }}
@@ -152,12 +154,12 @@ jobs:
           UPLOAD_OUTCOME: ${{ steps.upload-evidence.outcome }}
         run: |
           if [[ "$E2E_OUTCOME" == "success" && "$PREPARE_OUTCOME" == "success" && "$INFERENCE_OUTCOME" == "success" && "$OUTPUT_OUTCOME" == "success" && "$UPLOAD_OUTCOME" == "success" ]]; then
-            RELEASE_STATUS="PASS"
+            SMOKE_STATUS="PASS"
           else
-            RELEASE_STATUS="INCOMPLETE/FAIL"
+            SMOKE_STATUS="INCOMPLETE/FAIL"
           fi
           {
-            echo "## Mitra Classifier Notebook Spec v1 release execution"
+            echo "## Mitra Classifier notebook integration smoke"
             echo
             echo "- Candidate SHA: \`${DIMER_REPO_REF}\`"
             echo "- Runtime substrate: \`${RUNNER_OS}\` / \`${RUNNER_ARCH}\`, Python \`$(python --version 2>&1)\`"
@@ -166,13 +168,13 @@ jobs:
             echo "- Independent external-input preparation: \`${PREPARE_OUTCOME}\`"
             echo "- ARTIFACT-INFERENCE execution: \`${INFERENCE_OUTCOME}\`"
             echo "- Required output assertions: \`${OUTPUT_OUTCOME}\`"
-            echo "- Evidence artifact upload: \`${UPLOAD_OUTCOME}\`"
-            echo "- GitHub-hosted execution regression status: **${RELEASE_STATUS}**"
-            echo "- The optional DIMER two-file acquisition branch is not exercised by this CI release path."
-            echo "- Static checks remain separate. This GitHub-hosted run is execution-regression evidence, not supported Google Colab release evidence."
+            echo "- Integration artifact upload: \`${UPLOAD_OUTCOME}\`"
+            echo "- GitHub-hosted integration-smoke status: **${SMOKE_STATUS}**"
+            echo "- The optional DIMER-hosted model.safetensors acquisition branch is not exercised by this GitHub-hosted path."
+            echo "- This run is integration-regression coverage only; it is NOT REL1/REL5 clean Google Colab release evidence."
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Fail closed unless execution evidence is complete
+      - name: Fail closed unless integration smoke is complete
         if: always()
         env:
           E2E_OUTCOME: ${{ steps.e2e.outcome }}
