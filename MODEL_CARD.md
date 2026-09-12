@@ -1,5 +1,6 @@
 ---
 license: apache-2.0
+model_card_spec: "1.0"
 pipeline_tag: tabular-classification
 tags:
   - tabular-classification
@@ -15,21 +16,127 @@ base_model: autogluon/mitra-classifier
 [![arXiv](https://img.shields.io/badge/arXiv-2510.21204-b31b1b.svg)](https://arxiv.org/abs/2510.21204)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-## Description
 
-Mitra Classifier is a pretrained tabular foundation model developed by the AutoGluon team at Amazon Web Services (AWS) for supervised classification on structured or tabular datasets.
+###### Description
 
-The model predicts categorical targets from numerical and categorical input features and supports both binary and multiclass classification.
+Mitra Classifier packages the `autogluon/mitra-classifier` checkpoint at Hugging Face revision `c425e9fa0910a6be1c494321792e7ba2a1367b1a`, a pretrained tabular foundation model developed by the AutoGluon team at Amazon Web Services for supervised classification on structured datasets. The model is a Transformer specialised for tables: it applies row-wise and column-wise attention so that relationships across observations and across features are both represented, with 12 layers, a model dimension of 512, four attention heads, and approximately 75.7 million parameters according to the safetensors metadata. It was pretrained across roughly 45 million synthetically generated datasets drawn from structural causal models and tree-based priors (gradient boosting, random forests, decision trees, extra trees); the developers report that no real-world dataset was used directly in pretraining.
 
-Mitra uses a Transformer architecture specialized for tabular data. It applies both row-wise and column-wise attention, allowing the model to represent relationships across observations and features. The classifier has 12 Transformer layers, a model dimension of 512, four attention heads, and approximately 75.7 million parameters according to Hugging Face safetensors metadata.
+At inference the model conditions on the labelled training table as in-context support and emits a class-probability vector per query row; adaptation happens through in-context conditioning by default and, in this pipeline, through gradient fine-tuning when `fine_tune=true` (the DIMER default, `finetuner/train.py`). What this repository adds is the DIMER composition around those weights: a dataset validator (`validator/`), a fine-tuner that verifies the checkpoint digests before loading when the weights come from the Hub, enforces Mitra's row and class ceilings, seeds every RNG, evaluates on a held-out split, and writes the result, provenance, and context artifacts DIMER consumes (`finetuner/`), plus the contract documents and Colab tutorial. The upstream weights are not modified by this repository.
 
-Unlike conventional tabular models trained directly on one application dataset, Mitra is pretrained across approximately 45 million synthetically generated tabular datasets. Its synthetic pretraining distribution combines structural causal models with several tree-based prior families, including gradient boosting, random forests, decision trees, and extra trees.
+#### Intended Use and Limitations
 
-The developers report that no real-world datasets were used directly during pretraining.
+The use cases below are the ones envisioned during development; the limits are the ones the code enforces.
 
-Mitra operates as an in-context learning tabular foundation model and additionally supports fine-tuning on downstream datasets.
+###### Primary Intended Uses
 
-# Model Details
+Supervised classification of tabular data where each observation is one row of numerical and categorical predictor columns and one categorical target. The pipeline takes a `train.csv` (optionally `val.csv`/`test.csv`) with a declared target column and produces a fine-tuned or in-context Mitra predictor, per-row class labels and class probabilities, and holdout metrics.
+
+Concrete application domains envisioned during development: binary and multiclass risk or category classification, demand-class and churn prediction, quality-grade classification, event classification, and scientific or research classification represented as feature tables — in particular the small-data regime, where the upstream authors report the model strongest (below roughly 5,000 samples and 100 features). The pipeline is meant to play the role of a strong zero-configuration baseline or a fine-tuned production model inside DIMER for tables that fit the ceilings: at most 10,000 training rows (`MITRA_ROW_LIMIT`; larger tables are class-preservingly sampled down), at most 500 features (`MITRA_FEATURE_LIMIT`, validator check `feature_limit`), and at most 10 target classes (`MITRA_CLASS_LIMIT`). Time-series, transactional, sensor, or panel data must first be represented as a supervised feature table; Mitra is not a forecasting model.
+
+###### Primary Intended Users
+
+Machine-learning researchers, data scientists, machine-learning engineers, and software developers working with structured datasets, and practitioners who want a pretrained foundation model for small-data tabular classification. The envisioned deployment setting is internal enterprise or research use through the DIMER platform — the fine-tuner and validator run as DIMER workers — not a public-facing service.
+
+The pipeline assumes its users understand the provenance and semantics of their input data, the meaning of the target variable, the consequences of classification errors, and the limits of their own evaluation methodology: a user is expected to know that `predict()` is an argmax over uncalibrated class probabilities, that a holdout metric on a 50-row table has wide variance, and that a public benchmark table may overlap the tutorial data. A user who cannot tell a stratified holdout from an in-sample score is outside the assumed competency.
+
+###### Out-of-scope use cases
+
+- **Capability boundaries:** regression or continuous-value prediction (the sibling `mitra-regressor-pipeline` does that); image, video, audio, natural-language, or other unstructured inputs; unsupervised clustering; causal-effect estimation; generative modelling; raw time-series forecasting.
+- **Input boundaries:** more than 10 target classes (validator refuses); more than 10,000 training rows (sampled down, never trained on in full); more than 500 features (validator refuses); fewer than 50 usable non-null-target rows (`MIN_TRAIN_ROWS`) or fewer than 2 rows in any class (`MIN_ROWS_PER_CLASS`); validation or test labels absent from training (refused); archives whose members exceed 1 GiB uncompressed, 5,000,000 rows, or a 200× compression ratio (refused as zip-bomb guards).
+- **Decision boundaries:** autonomous high-impact decisions — health, safety, criminal justice, credit, employment, housing — without application-specific validation and a human decision-maker; treating published benchmark accuracy as a guarantee on a new dataset.
+
+#### Factors
+
+Mitra's behaviour varies with the structure of the table it is given, not with a physical capture condition; the three subsections below say what that means for groups, instruments, and environment.
+
+###### Groups
+
+This pipeline is not human-centric by construction: Mitra was pretrained on synthetic datasets rather than any fixed human population, so no demographic group — age, sex, gender, ethnicity, nationality, socioeconomic status, disability — is an intrinsic development group of the foundation model, and the pretraining corpus is not group-audited because it contains no people. General demographic fairness or subgroup parity has therefore **not** been established for the checkpoint, and the pipeline measures no subgroup metric.
+
+Where the operator's downstream table describes people, the obligation transfers to the operator: identify the relevant groups in their own data, compute per-group accuracy, log loss, and ROC-AUC on the holdout split, and check for disparate error rates before deployment. The pipeline's provenance artifact records the class distribution, not any demographic one.
+
+###### Instrumentation
+
+Mitra consumes an abstract tabular representation rather than a raw sensor stream; the upstream pretraining did not depend on cameras, microphones, assays, or any real acquisition hardware. The instrument does not disappear because a table sits between it and the model: the operator's training and evaluation rows are produced by whatever systems fed the CSV — transactional databases, ETL pipelines, survey instruments, sensors — and their characteristics (sampling rate, resolution, calibration, encoding of missing values) determine feature quality.
+
+Instrument error reaches the model as feature error. Drift, miscalibration, or a changed collection procedure between training and inference is not detectable by this pipeline; the validator checks schema, row counts, class counts, and label consistency, not whether a column's meaning has changed. Operators should document the instrumentation of downstream datasets separately.
+
+###### Environment
+
+**Operating environment.** The fine-tuner runs in the DIMER container on the `pytorch:2.8.0-cuda12.8` base image with AutoGluon 1.5.0; training expects a CUDA device, and the torch build is pinned by the image so that sm_120 (RTX 50-series) hosts keep the cu128 wheel. Precision follows AutoGluon's Mitra defaults. The validator is CPU-only. Fine-tuning under AutoGluon 1.5.0 is seeded (`_seed_everything`) but not guaranteed bit-deterministic.
+
+**Data environment.** The reported behaviour assumes the inference rows are drawn from the same distribution as the training table: same feature semantics, same encoding, same class prevalence. Performance degrades, without warning from the pipeline, under geographic, institutional, temporal, or population shift, and with the technical factors that dominate tabular performance — number of observations, number and quality of features, predictive signal, missing or erroneous values, label quality, class count and imbalance, categorical cardinality, preprocessing, leakage, and the fine-tuning configuration. Robustness to arbitrary distribution shift has not been established.
+
+#### Metrics
+
+Metrics are chosen for a probabilistic multiclass classifier whose intended use spans balanced and imbalanced tables.
+
+###### Performance Measures
+
+The fine-tuner evaluates the trained predictor on the held-out split with AutoGluon's `predictor.evaluate(..., auxiliary_metrics=True)` and writes every returned metric under `metrics.valEvaluation` in `result.json`, with `log_loss` sign-flipped to its conventional lower-is-better form. The headline metric is the DIMER hyperparameter `eval_metric` (default `accuracy`; `log_loss` and `roc_auc` map to Mitra-native early-stopping metrics, other AutoGluon metric names are reported but do not steer early stopping), recorded as `headlineMetric`/`headlineScore`.
+
+Why these: accuracy captures discrete correctness and is the right summary when classes are reasonably balanced and error costs are similar; log loss captures probability quality and penalises confident mistakes, which matters whenever the class probabilities are used operationally; ROC-AUC captures ranking quality independent of any threshold and is the informative one for imbalanced binary problems. Reading only accuracy hides both calibration and imbalance failures, which is why all three are written even when only one is the headline. Upstream, the Mitra paper reports mean accuracy 0.858 ± 0.143 and AUC 0.905 ± 0.124 for its `+ef` configuration across 137 datasets; that is a published aggregate for a different configuration, not a number this pipeline measures.
+
+###### Decision thresholds
+
+The default decision rule is an implicit `argmax`: AutoGluon's `predict()` returns the class with the highest predicted probability, and this pipeline ships that rule unchanged. No acceptance threshold on accuracy, log loss, or ROC-AUC was set during development, because the pipeline is domain-agnostic and the tolerable error rate is a property of the deployment; published benchmark results are explicitly not production acceptance thresholds.
+
+No probability cutoff is applied, and none is shipped, because the emitted probabilities are not calibrated for the operator's domain (see next section). Calibrating and thresholding are the deployment owner's responsibility: set the operating point from the asymmetric cost of false positives against false negatives and the class prevalence on held-out data, and revisit it when either changes. For a screening use where a missed positive is the expensive error, the threshold on the positive-class probability belongs below 0.5; for a use where a false alarm is expensive, above it.
+
+###### Approaches to uncertainty and variability
+
+The pipeline's reported metrics come from a single stratified holdout split of the operator's table (requested size `validation_split`, effective size recorded as `effectiveValidationSplit`), optionally capped at `DIMER_MAX_EVAL_ROWS` (default 50,000) rows. No dispersion is reported alongside the point value: one split, one run, no confidence interval. Operators who need one should repeat the run across seeds or use cross-validation on their own side.
+
+Sources of run-to-run variability: the class-preserving down-sampling when the table exceeds 10,000 rows, the holdout split, and gradient fine-tuning; all three are driven by the DIMER `seed` hyperparameter, which the fine-tuner propagates to Python, NumPy, and torch (`_seed_everything`). A fixed seed nonetheless does not guarantee bit-identical fine-tuning under AutoGluon 1.5.0 because of non-deterministic CUDA kernels. The class probabilities the predictor emits are raw softmax outputs and have not been calibrated; a caller who needs calibrated probabilities must fit a calibrator (Platt or isotonic) on their own holdout data. Upstream's ± 0.143 accuracy spread across 137 datasets is a between-dataset dispersion, not an estimate of this pipeline's variance on any one table.
+
+#### Ethical considerations and biases
+
+No external ethics board reviewed this pipeline, and no clearance testing with a specific group took place; the subsections record what the developers considered and what the repository actually does.
+
+###### Data
+
+Mitra was pretrained exclusively on synthetic datasets, so the pretraining data do not consist of personally identifiable information, health, biometric, financial, or classified records — this is known from the upstream disclosure, which ends at the description of the synthetic priors; the generated tables themselves are not published. What this repository distributes: the DIMER worker code, contract documents, a tutorial, and small sample datasets built by `examples/build_freshretailnet_dataset.py`; it does **not** distribute the checkpoint (the fine-tuner fetches it from the Hub and verifies the SHA-256 of `model.safetensors` and `config.json` against the pinned digests before loading, and `weights/` is gitignored).
+
+Operators may fine-tune or evaluate Mitra on sensitive real-world tables. The pipeline does not audit the operator's data for personal, sensitive, or proprietary attributes — the validator checks structure, not content — so the legality, privacy, consent, access control, and governance of downstream data remain with the application developer and data owner.
+
+###### Human Life
+
+The pipeline is not intended for decisions in health care, physical safety, criminal justice, legal rights, employment, credit, insurance, education access, or public benefits, and it has not been validated for any of them. The only validation performed is the contract testing in `scripts/` and the DIMER holdout evaluation on the operator's own table; no clinical, regulatory, or independent domain validation has been carried out by the developers or by any external body, and general benchmark performance is not evidence of suitability.
+
+Where such a use is foreseeable — a triage classifier built on a clinical feature table, for example — it would be admissible only with independent domain validation on that operator's population, a human decision-maker between the prediction and the action, subgroup evaluation, and whatever regulatory clearance the domain requires.
+
+###### Mitigations
+
+Implemented in this repository, each inspectable in the named code:
+
+- **Supply-chain integrity:** the base model is `autogluon/mitra-classifier`, expected at revision `c425e9fa…`. Because AutoGluon 1.5.0's Mitra loader calls `hf_hub_download` without a revision argument, the enforceable guarantee is a digest check, not a revision pin: `resolve_and_verify_weights` in `finetuner/train.py` computes SHA-256 over the resolved `model.safetensors` and `config.json` and raises when either differs from `EXPECTED_WEIGHTS_SHA256` / `EXPECTED_CONFIG_SHA256`, and records the resolved commit and both digests in provenance with `enforced: true`. Weights uploaded through DIMER (`model_dir` set) are used verbatim and recorded with `enforced: false` — that path is deliberately not checked against the public digest, and the provenance says so. The torch/CUDA build is asserted by the Dockerfile.
+- **Input integrity:** the validator resolves `train`/`val`/`test` deterministically and rejects ambiguous archives, oversized members (> 1 GiB), tables over 5,000,000 rows, zip-bomb ratios (> 200×), fewer than 50 usable rows, any class with fewer than 2 rows, more than 10 classes, and validation/test labels absent from training.
+- **Statistical mitigations:** tables over 10,000 rows are sampled down with `_stratified_cap`, which guarantees every class survives; a requested split that would empty a class is raised as an error rather than crashing in training.
+- **Reproducibility:** `seed` propagates to Python, NumPy, and torch; the result artifact records the base revision, weight and config digests, AutoGluon version, effective split, and effective row counts.
+- **Refusals:** `classNames` is written on every result payload, success or failure, because DIMER requires it; the fine-tuner trains a single Mitra model with `fit_weighted_ensemble=False` and asserts that the requested model actually trained, so no silent fallback to another AutoGluon learner can occur.
+
+###### Risks and harms
+
+- **Overconfidence outside the training distribution** (model-intrinsic): the probabilities are uncalibrated and carry no out-of-distribution signal; the harm falls on whoever the operator's decision affects, realised whenever inference rows drift from the training table, likely under normal use over time, with magnitude set by what the classification gates.
+- **Amplification of input bias** (model-intrinsic): a table whose labels encode a historical disparity yields a classifier that reproduces it; borne by the data subjects in the disadvantaged group; realised whenever such a table is used without subgroup evaluation.
+- **Small-sample variance** (model-intrinsic): a holdout metric on a few hundred rows can move by several points between seeds; borne by the operator who ships on one lucky split.
+- **Automation bias** (use-context): a numerically precise probability displaces human judgement; borne by the data subject; likely in any workflow that surfaces the score without the uncertainty.
+- **Undetected leakage** (use-context): a feature derived from the target inflates the holdout score and collapses in production; the validator does not detect it; borne by the operator and downstream users.
+- **Benchmark over-generalisation** (use-context): reading the upstream 85.8 % aggregate as an expected accuracy; borne by whoever sets expectations from it.
+
+###### Use cases
+
+Distinct from the capability and decision boundaries listed under *Out-of-scope use cases*, the developers consider the following uses prohibited even where the model would produce a numerically plausible label:
+
+- surveillance, biometric or demographic profiling, or social scoring of individuals;
+- unlawful discrimination in employment, housing, credit, insurance, education, or healthcare access, including classification on a target that proxies a protected attribute;
+- deceptive, manipulative, or predatory applications, including presenting an uncalibrated class probability as a certified risk estimate;
+- criminal-justice, medical-diagnosis, or legal-rights determinations without the validation and oversight described under *Human Life*;
+- any use that violates the Apache-2.0 terms of the upstream `autogluon/mitra-classifier` weights and AutoGluon code, or the terms of the DIMER deployment.
+
+---
+
+## Model Details
 
 **Model name:** Mitra Classifier
 
@@ -67,7 +174,7 @@ Mitra operates as an in-context learning tabular foundation model and additional
 
 **License:** Apache License 2.0
 
-# Checkpoint and Artifact Provenance
+## Checkpoint and Artifact Provenance
 
 This card documents the following upstream Mitra Classifier checkpoint:
 
@@ -81,7 +188,7 @@ c425e9fa0910a6be1c494321792e7ba2a1367b1a
 
 The checkpoint consists of both model weights and architecture configuration.
 
-## model.safetensors
+### model.safetensors
 
 **Size:** 302,717,904 bytes
 
@@ -91,7 +198,7 @@ The checkpoint consists of both model weights and architecture configuration.
 e06a055e91a3baeffc37f9cf634d9e69a27d904b6686131dc3b702f9c0126b19
 ```
 
-## config.json
+### config.json
 
 **Size:** 86 bytes
 
@@ -123,64 +230,7 @@ The `model.safetensors` file should therefore not be considered fully self-descr
 
 A change to `config.json` could alter how otherwise identical weight bytes are interpreted. For reproducible use of this model version, both the model weights and configuration should be verified.
 
-# Intended Use and Limitations
-
-## Primary Intended Uses
-
-Mitra Classifier is intended for supervised classification of structured or tabular data where each observation can be represented as one row containing predictor variables and a categorical target.
-
-Appropriate applications include:
-
-- binary classification;
-- multiclass classification with up to 10 classes;
-- risk or category classification;
-- demand classification;
-- churn prediction;
-- quality-grade classification;
-- event classification;
-- scientific or research classification tasks represented as structured feature tables; and
-- other supervised classification problems involving relatively small tabular datasets.
-
-Mitra is particularly targeted at the small-data regime. The model is reported to be strongest on datasets below approximately 5,000 samples and 100 features.
-
-Its supported upper limits are:
-
-- **10,000 training samples**
-- **500 features**
-- **10 target classes**
-
-For time-series, transactional, sensor, or panel datasets, the source data must first be represented as an appropriate supervised feature table. Mitra is not itself a general-purpose time-series forecasting model.
-
-## Primary Intended Users
-
-Mitra Classifier is intended primarily for:
-
-- machine-learning researchers;
-- data scientists;
-- machine-learning engineers;
-- software developers;
-- researchers working with structured datasets; and
-- practitioners seeking a pretrained foundation model for small-data tabular classification.
-
-Users should understand the provenance and semantics of their input data, the meaning of the target variable, the consequences of classification errors, and the limitations of their evaluation methodology.
-
-## Out-of-Scope Use Cases
-
-Mitra Classifier is not intended for:
-
-- regression or continuous-value prediction; a separate Mitra regressor checkpoint is available;
-- image, video, audio, natural-language, or other unstructured-data tasks;
-- datasets containing more than 10 target classes;
-- datasets exceeding the model's supported sample or feature limits;
-- unsupervised clustering;
-- causal-effect estimation;
-- generative modelling;
-- direct raw time-series forecasting; or
-- autonomous high-impact decision-making without application-specific validation and appropriate oversight.
-
-Published benchmark performance should not be interpreted as a guarantee of performance on a new dataset.
-
-# Input
+## Input
 
 Mitra expects structured tabular data representing a supervised classification problem.
 
@@ -198,7 +248,7 @@ Input dimensionality and dataset size must remain within Mitra's supported limit
 - maximum 500 features;
 - maximum 10 classes.
 
-# Output
+## Output
 
 Mitra Classifier produces categorical predictions for the target variable.
 
@@ -208,7 +258,7 @@ Depending on the prediction interface, class-probability estimates may also be a
 
 The semantic meaning of the predicted classes is determined by the downstream dataset and is not fixed by the pretrained model.
 
-# Model Architecture
+## Model Architecture
 
 Mitra Classifier uses a Transformer architecture designed for tabular data.
 
@@ -236,9 +286,9 @@ The output dimension represents the classifier architecture's maximum class capa
 
 Mitra's use of both row and column attention allows the model to model interactions among observations as well as relationships among features.
 
-# Training Data
+## Training Data
 
-## Pretraining Dataset
+### Pretraining Dataset
 
 Mitra was pretrained on approximately **45 million synthetically generated tabular datasets**.
 
@@ -252,7 +302,7 @@ The synthetic training distribution combines several families of priors, includi
 
 The developers report that **no real-world datasets were directly used during pretraining**.
 
-## Motivation
+### Motivation
 
 A central design principle of Mitra is that the mixture of synthetic priors used during pretraining strongly influences how effectively a tabular foundation model transfers to real-world datasets.
 
@@ -264,7 +314,7 @@ The prior mixture was designed around three principal considerations:
 
 Synthetic generation enables Mitra to encounter a very large and diverse collection of tabular learning problems without requiring a correspondingly large corpus of real-world datasets.
 
-## Pretraining Compute
+### Pretraining Compute
 
 Pretraining used approximately:
 
@@ -272,7 +322,7 @@ Pretraining used approximately:
 - **8 NVIDIA A100 GPUs**
 - **approximately 60 hours of training**
 
-# In-Context Learning and Fine-Tuning
+## In-Context Learning and Fine-Tuning
 
 Mitra is fundamentally an **in-context learning tabular foundation model**.
 
@@ -284,7 +334,7 @@ Fine-tuning may provide additional performance gains depending on the dataset, t
 
 Fine-tuning should not be conflated with the base pretrained checkpoint. Any fine-tuned derivative represents an application-specific model version derived from the upstream Mitra Classifier.
 
-# Evaluation Datasets
+## Evaluation Datasets
 
 The Mitra paper evaluates the model across established collections of real-world tabular-learning benchmarks.
 
@@ -302,7 +352,7 @@ These real-world datasets were used for evaluation rather than pretraining.
 
 Using heterogeneous benchmark collections allows the model to be evaluated across differences in dataset size, feature dimensionality, numerical and categorical feature composition, number of classes, class balance, statistical structure, and application domain.
 
-# Quantitative Evaluation
+## Quantitative Evaluation
 
 The Mitra paper reports results across a heterogeneous collection of tabular classification datasets rather than assigning one intrinsic accuracy value to the foundation model.
 
@@ -326,55 +376,9 @@ The reported `± 0.143` variability in accuracy demonstrates substantial variati
 
 Published results should therefore be interpreted as evidence of strong general performance within the evaluated regime, not as a fixed operational accuracy.
 
-# Performance Measures
+## Reproducibility
 
-Appropriate downstream classification metrics may include accuracy, balanced accuracy, macro F1, precision, recall, Matthews correlation coefficient, ROC-AUC, PR-AUC, and log loss.
-
-Metric selection should depend on the downstream application. Accuracy may be appropriate where classes are reasonably balanced and error consequences are similar. Balanced accuracy, macro F1, or MCC may be more informative for imbalanced classification problems. When predicted probabilities are used operationally, probability-sensitive metrics and calibration should also be evaluated.
-
-# Decision Thresholds
-
-Mitra does not define a universal minimum accuracy requirement, confidence cutoff, or probability threshold applicable to every classification problem.
-
-Application-specific thresholds should be selected according to the consequences of false positives, consequences of false negatives, class prevalence, operational objectives, uncertainty requirements, and applicable governance or regulatory requirements.
-
-Published benchmark results should not themselves be treated as production acceptance thresholds.
-
-# Factors
-
-## Groups
-
-Mitra was pretrained using synthetic datasets rather than datasets representing a fixed human population.
-
-No demographic groups such as age, sex, gender, ethnicity, nationality, socioeconomic status, or disability are therefore intrinsic development groups of the foundation model.
-
-Where Mitra is used on human-related datasets, relevant groups and subgroup performance must be identified and evaluated for the particular downstream application.
-
-General demographic fairness or subgroup parity has not been established for the foundation model.
-
-## Instrumentation
-
-Mitra consumes structured tabular features rather than raw signals from a specific physical instrument.
-
-The upstream pretraining process therefore did not depend on cameras, microphones, medical devices, laboratory instrumentation, or other real-world acquisition hardware.
-
-For downstream datasets derived from physical measurements, the instrumentation used to produce those features should be documented separately.
-
-## Environment
-
-Mitra was not developed for one physical environment.
-
-Environmental conditions become relevant when they influence input variables or the statistical distribution of downstream data.
-
-Performance across geography, climate, institutions, populations, operating conditions, or time periods must therefore be evaluated in the context of the specific downstream application.
-
-## Technical Factors
-
-Performance may be affected by number of training observations, number of features, feature quality, predictive signal, missing values, erroneous observations, target-label quality, number of classes, class imbalance, categorical-cardinality patterns, feature engineering, preprocessing, data leakage, random variation, fine-tuning configuration, and distribution shift.
-
-# Reproducibility
-
-## Checkpoint Pinning
+### Checkpoint Pinning
 
 The documented upstream checkpoint is pinned to revision:
 
@@ -400,13 +404,13 @@ SHA-256:
 
 Because `config.json` defines the model architecture before the weights are loaded, matching only the weight file is insufficient to establish complete model-version identity.
 
-## AutoGluon Loader Limitation
+### AutoGluon Loader Limitation
 
 AutoGluon 1.5.0's Mitra loader resolves a checkpoint using its Hugging Face repository identifier but does not expose a revision argument for directly pinning the underlying Hugging Face revision during normal model loading.
 
 For strict reproduction of this documented version, the exact resolved `model.safetensors` and `config.json` should therefore be verified against the revision and SHA-256 values recorded in this card.
 
-## Random Seed Limitation
+### Random Seed Limitation
 
 AutoGluon 1.5.0 does not fully enable Mitra's global `set_seed` behaviour.
 
@@ -414,51 +418,7 @@ A fixed seed can make some stochastic components, including internal validation 
 
 Where reproducibility is important, users should record software versions, random seeds, train/validation/test partitions, preprocessing, model and configuration hashes, and fine-tuning parameters, and should repeat experiments when estimating performance variability.
 
-# Approaches to Uncertainty and Variability
-
-Published aggregate benchmark results reflect performance variation across many heterogeneous datasets.
-
-For downstream use, appropriate uncertainty assessment may include repeated experiments using multiple random seeds, confidence intervals, cross-validation where methodologically appropriate, independent holdout evaluation, temporal validation, external validation, subgroup analysis, and probability-calibration assessment.
-
-Evaluation design should reflect the consequences of prediction errors and the characteristics of the intended deployment environment.
-
-# Ethical Considerations and Biases
-
-## Data
-
-Mitra was pretrained exclusively on synthetic datasets rather than a corpus of real-world human records.
-
-The pretraining data therefore do not directly consist of personally identifiable information, health records, biometric records, financial records, classified information, or other real-world sensitive data.
-
-This does not remove privacy, fairness, or governance risks from downstream applications. Users may fine-tune or evaluate Mitra using sensitive real-world datasets.
-
-Responsibility for the legality, privacy, security, provenance, consent, access controls, and governance of downstream data remains with the application developer and data owner.
-
-## Human Life
-
-Mitra is a general-purpose tabular foundation model.
-
-It was not specifically developed or validated for autonomous decisions concerning health care, physical safety, criminal justice, legal rights, employment, credit, insurance, education access, public benefits, or other high-impact matters affecting human welfare.
-
-General benchmark performance is insufficient evidence of suitability for these applications.
-
-## Mitigations
-
-Appropriate downstream risk mitigations include dataset provenance checks, data-quality validation, separation of training and evaluation data, leakage prevention, comparison against meaningful baselines, subgroup evaluation, appropriate metrics for class imbalance, distribution-shift assessment, independent test-set evaluation, preservation of model provenance, human review where errors have material consequences, and post-deployment monitoring.
-
-These are recommended downstream controls rather than claims that every mitigation was part of upstream Mitra development.
-
-## Risks and Harms
-
-Potential risks include incorrect classification, dataset bias, unequal subgroup performance, distribution shift, data leakage, class imbalance, automation bias, and benchmark overgeneralization.
-
-The severity and likelihood of these risks depend on the downstream application and the consequences attached to prediction errors.
-
-## Use Cases Requiring Particular Caution
-
-Applications requiring substantial additional validation and governance include discriminatory profiling, unlawful surveillance or social scoring, criminal-justice decisions, medical diagnosis or treatment, employment decisions, lending or credit decisions, insurance eligibility, public-benefit allocation, legal-rights determinations, and other safety-critical or high-impact decision-making.
-
-# Limitations
+## Limitations
 
 Important limitations include:
 
@@ -476,7 +436,7 @@ Important limitations include:
 12. A fixed random seed does not guarantee completely deterministic fine-tuning under AutoGluon 1.5.0.
 13. Exact checkpoint reproduction requires preserving both `model.safetensors` and `config.json`.
 
-# License
+## License
 
 Mitra Classifier is distributed under the **Apache License 2.0**.
 
@@ -488,17 +448,17 @@ The Apache-2.0 license text is distributed with the upstream model.
 
 Licensing of downstream datasets and applications must be considered separately. The model's Apache-2.0 license does not override restrictions associated with downstream data.
 
-# Model Ownership and Attribution
+## Model Ownership and Attribution
 
 Mitra Classifier was developed by the AutoGluon team at Amazon Web Services (AWS). Upstream source code is part of the AutoGluon project hosted at [autogluon/autogluon](https://github.com/autogluon/autogluon), and base model artifacts are distributed on Hugging Face at [autogluon/mitra-classifier](https://huggingface.co/autogluon/mitra-classifier).
 
 A downstream integration or fine-tuned derivative should distinguish the upstream foundation model from any subsequent modifications and preserve applicable license and attribution information.
 
-# Citation
+## Citation
 
 Cite the original Mitra work, the AutoGluon framework, and the upstream repository:
 
-### Papers
+#### Papers
 
 - **Mitra (2025):**  
   Zhang, X., Maddix, D. C., Yin, J., Erickson, N., Ansari, A. F., Han, B., Zhang, S., Akoglu, L., Faloutsos, C., Mahoney, M., Hu, T., Rangwala, H., Karypis, G., & Wang, Y. (2025). *Mitra: Mixed Synthetic Priors for Enhancing Tabular Foundation Models.* NeurIPS 2025. arXiv:2510.21204. https://doi.org/10.48550/arXiv.2510.21204
@@ -506,12 +466,12 @@ Cite the original Mitra work, the AutoGluon framework, and the upstream reposito
 - **AutoGluon-Tabular (2020):**  
   Erickson, N., Mueller, J., Shirkov, A., Zhang, H., Larroy, P., Li, M., & Smola, A. (2020). *AutoGluon-Tabular: Robust and Accurate AutoML for Structured Data.* arXiv:2003.06505. https://doi.org/10.48550/arXiv.2003.06505
 
-### Upstream Repository
+#### Upstream Repository
 
 - **AutoGluon Codebase:**  
   AutoGluon team, Amazon Web Services (AWS). *AutoGluon: AutoML for Image, Text, and Tabular Data* [Software]. GitHub. https://github.com/autogluon/autogluon
 
-### BibTeX
+#### BibTeX
 
 ```bibtex
 @article{zhang2025mitra,
@@ -538,13 +498,13 @@ Cite the original Mitra work, the AutoGluon framework, and the upstream reposito
 }
 ```
 
-# Evaluation Status
+## Evaluation Status
 
-## Established by the Upstream Work
+### Established by the Upstream Work
 
 The upstream work establishes tabular classification capability, binary and multiclass classification, in-context learning, fine-tuning capability, synthetic-prior pretraining, evaluation across established real-world tabular benchmark suites, strong performance within the evaluated small-data regime, and comparative performance against contemporary tabular foundation models and conventional approaches.
 
-## Application-Dependent or Not Generally Established
+### Application-Dependent or Not Generally Established
 
 The upstream evidence does not establish universal accuracy on a particular downstream dataset, demographic fairness, subgroup parity, calibration, adversarial robustness, robustness to arbitrary distribution shift, domain-specific safety, operational reliability, service-level guarantees, or suitability for high-impact decision-making.
 
