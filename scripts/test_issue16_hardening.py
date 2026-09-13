@@ -1,15 +1,14 @@
-"""Regression checks for tutorial hardening tracked in issue #16."""
+"""Regression checks for the tutorial hardening tracked in issue #16, restated for the standalone carrier
+(NOTEBOOK_SPEC 1.1 §3.6): the CSV reader and the selection/verification invariants now live in the carried
+`mitra_pipeline/tutorial_api.py` module and the generated notebooks."""
 
-import ast
-import csv
-import io
 import json
-from pathlib import Path
+import sys
 import unittest
-
-import pandas as pd
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 MAIN = ROOT / "tutorials" / "mitra_classifier_colab.ipynb"
 INFERENCE = ROOT / "tutorials" / "mitra_classifier_predictor_inference_colab.ipynb"
 
@@ -25,57 +24,44 @@ def notebook_text(path):
     return "\n".join(notebook_sources(path))
 
 
-def uploaded_csv_reader():
-    for source in notebook_sources(MAIN):
-        if "def uploaded_csv" not in source:
-            continue
-        tree = ast.parse(source)
-        function = next(
-            node for node in tree.body
-            if isinstance(node, ast.FunctionDef) and node.name == "uploaded_csv"
-        )
-        module = ast.Module(body=[function], type_ignores=[])
-        namespace = {"csv": csv, "io": io, "pd": pd}
-        exec(compile(ast.fix_missing_locations(module), MAIN.name, "exec"), namespace)
-        return namespace["uploaded_csv"]
-    raise AssertionError("Could not locate uploaded_csv")
-
-
 class Issue16HardeningTests(unittest.TestCase):
     def test_training_reader_rejects_duplicate_target_header(self):
-        reader = uploaded_csv_reader()
+        from mitra_pipeline import read_csv_bytes
+
         with self.assertRaisesRegex(ValueError, "duplicate column names"):
-            reader(b"feature,target,target\n1,a,a\n", "uploaded CSV")
+            read_csv_bytes(b"feature,target,target\n1,a,a\n", "uploaded CSV")
 
     def test_main_notebook_selects_recommended_predictor(self):
         text = notebook_text(MAIN)
         self.assertIn("MIN_SELECTION_HOLDOUT_ROWS = 50", text)
-        self.assertIn("recommended_predictor = baseline_predictor", text)
-        self.assertIn("selection_basis = f'holdout:{EVAL_METRIC}'", text)
-        self.assertIn("active_predictor = recommended_predictor", text)
-        self.assertIn("'selection_basis': selection_basis", text)
-        self.assertNotIn("active_predictor = finetuned_predictor or baseline_predictor", text)
+        self.assertIn("ACTIVE_MODEL, ACTIVE_MODE, SELECTION_BASIS = pipe, 'pretrained', 'default:pretrained'", text)
+        self.assertIn("SELECTION_BASIS = f'holdout:{EVAL_METRIC}'", text)
+        self.assertIn("'selection_basis': SELECTION_BASIS", text)
+        self.assertIn("(evidence only; never used for selection)", text)
 
     def test_companion_verifies_archive_before_load(self):
         text = notebook_text(INFERENCE)
         self.assertIn("EXPECTED_ZIP_SHA256", text)
-        self.assertIn("Predictor ZIP checksum mismatch", text)
-        self.assertLess(
-            text.index("Predictor ZIP checksum mismatch"),
-            text.index("predictor = TabularPredictor.load(str(PREDICTOR_ROOT))"),
-        )
+        self.assertIn("checksum mismatch", text)
+        self.assertLess(text.index("checksum mismatch"), text.index("predictor = TabularPredictor.load(str(EXTRACT_ROOT))"))
+        self.assertLess(text.index("validate_artifact_directory(EXTRACT_ROOT)"), text.index("predictor = TabularPredictor.load(str(EXTRACT_ROOT))"))
         self.assertIn("Trust boundary", text)
 
     def test_companion_rejects_wrong_problem_type_and_output_collisions(self):
+        from mitra_pipeline import validate_inference_frame
+        import pandas as pd
+
         text = notebook_text(INFERENCE)
-        self.assertIn("predictor.problem_type not in {'binary', 'multiclass'}", text)
-        self.assertIn("reserved_output_columns", text)
-        self.assertIn("output column(s) reserved by this notebook", text)
+        self.assertIn("if predictor.problem_type not in {'binary', 'multiclass'}:", text)
+        with self.assertRaisesRegex(ValueError, "output column\\(s\\) reserved by this notebook"):
+            validate_inference_frame(pd.DataFrame({"x": [1], "probability_yes": [0.5]}), ["x"])
+        with self.assertRaisesRegex(ValueError, "output column\\(s\\) reserved by this notebook"):
+            validate_inference_frame(pd.DataFrame({"x": [1], "prediction": ["yes"]}), ["x"])
 
     def test_autogluon_version_spelling_is_consistent(self):
         for path in (MAIN, INFERENCE):
             text = notebook_text(path)
-            self.assertIn("AUTOGLUON_VERSION", text)
+            self.assertIn("importlib.metadata.version('autogluon.tabular')", text)
             self.assertNotIn("AUTOGLOUON_VERSION", text)
 
 

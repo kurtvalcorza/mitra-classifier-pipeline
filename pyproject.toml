@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools==78.1.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mitra-classifier-pipeline"
+version = "0.1.0"
+description = "DIMER Mitra Classifier pipeline: public tutorial API, contract docs and deployables"
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+license = { file = "LICENSE" }
+# Exact runtime pins (NOTEBOOK_SPEC 1.1 ENV2/PAR2): the standalone tutorial notebooks carry this list verbatim as
+# their inline PINS. It is the previous tutorials/requirements-colab.txt set plus the fleet huggingface-hub pin
+# (autogluon.tabular[mitra] 1.5.0 requires huggingface_hub<1.0). torch/numpy/pandas/scikit-learn are resolved
+# transitively by AutoGluon's own compatible ranges, as before.
+dependencies = [
+  "autogluon.tabular[mitra]==1.5.0",
+  "lightgbm==4.6.0",
+  "huggingface-hub==0.36.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9", "ruff==0.16.6"]
+
+[tool.setuptools]
+packages = ["mitra_pipeline"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+src = ["mitra_pipeline", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

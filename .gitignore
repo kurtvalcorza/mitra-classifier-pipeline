@@ -8,4 +8,11 @@ desktop.ini
 out/
 
 # Local Mitra weights (289MB) — never committed; for the DIMER wizard upload or a local bake.
-weights/
+# Only the snapshot manifest (weights/<MODEL_KEY>/dimer-base-manifest.json), config.json and LICENSE are committable.
+weights/**/*.safetensors
+weights/**/*.ckpt
+weights/**/*.bin
+weights/**/*.pt
+weights/**/*.pth
+weights/**/*.onnx
+weights/**/.cache/
