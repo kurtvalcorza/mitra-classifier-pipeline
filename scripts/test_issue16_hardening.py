@@ -1,5 +1,5 @@
 """Regression checks for the tutorial hardening tracked in issue #16, restated for the standalone carrier
-(NOTEBOOK_SPEC 1.1 §3.6): the CSV reader and the selection/verification invariants now live in the carried
+(NOTEBOOK_SPEC 2.0 §4): the CSV reader and the selection/verification invariants now live in the carried
 `mitra_pipeline/tutorial_api.py` module and the generated notebooks."""
 
 import json

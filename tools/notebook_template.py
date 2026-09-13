@@ -39,6 +39,13 @@ TEMPLATE = {
     "stem": "mitra_classifier",
     "notebook_name": "mitra_classifier_colab.ipynb",
     "profile": "E2E",
+    "mode": "GUIDED",
+    "run_all": (
+        "Selecting **Run all** in a fresh supported runtime installs the pinned dependencies, stages and digest-verifies the pinned Mitra snapshot, loads scikit-learn's bundled Breast Cancer Wisconsin table (no download), validates the tables into an input manifest and checks class coverage and split overlap, fits the pretrained Mitra predictor by **in-context conditioning on the training split** (the adaptation stage that runs by default — no gradient update) alongside executable baselines, evaluates on the held-out split and writes the evaluation report, exports the deployable predictor bundle and reloads it from disk to prove the fresh boundary. Gradient fine-tuning of the Mitra weights is an optional experiment (`RUN_FINE_TUNING`, off by default, Section 6) because it needs a GPU-sized time budget; a reviewer reading NOTEBOOK_SPEC 2.0 RUN7/FT2 as requiring gradient adaptation on the default path should treat that as an open decision. No repository clone, DIMER worker or service, credential, upload dialog or configuration edit is required (§5)."
+    ),
+    "byod": (
+        "After the sample workflow completes, set `USE_BYOD = True` in Section 4 and re-run from that cell to upload one labelled CSV (or pre-split `train.csv`/`val.csv`/`test.csv`); it enters the same validation, split, in-context fitting, baseline, evaluation, export and fresh-reload cells as the sample (DAT14), and `RUN_NEW_DATA_INFERENCE` in Section 8 scores your own unlabelled rows with the fitted predictor. Expected schema, ceilings and privacy guidance are stated in the Prerequisites and in Section 4; uploads stay inside this runtime. BYOD is optional and never part of the default path."
+    ),
     "pipeline_class": "MitraClassificationPipeline",
     "weights_key": "mitra-classifier",
     "modules": ["tutorial_api.py"],

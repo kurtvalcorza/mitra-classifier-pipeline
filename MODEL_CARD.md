@@ -1,12 +1,14 @@
 ---
 license: apache-2.0
-model_card_spec: "1.0"
+model_card_spec: "1.1"
 pipeline_tag: tabular-classification
 tags:
   - tabular-classification
   - tabular-foundation-model
   - in-context-learning
 base_model: autogluon/mitra-classifier
+date_published: "2025-06-22"
+date_published_source: "Hugging Face Hub repository creation date of the exact hosted checkpoint (`createdAt`, https://huggingface.co/api/models/autogluon/mitra-classifier)"
 ---
 
 # Mitra Classifier
@@ -17,7 +19,7 @@ base_model: autogluon/mitra-classifier
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 
-###### Description
+#### Description
 
 Mitra Classifier packages the `autogluon/mitra-classifier` checkpoint at Hugging Face revision `c425e9fa0910a6be1c494321792e7ba2a1367b1a`, a pretrained tabular foundation model developed by the AutoGluon team at Amazon Web Services for supervised classification on structured datasets. The model is a Transformer specialised for tables: it applies row-wise and column-wise attention so that relationships across observations and across features are both represented, with 12 layers, a model dimension of 512, four attention heads, and approximately 75.7 million parameters according to the safetensors metadata. It was pretrained across roughly 45 million synthetically generated datasets drawn from structural causal models and tree-based priors (gradient boosting, random forests, decision trees, extra trees); the developers report that no real-world dataset was used directly in pretraining.
 
