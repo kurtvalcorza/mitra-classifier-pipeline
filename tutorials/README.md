@@ -82,6 +82,6 @@ The release gate, the executor procedure for both notebooks and the durable exec
 
 A separate **Notebook release execution** workflow executes the current E2E default path in a clean hosted runner, produces a predictor artifact, derives new inference rows, and executes the `ARTIFACT-INFERENCE` notebook against that externally produced artifact with its trusted SHA-256. The workflow records actual step outcomes and fails closed unless the producer, digest preparation, and consumer execution all succeed. A release claim must cite the successful workflow/PR head; static CI alone is not execution evidence.
 
-## AI use and provenance
+## AI Assistance Disclosure
 
-These tutorials have been developed with substantial AI assistance under human direction and review. AI attribution is authorship provenance, not sign-off. Clean execution, static checks, and human review remain the evidence for a release.
+This tutorial and its accompanying documentation were developed with generative AI assistance for code development and technical writing under maintainer direction. The maintainer remains responsible for reviewing the implementation, validating results, and making release decisions. AI assistance does not constitute independent verification, provider endorsement, or release approval.

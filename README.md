@@ -489,3 +489,7 @@ model.
 - [Mitra classifier model card](https://huggingface.co/autogluon/mitra-classifier) · [Mitra regressor model card](https://huggingface.co/autogluon/mitra-regressor), Hugging Face.
 - Amazon Science. [*Mitra: Mixed synthetic priors for enhancing tabular foundation models*](https://www.amazon.science/blog/mitra-mixed-synthetic-priors-for-enhancing-tabular-foundation-models).
 - [FreshRetailNet-50K](https://huggingface.co/datasets/Dingdong-Inc/FreshRetailNet-50K) dataset (CC BY 4.0), Dingdong Inc.
+
+## AI Assistance Disclosure
+
+This tutorial and its accompanying documentation were developed with generative AI assistance for code development and technical writing under maintainer direction. The maintainer remains responsible for reviewing the implementation, validating results, and making release decisions. AI assistance does not constitute independent verification, provider endorsement, or release approval.
