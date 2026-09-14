@@ -2,6 +2,7 @@
 license: apache-2.0
 model_card_spec: "1.1"
 pipeline_tag: tabular-classification
+task: "Others - Tabular Classification"
 tags:
   - tabular-classification
   - tabular-foundation-model
