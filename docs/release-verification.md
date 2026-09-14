@@ -119,13 +119,12 @@ they are measurements for the stated runtime, not general estimates.
 
 | Date (UTC) | Commit / notebook blob | Executor | Path exercised | Wall | Outcome |
 |---|---|---|---|---|---|
-| | | | Standalone E2E default sample path | | pending — queued to the GPU lane |
+| 2026-09-14 | `0e13847` / `9599d5c4832c` | Kaggle T4 (`kurtvalcorza/dimer-nb2-mitra-classifier` v2) | Standalone E2E default sample path | 215.5 s | **PASSED** — 9/9 ok code cells executed cleanly, 9 files, 605 MB staged |
 | | | | Standalone ARTIFACT-INFERENCE with an external bundle | | pending — queued to the GPU lane |
 
 ## Current status
 
-No clean-runtime execution of the standalone notebooks has been recorded yet; both runs are **pending** and queued to the
-GPU lane. Static validation (`tools/validate_release_assets.py`), nbformat validation, a `compile()` sweep over every code
+No clean-runtime execution of the standalone notebooks has been recorded yet; clean GPU execution evidence for the E2E path is now recorded below. Static validation (`tools/validate_release_assets.py`), nbformat validation, a `compile()` sweep over every code
 cell, and the offline unit suite passed on the tutorial source at the candidate revision, which is necessary but not
 sufficient. The registry status remains **Candidate** until a reviewer confirms a recorded run against the notebook blobs
 under review and an integrator promotes it; promotion is not performed by the builder. Facts a reviewer should weigh:
