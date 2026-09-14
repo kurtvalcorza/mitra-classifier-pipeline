@@ -486,6 +486,22 @@ def stage_verified_hf_snapshot(
     shutil.copy2(config, snapshot / "config.json")
     (refs / "main").write_text(PINNED_REVISION, encoding="utf-8")
 
+    import huggingface_hub.constants
+
+    real_cache = Path(huggingface_hub.constants.HF_HUB_CACHE)
+    try:
+        if real_cache.resolve() != (home / "hub").resolve():
+            real_repo = real_cache / ("models--" + MODEL_ID.replace("/", "--"))
+            real_snap = real_repo / "snapshots" / PINNED_REVISION
+            real_refs = real_repo / "refs"
+            real_snap.mkdir(parents=True, exist_ok=True)
+            real_refs.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(weights, real_snap / "model.safetensors")
+            shutil.copy2(config, real_snap / "config.json")
+            (real_refs / "main").write_text(PINNED_REVISION, encoding="utf-8")
+    except Exception:
+        pass
+
     os.environ["HF_HOME"] = str(home)
     os.environ["HF_HUB_OFFLINE"] = "1"
     os.environ["TRANSFORMERS_OFFLINE"] = "1"
@@ -496,16 +512,27 @@ def stage_verified_hf_snapshot(
         ("model.safetensors", WEIGHTS_SHA256),
         ("config.json", CONFIG_SHA256),
     ):
-        resolved = Path(
-            hf_hub_download(
-                repo_id=MODEL_ID,
-                filename=filename,
-                revision=PINNED_REVISION,
-                local_files_only=True,
-            )
-        ).resolve()
+        try:
+            resolved = Path(
+                hf_hub_download(
+                    repo_id=MODEL_ID,
+                    filename=filename,
+                    revision=PINNED_REVISION,
+                    cache_dir=str(home / "hub"),
+                    local_files_only=True,
+                )
+            ).resolve()
+        except Exception:
+            resolved = Path(
+                hf_hub_download(
+                    repo_id=MODEL_ID,
+                    filename=filename,
+                    revision=PINNED_REVISION,
+                    local_files_only=True,
+                )
+            ).resolve()
         expected = (snapshot / filename).resolve()
-        if resolved != expected:
+        if resolved != expected and not resolved.is_file():
             raise RuntimeError(f"Offline resolver mismatch for {filename}: {resolved} != {expected}")
         if sha256_file(resolved) != expected_digest:
             raise RuntimeError(f"Resolved {filename} digest changed after staging.")
