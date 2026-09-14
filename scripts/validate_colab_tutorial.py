@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
-"""Static checks for the standalone Mitra Colab tutorials."""
+"""Repository-specific static checks for the standalone Mitra Classifier tutorials (NOTEBOOK_SPEC 1.1).
 
+The carrier, parity, hygiene and profile checks live in ``tools/validate_release_assets.py`` (run first). This
+script keeps the invariants specific to this repository's contract: the notebooks exercise the public API in
+``mitra_pipeline`` (never reimplementing fit/inference/archive checks), the fine-tuning and inference gates default
+off, the artifact-inference notebook fails closed without a trusted digest, and the tutorial requirements mirror the
+``pyproject.toml`` pins the notebooks carry. It claims no runtime execution evidence.
+"""
+# ruff: noqa: E501  -- rule messages name the requirement in full; they are kept on one line
 from __future__ import annotations
 
 import ast
@@ -9,680 +16,222 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-NOTEBOOK = ROOT / "tutorials" / "mitra_classifier_colab.ipynb"
-INFERENCE_NOTEBOOK = ROOT / "tutorials" / "mitra_classifier_predictor_inference_colab.ipynb"
-ROOT_README = ROOT / "README.md"
+MAIN = ROOT / "tutorials" / "mitra_classifier_colab.ipynb"
+INFERENCE = ROOT / "tutorials" / "mitra_classifier_predictor_inference_colab.ipynb"
 TUTORIAL_README = ROOT / "tutorials" / "README.md"
+PUBLIC_API = ROOT / "mitra_pipeline" / "tutorial_api.py"
+REQUIREMENTS = ROOT / "tutorials" / "requirements-colab.in"
+PYPROJECT = ROOT / "pyproject.toml"
 
+MODEL_ID = "autogluon/mitra-classifier"
 PINNED_REVISION = "c425e9fa0910a6be1c494321792e7ba2a1367b1a"
 WEIGHTS_SHA256 = "e06a055e91a3baeffc37f9cf634d9e69a27d904b6686131dc3b702f9c0126b19"
 CONFIG_SHA256 = "2c96c24dd25f64e92753f6f2ba00cc7833b9923459403dcd8504e8700c0995df"
-SAMPLE_REVISION = "8fc19e80ae3166ec6bf964d194a28c80e6ba3b1f"
-
-FORBIDDEN = (
-    "DIMER ZIP",
-    "dimer-model-manifest.json",
-    "load_dimer_package",
-    "PACKAGE_MANIFEST_FILENAME",
-    "PACKAGE_MANIFEST_VERSION",
-    "mitra-classifier-finetuner",
-    "mitra-classifier-dataset-validator",
-    "load_breast_cancer",
-    "Built-in demo",
-    "mitra-classifier-pipeline/main/examples/sample-data/freshretailnet-band-h7.zip",
-)
-REPO_INTERNAL_IMPORT_PARTS = {"finetuner", "validator"}
+PLACEHOLDERS = re.compile(r"\b(TODO|TBD|FIXME)\b")
 
 
 def require(condition: bool, message: str) -> None:
     if not condition:
-        raise RuntimeError(message)
+        raise AssertionError(message)
 
 
-def code_sources(cells: list[dict]) -> list[tuple[int, str]]:
-    result: list[tuple[int, str]] = []
-    for i, cell in enumerate(cells):
+def source_text(cell: dict) -> str:
+    source = cell.get("source", "")
+    return "".join(source) if isinstance(source, list) else str(source)
+
+
+def load_notebook(path: Path) -> tuple[dict, str, list[str], list[str]]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    require(payload.get("nbformat") == 4, f"{path.name}: nbformat must be 4")
+    cells = payload.get("cells", [])
+    require(bool(cells), f"{path.name}: no cells")
+    cell_ids = [cell.get("id") for cell in cells]
+    require(all(isinstance(cell_id, str) and cell_id.strip() for cell_id in cell_ids), f"{path.name}: every cell needs a stable id")
+    require(len(set(cell_ids)) == len(cell_ids), f"{path.name}: cell ids must be unique")
+    code_cells, own_cells = [], []
+    for index, cell in enumerate(cells):
         if cell.get("cell_type") != "code":
             continue
-        source = cell.get("source", "")
-        if isinstance(source, list):
-            source = "".join(source)
-        source = "\n".join(
-            line
-            for line in str(source).splitlines()
-            if not line.lstrip().startswith(("%", "!"))
-        )
-        result.append((i, source))
-    return result
+        code = source_text(cell)
+        try:
+            ast.parse(code)
+        except SyntaxError as exc:
+            raise AssertionError(f"{path.name}: cell {index} does not compile: {exc}") from exc
+        code_cells.append(code)
+        if not cell.get("metadata", {}).get("dimer", {}).get("embedded_module"):
+            own_cells.append(code)
+    full_text = "\n".join(source_text(cell) for cell in cells)
+    require(not PLACEHOLDERS.search(full_text), f"{path.name}: placeholder marker survives")
+    require(all(cell.get("execution_count") is None for cell in cells if cell.get("cell_type") == "code"), f"{path.name}: execution counts must be cleared")
+    require(all(not cell.get("outputs") for cell in cells if cell.get("cell_type") == "code"), f"{path.name}: outputs must be cleared")
+    return payload, full_text, code_cells, own_cells
 
 
-def load_notebook(path: Path) -> tuple[list[dict], str, list[tuple[int, str]]]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    require(payload.get("nbformat") == 4, f"{path.name} must use nbformat 4")
-    cells = payload.get("cells", [])
-    require(bool(cells), f"{path.name} has no cells")
-    text = "\n".join(
-        "".join(cell.get("source", []))
-        if isinstance(cell.get("source", []), list)
-        else str(cell.get("source", ""))
-        for cell in cells
-    )
-    parsed = code_sources(cells)
-    for i, source in parsed:
-        if source.strip():
-            ast.parse(source, filename=f"{path.name}:cell-{i}")
-    return cells, text, parsed
+def require_profile(payload: dict, filename: str, expected: str) -> None:
+    dimer = payload.get("metadata", {}).get("dimer", {})
+    require(dimer.get("notebook_profile") == expected, f"{filename}: metadata profile must be {expected}")
+    require(str(dimer.get("notebook_spec")) == "1.1" and dimer.get("standalone") is True, f"{filename}: must be standalone spec 1.1")
 
 
-def top_level_literal_assignments_match(
-    code_cells: list[tuple[int, str]], name: str, expected: object
-) -> bool:
-    found = False
-    for _, source in code_cells:
-        if not source.strip():
-            continue
-        tree = ast.parse(source)
+def require_markers(text: str, markers: tuple[str, ...], label: str) -> None:
+    for marker in markers:
+        require(marker in text, f"{label}: missing marker {marker!r}")
+
+
+def top_level_literal(code_cells: list[str], name: str, expected) -> bool:
+    for code in code_cells:
+        tree = ast.parse(code)
         for node in tree.body:
-            targets: list[ast.expr] = []
-            value: ast.expr | None = None
-            if isinstance(node, ast.Assign):
-                targets = node.targets
-                value = node.value
-            elif isinstance(node, ast.AnnAssign):
-                targets = [node.target]
-                value = node.value
-            else:
-                continue
-            if not any(isinstance(t, ast.Name) and t.id == name for t in targets):
-                continue
-            found = True
-            if not isinstance(value, ast.Constant):
-                return False
-            if type(value.value) is not type(expected) or value.value != expected:
-                return False
-    return found
-
-
-def repo_internal_imports(code_cells: list[tuple[int, str]]) -> set[str]:
-    found: set[str] = set()
-    for _, source in code_cells:
-        if not source.strip():
-            continue
-        tree = ast.parse(source)
-        for node in ast.walk(tree):
-            modules: list[str] = []
-            if isinstance(node, ast.Import):
-                modules.extend(alias.name for alias in node.names)
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                modules.append(node.module)
-            for module in modules:
-                if REPO_INTERNAL_IMPORT_PARTS.intersection(module.split(".")):
-                    found.add(module)
-    return found
-
-
-def memory_guard_keys(code_cells: list[tuple[int, str]]) -> set[str]:
-    keys: set[str] = set()
-    for _, source in code_cells:
-        if not source.strip():
-            continue
-        for node in ast.walk(ast.parse(source)):
-            if not (
-                isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Attribute)
-                and node.func.attr == "fit"
-            ):
-                continue
-            for keyword in node.keywords:
-                if keyword.arg != "ag_args_fit" or not isinstance(keyword.value, ast.Dict):
-                    continue
-                for key in keyword.value.keys:
-                    if isinstance(key, ast.Constant) and isinstance(key.value, str):
-                        keys.add(key.value)
-    return keys
-
-
-def has_memory_guard(code_cells: list[tuple[int, str]]) -> bool:
-    for _, source in code_cells:
-        if not source.strip():
-            continue
-        for node in ast.walk(ast.parse(source)):
-            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
-                continue
-            if node.func.attr == "fit_mitra_predictor":
-                for keyword in node.keywords:
-                    if (
-                        keyword.arg == "max_memory_usage_ratio"
-                        and isinstance(keyword.value, ast.Name)
-                        and keyword.value.id == "MAX_MEMORY_USAGE_RATIO"
-                    ):
-                        return True
-            if node.func.attr == "fit":
-                for keyword in node.keywords:
-                    if keyword.arg != "ag_args_fit" or not isinstance(keyword.value, ast.Dict):
-                        continue
-                    for key, value in zip(keyword.value.keys, keyword.value.values):
-                        if (
-                            isinstance(key, ast.Constant)
-                            and key.value == "max_memory_usage_ratio"
-                            and isinstance(value, ast.Name)
-                            and value.id == "MAX_MEMORY_USAGE_RATIO"
-                        ):
-                            return True
-    return False
-
-def call_attributes(code_cells: list[tuple[int, str]]) -> set[str]:
-    attrs: set[str] = set()
-    for _, source in code_cells:
-        if not source.strip():
-            continue
-        for node in ast.walk(ast.parse(source)):
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-                attrs.add(node.func.attr)
-    return attrs
-
-
-def direct_tabular_predictor_construction(code_cells: list[tuple[int, str]]) -> bool:
-    for _, source in code_cells:
-        if not source.strip():
-            continue
-        for node in ast.walk(ast.parse(source)):
-            if (
-                isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Name)
-                and node.func.id == "TabularPredictor"
-            ):
-                return True
+            if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+                if node.targets[0].id == name and isinstance(node.value, ast.Constant):
+                    return node.value.value == expected
     return False
 
 
-def has_current_fit_completion_gate(code_cells: list[tuple[int, str]]) -> bool:
-    for _, source in code_cells:
-        if not source.strip():
-            continue
-        tree = ast.parse(source)
-        false_positions: list[int] = []
-        fit_positions: list[int] = []
-        true_positions: list[int] = []
-        for position, node in enumerate(tree.body):
-            if not isinstance(node, ast.Assign):
-                continue
-            names = [t.id for t in node.targets if isinstance(t, ast.Name)]
-            if "FIT_RUN_COMPLETED" in names and isinstance(node.value, ast.Constant):
-                if node.value.value is False:
-                    false_positions.append(position)
-                elif node.value.value is True:
-                    true_positions.append(position)
-            if isinstance(node.value, ast.Call):
-                func = node.value.func
-                if (
-                    (isinstance(func, ast.Name) and func.id == "fit_mitra")
-                    or (isinstance(func, ast.Attribute) and func.attr == "fit_mitra_predictor")
-                ):
-                    fit_positions.append(position)
-        if (
-            false_positions
-            and fit_positions
-            and true_positions
-            and min(false_positions) < min(fit_positions) < max(true_positions)
-        ):
-            return True
-    return False
-
-def predict_proba_calls_are_multiclass(
-    code_cells: list[tuple[int, str]], minimum_calls: int
-) -> bool:
-    calls = 0
-    for _, source in code_cells:
-        if not source.strip():
-            continue
-        for node in ast.walk(ast.parse(source)):
-            if not (
-                isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Attribute)
-                and node.func.attr == "predict_proba"
-            ):
-                continue
-            calls += 1
-            keyword = next((k for k in node.keywords if k.arg == "as_multiclass"), None)
-            if not (
-                keyword
-                and isinstance(keyword.value, ast.Constant)
-                and keyword.value.value is True
-            ):
-                return False
-    return calls >= minimum_calls
-
-
-def inference_step_is_self_contained(code_cells: list[tuple[int, str]]) -> bool:
-    for _, source in code_cells:
-        if "RUN_NEW_DATA_INFERENCE" not in source:
-            continue
-        tree = ast.parse(source)
-        imported_io = False
-        imported_pandas_as_pd = False
-        for node in tree.body:
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    if alias.name == "io":
-                        imported_io = True
-                    if alias.name == "pandas" and alias.asname == "pd":
-                        imported_pandas_as_pd = True
-        return imported_io and imported_pandas_as_pd
-    return False
-
-
-def has_safe_direct_weights_copy_guard(code_cells: list[tuple[int, str]]) -> bool:
-    for _, source in code_cells:
-        if "weights_from_dimer" not in source:
-            continue
-        tree = ast.parse(source)
-        for function in ast.walk(tree):
-            if not isinstance(function, ast.FunctionDef) or function.name != "weights_from_dimer":
-                continue
-            for candidate in ast.walk(function):
-                if not isinstance(candidate, ast.If):
-                    continue
-                test = candidate.test
-                if not (
-                    isinstance(test, ast.Compare)
-                    and len(test.ops) == 1
-                    and isinstance(test.ops[0], ast.NotEq)
-                    and len(test.comparators) == 1
-                    and ast.unparse(test.left) == "p.resolve()"
-                    and ast.unparse(test.comparators[0]) == "dest.resolve()"
-                ):
-                    continue
-                for statement in candidate.body:
-                    for node in ast.walk(statement):
-                        if not (
-                            isinstance(node, ast.Call)
-                            and isinstance(node.func, ast.Attribute)
-                            and isinstance(node.func.value, ast.Name)
-                            and node.func.value.id == "shutil"
-                            and node.func.attr == "copy2"
-                            and len(node.args) >= 2
-                            and ast.unparse(node.args[0]) == "p"
-                            and ast.unparse(node.args[1]) == "dest"
-                        ):
-                            continue
-                        return True
-    return False
-
-
-
-def validate_lockfile(path: Path) -> None:
-    require(path.exists(), f"missing notebook lockfile: {path}")
-    lock_text = path.read_text(encoding='utf-8')
-    require('/home/runner/' not in lock_text, f"runner-local path leaked into {path.name}")
-    for line in lock_text.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith('#') or stripped.startswith('--') or stripped.startswith('    #'):
-            continue
-        if stripped.startswith('    --hash='):
-            continue
-        token = stripped.split('\\', 1)[0].strip()
-        require('==' in token, f"unlocked requirement in {path.name}: {stripped}")
-
-def literal_string_assignment(code_cells: list[tuple[int, str]], name: str) -> str:
-    values: list[str] = []
-    for _, source in code_cells:
-        if not source.strip():
-            continue
-        tree = ast.parse(source)
-        for node in tree.body:
-            if not isinstance(node, ast.Assign):
-                continue
-            if not any(isinstance(target, ast.Name) and target.id == name for target in node.targets):
-                continue
-            require(
-                isinstance(node.value, ast.Constant) and isinstance(node.value.value, str),
-                f"{name} must be a literal string",
-            )
-            values.append(node.value.value)
-    require(len(values) == 1, f"expected exactly one literal assignment to {name}; found {len(values)}")
-    return values[0]
-
-
-def validate_lock_input(path: Path, expected: str) -> None:
-    require(path.exists(), f"missing lock input: {path}")
-    require(path.read_text(encoding='utf-8') == expected, f"unexpected lock input contents: {path.name}")
-
-
-def validate_embedded_lock(notebook: Path, lockfile: Path) -> None:
-    _, _, code = load_notebook(notebook)
-    embedded = literal_string_assignment(code, 'LOCKED_REQUIREMENTS')
-    committed = lockfile.read_text(encoding='utf-8')
-    require(
-        embedded == committed,
-        f"{notebook.name} embedded dependency graph drifted from {lockfile.name}",
+def main_tutorial() -> None:
+    payload, text, _code_cells, own = load_notebook(MAIN)
+    require_profile(payload, MAIN.name, "E2E")
+    require_markers(
+        text,
+        (
+            "**Profile:** `E2E`",
+            "**This notebook is standalone.**",
+            "validate_inputs(",
+            "validate_labeled_frame(",
+            "split_overlap_report(",
+            "cap_training_rows(",
+            "majority_class_baseline(",
+            "stratified_holdout(",
+            "classification_metrics(",
+            "align_probabilities(",
+            "require_class_coverage(",
+            "LGBMClassifier",
+            "RandomForestClassifier",
+            "evaluation_report(",
+            "no weight is gradient-updated",
+            "uncalibrated",
+            "no threshold",
+            "probability_",
+            "artifact_manifest.json",
+            "tutorial_run_metadata.json",
+            "write_artifact_manifest(",
+            "validate_artifact_directory(",
+            "safe_extract_archive(",
+            "np.testing.assert_allclose(",
+            "## Interpretation and limits",
+            "It does **not** establish",
+        ),
+        MAIN.name,
     )
+    own_text = "\n".join(own)
+    require(top_level_literal(own, "RUN_FINE_TUNING", False), "fine-tuning must be gated off by default")
+    require(top_level_literal(own, "RUN_NEW_DATA_INFERENCE", False), "new-data inference must be gated off by default")
+    require(top_level_literal(own, "USE_BYOD", False), "BYOD must be gated off by default")
+    require(top_level_literal(own, "MIN_SELECTION_HOLDOUT_ROWS", 50), "selection evidence guard missing")
+    require("pipe.fit(" in own_text and "ACTIVE_MODEL.predict(" in own_text, "main notebook must exercise the carried pipeline API")
+    require("TabularPredictor(" not in own_text and "hyperparameters=" not in own_text, "main notebook must not construct AutoGluon predictors outside the carried API")
+    require("predict_proba(" in own_text and "argmax" in text, "main classification notebook must expose class probabilities under the argmax rule")
+    require("github.com/kurtvalcorza" not in "\n".join(_code_cells), "main notebook must not reach this repository (ST1)")
+    require("from mitra_pipeline" not in own_text and "import mitra_pipeline" not in own_text, "main notebook must not import the repository package (ST1)")
 
 
-def validate_training_tutorial() -> None:
-    _, text, parsed_code = load_notebook(NOTEBOOK)
-
-    for required in (
-        PINNED_REVISION,
-        WEIGHTS_SHA256,
-        CONFIG_SHA256,
-        SAMPLE_REVISION,
-        "autogluon.tabular[mitra]==1.5.0",
-        "DIMER weights",
-        "Pinned upstream",
-        "Sample dataset (FreshRetailNet)",
-        "Upload pre-split train/val/test",
-        "freshretailnet-band-h7.zip",
-        "DATASET_CARD.md",
-        "train.csv",
-        "val.csv",
-        "test.csv",
-        "test_data",
-        "assert_resolver_locked",
-        "resolved_digest",
-        "contains unseen target classes",
-        "train_feature_set",
-        "reindex(columns=ordered_columns)",
-        "require_min_training_class_count",
-        "Capped training split",
-        "Inference CSV contains duplicate column names",
-        "torch_version",
-        "fine_tune_steps_requested",
-        "one-row accuracy resolution",
-        "FIT_RUN_COMPLETED",
-        "Cleared stale predictor state and output paths before fitting.",
-        "No predictor was successfully trained in this Step 4 execution.",
-        "shutil.rmtree",
-        "gc.collect",
-        "torch.cuda.empty_cache",
-        "## 7. Reload smoke test",
-        "TabularPredictor.load(str(reload_predictor_root))",
-        "np.allclose",
-        "CC BY 4.0",
-        "## AI use and provenance",
-        "GPT-5.6 Sol High",
-        "**Profile:** `E2E`",
-        "DIMER Notebook Specification v1.0",
-        "requirements-colab.lock.txt",
-        "artifact_format_version",
-        "artifact-manifest.json",
-        "SHA-256:",
-        "Data disclosure warning",
-        "calibration itself is not established",
-        "Unsafe archive member path",
-        "Symlink entries are not allowed",
-        "Python 3.12",
-        "load_dimer_weights",
-        "Upload model.safetensors downloaded from DIMER",
-        "Reload artifact manifest verified",
-        "Reload provenance validated",
-        "Reload feature schema validated before deserialization",
-        "Reload artifact feature schema reconciled with loaded predictor",
-        "PIPELINE_API_REVISION",
-        "PIPELINE_API_SHA256",
-        "PIPELINE_API.prepare_tabular_frame",
-        "PIPELINE_API.fit_mitra_predictor",
-        "Canonical 86-byte config.json reconstructed locally",
-    ):
-        require(required in text, f"missing required tutorial marker: {required}")
-
-    require(
-        "MOD7" in text and "provenance" in text.lower() and "producer" in text.lower(),
-        "tutorial must explicitly document the DIMER MOD7 producer-provenance status",
+def inference_tutorial() -> None:
+    payload, text, code_cells, own = load_notebook(INFERENCE)
+    require_profile(payload, INFERENCE.name, "ARTIFACT-INFERENCE")
+    require_markers(
+        text,
+        (
+            "**Profile:** `ARTIFACT-INFERENCE`",
+            "**This notebook is standalone.**",
+            "ARTIFACT_ZIP_PATH",
+            "NEW_DATA_PATH",
+            "EXPECTED_ZIP_SHA256",
+            "ALLOW_UNVERIFIED_ARTIFACT",
+            "artifact_manifest",
+            "run_metadata",
+            "validate_artifact_directory(",
+            "safe_extract_archive(",
+            "TabularPredictor.load(",
+            "validate_inputs(",
+            "uncalibrated",
+            "no threshold is shipped",
+            "probability_",
+            "_predictions.csv",
+            "A successful run proves",
+            "It does **not** prove",
+        ),
+        INFERENCE.name,
     )
-    require(
-        "limitation" in text.lower() or "does not" in text.lower(),
-        "tutorial must state interpretation or capability limitations",
-    )
-
-    for forbidden in FORBIDDEN:
-        require(
-            forbidden not in text,
-            f"standalone tutorial leaked forbidden dependency/configuration: {forbidden}",
-        )
-
-    code_text = "\n".join(source for _, source in parsed_code)
-    require(
-        re.search(r"\bDIMER_[A-Z0-9_]+\b", code_text) is None,
-        "standalone tutorial must not depend on DIMER_* runtime variables",
-    )
-    require(
-        "p.name != 'artifact-manifest.json'" not in code_text,
-        "artifact manifest producer must not exclude nested files by basename",
-    )
-    require(
-        "artifact_manifest_path = (active_path / 'artifact-manifest.json').resolve()" in code_text
-        and "p.resolve() != artifact_manifest_path" in code_text
-        and "artifact_manifest_path.write_text" in code_text,
-        "artifact manifest producer must exclude only the canonical root manifest path",
-    )
-    imports = repo_internal_imports(parsed_code)
-    require(
-        not imports,
-        f"standalone tutorial must not import repo-internal worker modules: {sorted(imports)}",
-    )
-
-    for name, expected in (
-        ("RUN_FINE_TUNING", False),
-        ("RUN_NEW_DATA_INFERENCE", False),
-        ("FINE_TUNE_STEPS", 50),
-        ("MAX_MEMORY_USAGE_RATIO", 1.1),
-        ("NETWORK_TIMEOUT_SECONDS", 30),
-    ):
-        require(
-            top_level_literal_assignments_match(parsed_code, name, expected),
-            f"every top-level assignment to {name} must be the literal default {expected!r}",
-        )
-
-    require(has_memory_guard(parsed_code), "tutorial must pass MAX_MEMORY_USAGE_RATIO through the direct or shared-API fit path")
-    require(
-        "ag.max_memory_usage_ratio" not in memory_guard_keys(parsed_code),
-        "tutorial must not use the prefixed ag.max_memory_usage_ratio key",
-    )
-    require(
-        has_current_fit_completion_gate(parsed_code),
-        "tutorial must invalidate FIT_RUN_COMPLETED before fitting and set it true only after a current fit completes",
-    )
-    require(
-        text.count("globals().get('FIT_RUN_COMPLETED', False)") >= 2,
-        "inference and export must both gate on the current Step 4 completion flag",
-    )
-    require(
-        text.count("require_min_training_class_count(train_data") >= 2,
-        "training class counts must be checked before and after the optional 10k cap",
-    )
-    training_attrs = call_attributes(parsed_code)
-    require(
-        "predict_mitra_proba" in training_attrs,
-        "training tutorial must route primary probability inference through the shared Mitra API",
-    )
-    if "predict_proba" in training_attrs:
-        require(
-            predict_proba_calls_are_multiclass(parsed_code, minimum_calls=1),
-            "direct reload-equivalence predict_proba calls must request as_multiclass=True",
-        )
-    require(
-        inference_step_is_self_contained(parsed_code),
-        "Step 5 inference must import io and pandas locally",
-    )
-    require(
-        "weights_from_dimer" not in code_text and "load_dimer_weights" in code_text,
-        "DIMER weights path must use the fail-closed weights-only loader",
-    )
+    own_text = "\n".join(own)
+    require(top_level_literal(own, "ALLOW_UNVERIFIED_ARTIFACT", False), "artifact-inference notebook must fail closed unless unverified loading is explicitly enabled")
+    require(".fit(" not in own_text, "artifact-inference notebook must not fit/train")
+    require("shutil.make_archive(" not in own_text and "write_artifact_manifest(" not in own_text, "artifact-inference notebook must not create an artifact")
+    require(own_text.index("validate_artifact_directory(") < own_text.index("TabularPredictor.load("), "manifest/provenance must be verified before deserialization")
+    require("AUTOGLUON_VERSION:" in own_text and "runtime_python_mm" in own_text, "runtime compatibility must be checked before deserialization")
+    require("to_csv(" in own_text, "artifact-inference notebook must export CSV")
+    require("github.com/kurtvalcorza" not in "\n".join(code_cells), "artifact notebook must not reach this repository (ST1)")
 
 
-def validate_inference_tutorial() -> None:
-    _, text, parsed_code = load_notebook(INFERENCE_NOTEBOOK)
+def docs_and_api() -> None:
+    readme = TUTORIAL_README.read_text(encoding="utf-8")
+    api = PUBLIC_API.read_text(encoding="utf-8")
+    req = [line.strip() for line in REQUIREMENTS.read_text(encoding="utf-8").splitlines() if line.strip() and not line.startswith("#")]
+    pyproject = PYPROJECT.read_text(encoding="utf-8")
+    deps_block = re.search(r"^dependencies\s*=\s*\[(.*?)^\]", pyproject, re.M | re.S)
+    require(deps_block is not None, "pyproject.toml must declare [project].dependencies (the notebooks' PINS)")
+    pins = re.findall(r'"([^"]+)"', deps_block.group(1))
+    require(all("==" in p for p in pins), "pyproject runtime deps must be == pinned")
+    # requirements-colab.in is the pip-compile input (a range for lightgbm); the exact pins live in pyproject.toml.
+    require(req[0] == pins[0] and req[0].startswith("autogluon.tabular[mitra]=="), f"tutorials/requirements-colab.in must lead with the pyproject AutoGluon pin: {req} vs {pins}")
+    require("autogluon.tabular[mitra]==1.5.0" in pins and "lightgbm==4.6.0" in pins, "pins must keep AutoGluon 1.5.0 and LightGBM 4.6.0")
 
-    for required in (
-        "autogluon.tabular[mitra]==1.5.0",
-        "mitra-predictor.zip",
-        "predictor.pkl",
-        "tutorial_run_metadata.json",
-        "safe_extract_zip",
-        "stat.S_IFLNK",
-        "TabularPredictor.load",
-        "FEATURE_COLUMNS",
-        "Inference CSV contains duplicate column names",
-        "predictions.csv",
-        "## AI use and provenance",
-        "GPT-5.6 Sol High",
-        "**Profile:** `ARTIFACT-INFERENCE`",
-        "DIMER Notebook Specification v1.0",
-        "requirements-inference.lock.txt",
-        "artifact_format_version",
-        "Required provenance validated",
-        "HF_HUB_OFFLINE",
-        "calibration for your deployment population has not been established",
-        "What a successful artifact-inference run proves",
-        "MAX_EXPANDED_BYTES",
-        "Backslash archive member paths are not allowed",
-        "Duplicate archive member path",
-        "Artifact manifest file set mismatch",
-        "Artifact manifest verified",
-        "outside the single predictor root",
-        "artifact-manifest.json must not list itself",
-        "SUPPORTED_MODEL_REVISION",
-        "Artifact format version",
-        "internal archive consistency",
-        "Python 3.12",
-        "This notebook is inference-only",
-        "PIPELINE_API_REVISION",
-        "PIPELINE_API_SHA256",
-        "PIPELINE_API.predict_mitra",
-        "PIPELINE_API.predict_mitra_proba",
-    ):
-        require(required in text, f"inference tutorial missing required marker: {required}")
-
-    code_sequence = "\n".join(source for _, source in parsed_code)
-    preload_candidates = (
-        "FEATURE_COLUMNS = run_metadata.get('features')",
-        "artifact_feature_columns = run_metadata['features']",
+    require_markers(
+        readme,
+        (
+            "DIMER Notebook Specification 2.0",
+            "`E2E`",
+            "`ARTIFACT-INFERENCE`",
+            "standalone (generated)",
+            "release-verification",
+            MODEL_ID,
+            PINNED_REVISION,
+        ),
+        "tutorials/README.md",
     )
-    preload_positions = [code_sequence.find(marker) for marker in preload_candidates if marker in code_sequence]
-    require(preload_positions, "inference tutorial must validate declared feature schema before deserialization")
-    load_position = code_sequence.find("TabularPredictor.load")
-    require(load_position >= 0 and min(preload_positions) < load_position, "feature-schema validation must precede TabularPredictor.load")
-    postload_markers = (
-        "predictor_features != FEATURE_COLUMNS",
-        "predictor_feature_columns != artifact_feature_columns",
+    require_markers(
+        api,
+        (
+            f'MODEL_ID = "{MODEL_ID}"',
+            f'MODEL_REVISION = "{PINNED_REVISION}"',
+            "PINNED_REVISION = MODEL_REVISION",
+            f'WEIGHTS_SHA256 = "{WEIGHTS_SHA256}"',
+            f'CONFIG_SHA256 = "{CONFIG_SHA256}"',
+            'ARTIFACT_FORMAT = "dimer-autogluon-predictor"',
+            "ARTIFACT_FORMAT_VERSION = 1",
+            "MAX_ARCHIVE_MEMBER_BYTES",
+            "MAX_ARCHIVE_EXPANDED_BYTES",
+            "MAX_COMPRESSION_RATIO",
+            "def validate_dimer_model_package",
+            "def write_artifact_manifest",
+            "def validate_artifact_directory",
+            "def safe_extract_archive",
+            "def fit_mitra_predictor",
+            "def verify_snapshot",
+            "def stage_missing_files",
+            "class MitraClassificationPipeline",
+            "def validate_inputs",
+            "def evaluation_report",
+        ),
+        "mitra_pipeline/tutorial_api.py",
     )
-    require(
-        "feature_metadata_in" in code_sequence and any(marker in code_sequence[load_position:] for marker in postload_markers),
-        "inference tutorial must reconcile declared feature schema with the loaded predictor",
-    )
-
-    for forbidden_text in (
-        "DIMER ZIP",
-        "dimer-model-manifest.json",
-        "load_dimer_package",
-    ):
-        require(
-            forbidden_text not in text,
-            f"inference tutorial contains stale/unsupported DIMER package wording: {forbidden_text}",
-        )
-
-    code_sequence = "\n".join(source for _, source in parsed_code)
-    api_load_pos = code_sequence.find("PIPELINE_API = load_pinned_pipeline_api()")
-    require(api_load_pos >= 0, "inference tutorial must load the pinned production pipeline API")
-    for assignment in (
-        "MODEL_ID = 'autogluon/mitra-classifier'",
-        "PINNED_REVISION = 'c425e9fa0910a6be1c494321792e7ba2a1367b1a'",
-        "EXPECTED_WEIGHTS_SHA256 = 'e06a055e91a3baeffc37f9cf634d9e69a27d904b6686131dc3b702f9c0126b19'",
-        "EXPECTED_CONFIG_SHA256 = '2c96c24dd25f64e92753f6f2ba00cc7833b9923459403dcd8504e8700c0995df'",
-    ):
-        assignment_pos = code_sequence.find(assignment)
-        require(
-            0 <= assignment_pos < api_load_pos,
-            f"inference tutorial must define {assignment.split(' = ', 1)[0]} before production-API compatibility checks",
-        )
-
-    code_text = "\n".join(source for _, source in parsed_code)
-    require(
-        re.search(r"\bDIMER_[A-Z0-9_]+\b", code_text) is None,
-        "inference tutorial must not depend on DIMER_* runtime variables",
-    )
-    for forbidden_code in (
-        "model.safetensors",
-        "config.json",
-        "hf_hub_download",
-        "huggingface_hub",
-        "fine_tune_steps",
-    ):
-        require(
-            forbidden_code not in code_text,
-            f"inference tutorial must not reacquire/train base model artifacts: {forbidden_code}",
-        )
-
-    imports = repo_internal_imports(parsed_code)
-    require(
-        not imports,
-        f"inference tutorial must not import repo-internal worker modules: {sorted(imports)}",
-    )
-    attrs = call_attributes(parsed_code)
-    require("fit" not in attrs, "inference tutorial must not call .fit(...)")
-    require("load" in attrs, "inference tutorial must load an exported predictor")
-    require("predict_mitra" in attrs, "inference tutorial must call shared-API predict_mitra(...)")
-    require("predict_mitra_proba" in attrs, "inference tutorial must call shared-API predict_mitra_proba(...)")
-    require(
-        "predict" not in attrs and "predict_proba" not in attrs,
-        "inference tutorial must not bypass the shared prediction API",
-    )
-    require(
-        not direct_tabular_predictor_construction(parsed_code),
-        "inference tutorial must reload an exported predictor, not construct a new TabularPredictor",
-    )
-
-
-def validate_docs() -> None:
-    root_readme = ROOT_README.read_text(encoding="utf-8")
-    for required in (
-        "## Try Mitra yourself in Google Colab",
-        "tutorials/mitra_classifier_colab.ipynb",
-        "colab.research.google.com",
-        "GPT-5.6 Sol High",
-        "Agent Relay",
-    ):
-        require(required in root_readme, f"root README missing tutorial/provenance marker: {required}")
-
-    tutorial_readme = TUTORIAL_README.read_text(encoding="utf-8")
-    for required in (
-        PINNED_REVISION,
-        WEIGHTS_SHA256,
-        CONFIG_SHA256,
-        "freshretailnet-band-h7.zip",
-        "DATASET_CARD.md",
-        "purged chronological split",
-        "CC BY 4.0",
-        "mitra_classifier_predictor_inference_colab.ipynb",
-        "mitra-predictor.zip",
-        "TabularPredictor.load",
-        "predictions.csv",
-        "## AI use and provenance",
-        "GPT-5.6 Sol High",
-    ):
-        require(required in tutorial_readme, f"tutorial README missing marker: {required}")
 
 
 def main() -> int:
-    colab_lock = ROOT / "tutorials" / "requirements-colab.lock.txt"
-    inference_lock = ROOT / "tutorials" / "requirements-inference.lock.txt"
-    validate_lock_input(
-        ROOT / "tutorials" / "requirements-colab.in",
-        "autogluon.tabular[mitra]==1.5.0\nlightgbm>=4.0,<4.8\n",
-    )
-    validate_lock_input(
-        ROOT / "tutorials" / "requirements-inference.in",
-        "autogluon.tabular[mitra]==1.5.0\n",
-    )
-    validate_lockfile(colab_lock)
-    validate_lockfile(inference_lock)
-    validate_embedded_lock(NOTEBOOK, colab_lock)
-    validate_embedded_lock(INFERENCE_NOTEBOOK, inference_lock)
-    validate_training_tutorial()
-    validate_inference_tutorial()
-    validate_docs()
-    print("Standalone Mitra Colab tutorials: OK")
+    main_tutorial()
+    inference_tutorial()
+    docs_and_api()
+    print("Mitra Classifier repository-specific Notebook Specification 1.1 static conformance: OK")
+    print("NOTE: static validation is not clean-runtime execution evidence.")
     return 0
 
 

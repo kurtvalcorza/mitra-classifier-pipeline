@@ -1,12 +1,14 @@
 ---
 license: apache-2.0
-model_card_spec: "1.0"
+model_card_spec: "1.1"
 pipeline_tag: tabular-classification
 tags:
   - tabular-classification
   - tabular-foundation-model
   - in-context-learning
 base_model: autogluon/mitra-classifier
+date_published: "2025-06-22"
+date_published_source: "Hugging Face Hub repository creation date of the exact hosted checkpoint (`createdAt`, https://huggingface.co/api/models/autogluon/mitra-classifier)"
 ---
 
 # Mitra Classifier
@@ -17,7 +19,7 @@ base_model: autogluon/mitra-classifier
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 
-###### Description
+#### Description
 
 Mitra Classifier packages the `autogluon/mitra-classifier` checkpoint at Hugging Face revision `c425e9fa0910a6be1c494321792e7ba2a1367b1a`, a pretrained tabular foundation model developed by the AutoGluon team at Amazon Web Services for supervised classification on structured datasets. The model is a Transformer specialised for tables: it applies row-wise and column-wise attention so that relationships across observations and across features are both represented, with 12 layers, a model dimension of 512, four attention heads, and approximately 75.7 million parameters according to the safetensors metadata. It was pretrained across roughly 45 million synthetically generated datasets drawn from structural causal models and tree-based priors (gradient boosting, random forests, decision trees, extra trees); the developers report that no real-world dataset was used directly in pretraining.
 
@@ -75,7 +77,7 @@ Metrics are chosen for a probabilistic multiclass classifier whose intended use 
 
 The fine-tuner evaluates the trained predictor on the held-out split with AutoGluon's `predictor.evaluate(..., auxiliary_metrics=True)` and writes every returned metric under `metrics.valEvaluation` in `result.json`, with `log_loss` sign-flipped to its conventional lower-is-better form. The headline metric is the DIMER hyperparameter `eval_metric` (default `accuracy`; `log_loss` and `roc_auc` map to Mitra-native early-stopping metrics, other AutoGluon metric names are reported but do not steer early stopping), recorded as `headlineMetric`/`headlineScore`.
 
-Why these: accuracy captures discrete correctness and is the right summary when classes are reasonably balanced and error costs are similar; log loss captures probability quality and penalises confident mistakes, which matters whenever the class probabilities are used operationally; ROC-AUC captures ranking quality independent of any threshold and is the informative one for imbalanced binary problems. Reading only accuracy hides both calibration and imbalance failures, which is why all three are written even when only one is the headline. Upstream, the Mitra paper reports mean accuracy 0.858 ± 0.143 and AUC 0.905 ± 0.124 for its `+ef` configuration across 137 datasets; that is a published aggregate for a different configuration, not a number this pipeline measures.
+Why these: accuracy captures discrete correctness and is the right summary when classes are reasonably balanced and error costs are similar; log loss captures probability quality and penalises confident mistakes, which matters whenever the class probabilities are used operationally; ROC-AUC captures ranking quality independent of any threshold and is the informative one for imbalanced binary problems. Reading only accuracy hides both calibration and imbalance failures, which is why all three are written even when only one is the headline. Upstream, the Mitra paper reports mean accuracy 0.858 ± 0.143 and AUC 0.905 ± 0.124 for its `+ef` configuration across 137 datasets; that is a published aggregate for a different configuration, not a number this pipeline measures. In the standalone tutorials `evaluation_report` in `mitra_pipeline/tutorial_api.py` carries `classification_metrics` (`accuracy`, `balanced_accuracy`, `log_loss`, `roc_auc`, `f1_macro`, `mcc`) next to `majority_class_baseline`, with the verdict `sample-sanity` on a single seeded stratified split or `not-measurable` when no labelled rows exist.
 
 ###### Decision thresholds
 
@@ -114,6 +116,8 @@ Implemented in this repository, each inspectable in the named code:
 - **Statistical mitigations:** tables over 10,000 rows are sampled down with `_stratified_cap`, which guarantees every class survives; a requested split that would empty a class is raised as an error rather than crashing in training.
 - **Reproducibility:** `seed` propagates to Python, NumPy, and torch; the result artifact records the base revision, weight and config digests, AutoGluon version, effective split, and effective row counts.
 - **Refusals:** `classNames` is written on every result payload, success or failure, because DIMER requires it; the fine-tuner trains a single Mitra model with `fit_weighted_ensemble=False` and asserts that the requested model actually trained, so no silent fallback to another AutoGluon learner can occur.
+
+In the standalone tutorials `validate_inputs` in `mitra_pipeline/tutorial_api.py` applies exactly the checks `validate_labeled_frame` and `validate_inference_frame` apply (unique columns, missing-target rows dropped and counted, row/feature/class ceilings, per-class minimum counts, fitted feature schema, no pre-existing output columns) and writes an input manifest before any model runs; `require_class_coverage` refuses holdout or test partitions whose classes differ from the support rows.
 
 ###### Risks and harms
 

@@ -82,25 +82,31 @@ def main() -> None:
         "".join(c.get("source", [])) if isinstance(c.get("source", []), list) else str(c.get("source", ""))
         for c in nb["cells"]
     )
+    # NOTEBOOK_SPEC 1.1 standalone carrier: the notebooks carry mitra_pipeline/tutorial_api.py (the public
+    # tutorial API, which mirrors this module's contract) instead of fetching finetuner/pipeline_api.py.
     for marker in (
-        "PIPELINE_API.prepare_tabular_frame",
-        "PIPELINE_API.validate_classification_target",
-        "PIPELINE_API.stratified_holdout",
-        "PIPELINE_API.stratified_cap",
-        "PIPELINE_API.fit_mitra_predictor",
-        "PIPELINE_API.evaluate_mitra",
-        "PIPELINE_API.predict_mitra",
-        "PIPELINE_API.predict_mitra_proba",
+        "validate_labeled_frame(",
+        "require_class_coverage(",
+        "stratified_holdout(",
+        "cap_training_rows(",
+        "pipe.fit(",
+        "pipe.evaluate(",
+        "ACTIVE_MODEL.predict(",
+        "ACTIVE_MODEL.predict_proba(",
     ):
         assert marker in nb_text, f"E2E notebook does not exercise {marker}"
+    nb_code = chr(10).join("".join(c.get("source", [])) for c in nb["cells"] if c.get("cell_type") == "code")
+    assert "PIPELINE_API_URL" not in nb_code and "github.com/kurtvalcorza" not in nb_code, "E2E notebook must not fetch this repository (ST1)"
 
     companion = json.loads((ROOT / "tutorials" / "mitra_classifier_predictor_inference_colab.ipynb").read_text(encoding="utf-8"))
     companion_text = "\n".join(
         "".join(c.get("source", [])) if isinstance(c.get("source", []), list) else str(c.get("source", ""))
         for c in companion["cells"]
     )
-    assert "PIPELINE_API.predict_mitra" in companion_text
-    assert "PIPELINE_API.predict_mitra_proba" in companion_text
+    assert "serving.predict(" in companion_text
+    assert "serving.predict_proba(" in companion_text
+    companion_code = chr(10).join("".join(c.get("source", [])) for c in companion["cells"] if c.get("cell_type") == "code")
+    assert "PIPELINE_API_URL" not in companion_code and "github.com/kurtvalcorza" not in companion_code
     print("Shared production-facing Mitra pipeline API contract: PASS")
 
 

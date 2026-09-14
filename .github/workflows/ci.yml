@@ -3,29 +3,51 @@ on:
   push:
     branches: [main]
   pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          python-version: "3.12"
-      - run: pip install pandas numpy scikit-learn
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12.14"
+      - name: Install static test dependencies (the package is root-level; AutoGluon is never installed here)
+        run: |
+          python -m pip install --upgrade pip==26.2.1
+          python -m pip install pandas==2.3.3 numpy==2.3.5 scikit-learn==1.7.2 pytest==8.4.2 ruff==0.16.6
       - name: Shared-block parity
         run: python scripts/check_shared.py
       - name: DIMER contract
         run: python scripts/check_contract.py
-      - name: Shared production Mitra API
-        run: python scripts/test_pipeline_api_contract.py
-      - name: Standalone Colab tutorial
+      - name: Lint
+        run: ruff check mitra_pipeline tests tools
+      - name: Unit tests (offline: snapshot helpers, role helpers, parity)
+        run: pytest -q
+      - name: Repository-specific spec 1.1 checks
         run: python scripts/validate_colab_tutorial.py
-      - name: Colab CSV header regressions
+      - name: Public tutorial API tests
+        run: python scripts/test_tutorial_api.py
+      - name: Colab CSV header classifications
         run: python scripts/test_colab_csv_headers.py
-      - name: Issue 16 tutorial hardening regressions
-        run: python scripts/test_issue16_hardening.py
-      - name: Compile deployables
+      - name: Validate tutorial and model-card source (NOTEBOOK_SPEC 1.1 standalone carrier)
+        run: python tools/validate_release_assets.py
+      - name: Standalone notebook parity (NOTEBOOK_SPEC 1.1 PAR3)
+        run: |
+          python tools/build_notebook.py --check
+          python tools/build_notebook.py --check --template tools/notebook_template_artifact_inference.py
+      - name: Compile deployables and tutorial API
         run: |
           python -m py_compile validator/validator.py validator/validate.py validator/contract_hardening.py
-          python -m py_compile finetuner/pipeline_api.py finetuner/train.py finetuner/contract_entrypoint.py finetuner/contract_hardening.py
-          python -m py_compile examples/build_freshretailnet_dataset.py
+          python -m py_compile finetuner/train.py finetuner/contract_entrypoint.py finetuner/contract_hardening.py
+          python -m py_compile mitra_pipeline/__init__.py mitra_pipeline/tutorial_api.py
