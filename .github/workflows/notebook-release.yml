@@ -67,7 +67,7 @@ jobs:
                   continue
               smoke_setup = (
                   "# GitHub-hosted integration-smoke reduction only; the shipped notebook is unchanged.\n"
-                  "train_data = PIPELINE_API.stratified_cap(train_data, TARGET_COLUMN, 24, SEED)\n"
+                  "train_data, _ = cap_training_rows(train_data, TARGET_COLUMN, seed=SEED, max_rows=24)\n"
                   "holdout_data = holdout_data.groupby(TARGET_COLUMN, group_keys=False).head(3).reset_index(drop=True)\n"
                   "if test_data is not None:\n"
                   "    test_data = test_data.groupby(TARGET_COLUMN, group_keys=False).head(3).reset_index(drop=True)\n"
