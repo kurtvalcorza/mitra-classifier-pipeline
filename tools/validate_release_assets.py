@@ -3,14 +3,14 @@
 Checks the two STANDALONE tutorial notebooks (DIMER Notebook Specification 2.0 §4) — the `E2E`
 tutorial and its `ARTIFACT-INFERENCE` companion — the tutorial registry, model card, README, STATUS.md
 and weight documentation for source conformance and cross-document identity consistency, and runs the
-generator parity checks (PAR1–PAR3) for every notebook.
+generator parity checks (PAR1–PAR3) for every generated standalone notebook. Explicitly allowlisted auxiliary workshop notebooks receive separate syntax, provenance, and registry checks without weakening generated-notebook parity.
 
 This is source validation only. A PASS here is NOT clean-runtime execution evidence;
 the release gate is defined in docs/release-verification.md.
 
-Two-notebook variant of the fleet validator (snapshot resnet50 @ 6c77f84, tooling updates 2026-09-13 15:40 + 17:10):
+Generated-pair variant of the fleet validator (snapshot resnet50 @ 6c77f84, tooling updates 2026-09-13 15:40 + 17:10):
 the constants block declares NOTEBOOKS (one entry per generated notebook: template, profile, gates, outputs,
-markers), PACKAGE_DIR (root-level package), IDENTITY_DOCS and the card-structure toggle; the shared block is the
+markers) plus AUXILIARY_NOTEBOOKS for explicitly reviewed hand-authored workshop carriers, PACKAGE_DIR (root-level package), IDENTITY_DOCS and the card-structure toggle; the shared block is the
 snapshot's (per-module PAR1 through build.load_context, joined-module digest, own-repo and mutable-git-dependency
 rules) with the per-notebook spec threaded through validate_notebooks().
 """
@@ -179,6 +179,35 @@ NOTEBOOKS = {
     },
 }
 
+# Explicitly allowlisted non-generated workshop notebooks. These are NOT part of
+# build_notebook.py parity and do not inherit clean-runtime evidence from the generated pair.
+AUXILIARY_NOTEBOOKS = {
+    "DIMER_FreshRetailNet_MultiModel_Classification_Workshop.ipynb": {
+        "profile": "WORKSHOP",
+        "mode": "WORKSHOP",
+        "revision": "1.0.0",
+        "code_markers": (
+            'EXPECTED_DATASET_SHA256 = "ad2d2a8729749bb055754e4867acfb048fc27816f4eb344961d962b59c0be6dd"',
+            'PRIMARY_METRIC = "balanced_accuracy"',
+            'FOUNDATION_PYTHON_SPEC = "3.12"',
+            '"run_fingerprint": run_fingerprint',
+            '"artifact_inventory": file_inventory',
+            'verify_file_inventory(run_dir / "artifact", entry["artifact_inventory"])',
+            'EVALUATE_FROZEN_TEST = False',
+            "RUNNER_SOURCE = ",
+        ),
+        "markdown_markers": (
+            "Mitra Classifier",
+            "TabDPT v1.2 Classifier",
+            "TabPFN-3 Classifier",
+            "TabICLv2 Classifier",
+            "training partition only",
+            "not benchmark evidence",
+            "non-commercial weights",
+        ),
+    },
+}
+
 # ---------------------------------------------------------------------------
 # Shared checks. Everything below is source/structure validation only. Passing
 # these checks is NOT clean-runtime execution evidence under DIMER Notebook
@@ -186,7 +215,7 @@ NOTEBOOKS = {
 # ---------------------------------------------------------------------------
 
 NOTEBOOK_SPEC = "2.0"
-ALLOWED_PROFILES = {"E2E", "ARTIFACT-INFERENCE", "TASK-INFERENCE", "MULTI-CAPABILITY", "SMOKE"}
+ALLOWED_PROFILES = {"E2E", "ARTIFACT-INFERENCE", "TASK-INFERENCE", "MULTI-CAPABILITY", "SMOKE", "WORKSHOP"}
 STATUS_TOKENS = ("Candidate", "Release-grade")
 PLACEHOLDER = re.compile(r"\b(TODO|TBD|FIXME)\b|Insert text here|Tooltip:", re.I)
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
@@ -669,22 +698,96 @@ def _validate_notebook_content(
     _check(ref in markdown, f"{path.name}: references must link {ref}")
 
 
+def _validate_auxiliary_workshop(path: Path, notebook: dict, spec: dict, registry: str) -> None:
+    """Static checks for an explicitly allowlisted, hand-authored multi-repository workshop."""
+    _check(notebook.get("nbformat") == 4, f"{path.name}: nbformat must be 4")
+    metadata = notebook.get("metadata", {})
+    _check(
+        metadata.get("workshop_revision") == spec["revision"],
+        f"{path.name}: metadata.workshop_revision must be {spec['revision']!r}",
+    )
+    dimer = metadata.get("dimer", {})
+    _check(dimer.get("notebook_profile") == spec["profile"], f"{path.name}: auxiliary profile mismatch")
+    _check(dimer.get("notebook_mode") == spec["mode"], f"{path.name}: auxiliary mode mismatch")
+    _check(dimer.get("notebook_spec") == NOTEBOOK_SPEC, f"{path.name}: auxiliary notebook spec must be {NOTEBOOK_SPEC}")
+    _check(dimer.get("standalone") is False, f"{path.name}: multi-repository workshop must not claim standalone parity")
+
+    cells = notebook.get("cells", [])
+    _check(bool(cells), f"{path.name}: notebook has no cells")
+    code_sources: list[str] = []
+    markdown_sources: list[str] = []
+
+    for index, cell in enumerate(cells):
+        source = _cell_source(cell)
+        if cell.get("cell_type") == "code":
+            _check(cell.get("execution_count") is None, f"{path.name}: code cell {index} must have no execution count")
+            _check(not cell.get("outputs"), f"{path.name}: code cell {index} must have no committed outputs")
+            _check(
+                not re.search(r"(?m)^\s*[%!]|get_ipython\(\)", source),
+                f"{path.name}: code cell {index} must use plain Python, not notebook magic/shell escapes",
+            )
+            try:
+                ast.parse(source, filename=f"{path.name}:cell-{index}")
+            except SyntaxError as exc:
+                raise ValidationError(f"{path.name}: code cell {index} does not parse: {exc}") from exc
+            code_sources.append(source)
+        elif cell.get("cell_type") == "markdown":
+            markdown_sources.append(source)
+
+    code = "\n".join(code_sources)
+    markdown = "\n".join(markdown_sources)
+    for marker in spec["code_markers"]:
+        _check(marker in code, f"{path.name}: missing workshop code marker {marker!r}")
+    for marker in spec["markdown_markers"]:
+        _check(marker in markdown, f"{path.name}: missing workshop markdown marker {marker!r}")
+
+    runner_values: list[str] = []
+    for index, source in enumerate(code_sources):
+        if "RUNNER_SOURCE =" not in source:
+            continue
+        tree = ast.parse(source, filename=f"{path.name}:runner-carrier-{index}")
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Assign):
+                continue
+            if any(isinstance(target, ast.Name) and target.id == "RUNNER_SOURCE" for target in node.targets):
+                try:
+                    value = ast.literal_eval(node.value)
+                except Exception as exc:
+                    raise ValidationError(f"{path.name}: RUNNER_SOURCE must be a Python string literal") from exc
+                _check(isinstance(value, str), f"{path.name}: RUNNER_SOURCE must evaluate to str")
+                runner_values.append(value)
+    _check(len(runner_values) == 1, f"{path.name}: expected exactly one embedded RUNNER_SOURCE")
+    try:
+        ast.parse(runner_values[0], filename=f"{path.name}:embedded-runner")
+    except SyntaxError as exc:
+        raise ValidationError(f"{path.name}: embedded foundation runner does not parse: {exc}") from exc
+
+    _check(f"`{path.name}`" in registry, f"{path.name} missing from tutorials/README.md")
+    _check(f"`{spec['profile']}`" in registry, f"tutorials/README.md must record `{spec['profile']}`")
+
+
 def validate_notebooks() -> None:
     tutorials = ROOT / "tutorials"
     notebooks = sorted(tutorials.glob("*.ipynb"))
-    names = sorted(NOTEBOOKS)
+    generated_names = sorted(NOTEBOOKS)
+    auxiliary_names = sorted(AUXILIARY_NOTEBOOKS)
+    allowed_names = sorted(set(generated_names) | set(auxiliary_names))
     _check(
-        [p.name for p in notebooks] == names,
-        f"tutorial notebooks must be exactly {names}, found {[p.name for p in notebooks]}",
+        [p.name for p in notebooks] == allowed_names,
+        f"tutorial notebooks must be the generated pair plus explicitly allowlisted auxiliaries {allowed_names}, found {[p.name for p in notebooks]}",
     )
     build = _load_tool("build_notebook")
     registry = _read(tutorials / "README.md")
     for path in notebooks:
+        notebook = json.loads(_read(path))
+        if path.name in AUXILIARY_NOTEBOOKS:
+            _validate_auxiliary_workshop(path, notebook, AUXILIARY_NOTEBOOKS[path.name], registry)
+            continue
+
         spec = NOTEBOOKS[path.name]
         template = _load_tool(spec["template"]).TEMPLATE
         _check(template["notebook_name"] == path.name, f"tools/{spec['template']}.py must name {path.name}")
         _check(template["profile"] == spec["profile"], f"tools/{spec['template']}.py profile must be {spec['profile']}")
-        notebook = json.loads(_read(path))
         code_cells, markdown = _validate_notebook_structure(path, notebook, spec, template, build)
         embedded = _validate_embedded_modules(path, notebook, build, template)
         _model_id, revision = _package_identity(template)
@@ -697,7 +800,7 @@ def validate_notebooks() -> None:
         f"DIMER Notebook Specification {NOTEBOOK_SPEC}" in registry,
         "tutorials/README.md must name the notebook spec version",
     )
-    _check("standalone" in registry.lower(), "tutorials/README.md must record that the notebooks are standalone")
+    _check("standalone" in registry.lower(), "tutorials/README.md must record that the generated notebooks are standalone")
 
 
 def validate_all() -> list[str]:
@@ -705,7 +808,7 @@ def validate_all() -> list[str]:
     validate_identity_consistency()
     validate_release_status()
     validate_notebooks()
-    return ["model-card", "identity-consistency", "release-status", "notebooks+parity"]
+    return ["model-card", "identity-consistency", "release-status", "generated-notebooks+parity", "auxiliary-workshop"]
 
 
 def main() -> int:
