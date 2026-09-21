@@ -56,7 +56,7 @@ jobs:
           source_path = Path("tutorials/mitra_classifier_colab.ipynb")
           smoke_path = Path("/content/mitra_classifier_colab_ci_smoke.ipynb")
           notebook = json.loads(source_path.read_text(encoding="utf-8"))
-          marker = "baseline_predictor = fit_mitra(False, BASELINE_PATH, BASELINE_TIME_LIMIT)"
+          marker = "pipe.fit(train_data, target_column=TARGET_COLUMN, eval_metric=EVAL_METRIC, path=PRETRAINED_PATH, fine_tune=False"
           injected = False
           for cell in notebook.get("cells", []):
               if cell.get("cell_type") != "code":
