@@ -4,17 +4,16 @@
 (`ARTIFACT-INFERENCE`) are **release candidates** until the exact notebook revisions have executed top-to-bottom in a
 clean supported runtime. Unit tests, JSON validation, code-cell compilation, and `tools/validate_release_assets.py` are
 necessary checks but are **not** runtime evidence under DIMER Notebook Specification 1.1. This file is the durable
-release-gate record for both notebooks.
+release-gate record for both generated standalone notebooks. The separate FreshRetailNet multi-model workshop is an auxiliary workshop carrier: it is statically validated by `tools/validate_release_assets.py`, but it requires its own clean-runtime execution evidence before teaching and does not inherit this pair's release evidence.
 
 ## Automatic coverage (static, every pull request)
 
-CI runs `tools/validate_release_assets.py`, which checks, for each of the two notebooks:
+CI runs `tools/validate_release_assets.py`, which preserves full generator/parity checks for the two generated standalone notebooks and separately validates the explicitly allowlisted comparative workshop:
 
 - notebook JSON parses; every code cell compiles as plain Python (no `%`/`!` magics); no persisted outputs or
   execution counts; no unresolved placeholder markers; every code cell is preceded by an explanatory markdown cell;
-- exactly the two tutorial notebooks, each named in `tutorials/README.md` with its profile, the notebook-spec version and
-  the standalone carrier; `metadata.dimer` declares that profile, spec `1.1`, `standalone: true` and `generated_from`
-  (repository, module commit, module path `mitra_pipeline/tutorial_api.py`, module SHA-256, generator);
+- the tutorial directory contains exactly the two generated standalone notebooks plus explicitly allowlisted auxiliary notebooks; the generated pair remains named in `tutorials/README.md` with its profile, notebook-spec version and standalone carrier, while the comparative workshop is registered as `WORKSHOP` / multi-repository and cannot claim standalone parity;
+- the auxiliary FreshRetailNet workshop has no committed outputs or execution counts, every code cell and its embedded isolated runner parse as Python, `metadata.dimer` records `WORKSHOP`, spec `2.0`, `standalone: false`, and the pinned dataset SHA / balanced-accuracy / Python-3.12 / identity-bound cache / frozen-artifact verification markers are present;
 - the standalone carrier (ST1–ST6, PAR1–PAR3): no clone, repository install or repository import on the primary path
   (the previous pair's `git clone` of this repository is gone); one cell tagged `embedded_module` equal to
   `mitra_pipeline/tutorial_api.py` after the generator's documented rewrite (the `DEFAULT_WEIGHTS_DIR` line); the inline
