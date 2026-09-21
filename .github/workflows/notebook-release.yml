@@ -132,17 +132,47 @@ jobs:
                   raise FileNotFoundError(str(p))
               print(f"CI download shim retained {p} as integration-smoke output.")
           PY
+          if [ -f outputs/mitra_classifier_predictor.zip ]; then
+            cp outputs/mitra_classifier_predictor.zip /content/mitra-predictor.zip
+          elif [ -f /content/outputs/mitra_classifier_predictor.zip ]; then
+            cp /content/outputs/mitra_classifier_predictor.zip /content/mitra-predictor.zip
+          else
+            echo "Error: mitra_classifier_predictor.zip not found"
+            find . /content -name "*predictor*.zip" -ls || true
+            exit 1
+          fi
           python - <<'PY'
-          import zipfile
+          import hashlib
+          import json
           from pathlib import Path
-          import pandas as pd
+          from sklearn.datasets import load_breast_cancer
 
-          sample = Path("examples/sample-data/freshretailnet-band-h7.zip")
-          with zipfile.ZipFile(sample) as zf:
-              test_name = next(name for name in zf.namelist() if Path(name).name == "test.csv")
-              with zf.open(test_name) as handle:
-                  frame = pd.read_csv(handle)
-          frame.drop(columns=["target"]).tail(24).to_csv("/content/mitra-classifier-independent-inference.csv", index=False)
+          # 1. Independent inference rows matching the trained schema
+          dataset = load_breast_cancer(as_frame=True)
+          dataset.data.tail(24).to_csv("/content/mitra-classifier-independent-inference.csv", index=False)
+
+          # 2. Compute trusted artifact digest and prepare smoke copy of companion notebook
+          zip_path = Path("/content/mitra-predictor.zip")
+          zip_digest = hashlib.sha256(zip_path.read_bytes()).hexdigest()
+
+          source_path = Path("tutorials/mitra_classifier_predictor_inference_colab.ipynb")
+          smoke_path = Path("/content/mitra_classifier_predictor_inference_colab_ci_smoke.ipynb")
+          notebook = json.loads(source_path.read_text(encoding="utf-8"))
+          injected = False
+          for cell in notebook.get("cells", []):
+              if cell.get("cell_type") != "code":
+                  continue
+              source = cell.get("source", [])
+              text = "".join(source) if isinstance(source, list) else str(source)
+              if "EXPECTED_ZIP_SHA256 = ''" in text:
+                  text = text.replace("EXPECTED_ZIP_SHA256 = ''", f"EXPECTED_ZIP_SHA256 = '{zip_digest}'", 1)
+                  cell["source"] = text.splitlines(keepends=True)
+                  injected = True
+                  break
+          if not injected:
+              raise RuntimeError("Could not locate EXPECTED_ZIP_SHA256 marker for artifact inference smoke.")
+          smoke_path.write_text(json.dumps(notebook, indent=1), encoding="utf-8")
+          print(f"Prepared inference smoke notebook with trusted digest: {zip_digest}")
           PY
           {
             echo 'PYTHONPATH=/tmp/colab-shim'
@@ -154,11 +184,18 @@ jobs:
         run: |
           jupyter nbconvert \
             --to notebook \
-            --execute tutorials/mitra_classifier_predictor_inference_colab.ipynb \
+            --execute /content/mitra_classifier_predictor_inference_colab_ci_smoke.ipynb \
             --output executed-mitra-classifier-artifact-inference.ipynb \
             --output-dir /content \
             --ExecutePreprocessor.timeout=900 \
             --ExecutePreprocessor.kernel_name=python3
+          if [ -f outputs/mitra_classifier_predictor_inference_predictions.csv ]; then
+            cp outputs/mitra_classifier_predictor_inference_predictions.csv /content/predictions.csv
+          elif [ -f /content/outputs/mitra_classifier_predictor_inference_predictions.csv ]; then
+            cp /content/outputs/mitra_classifier_predictor_inference_predictions.csv /content/predictions.csv
+          elif [ -f outputs/mitra_classifier_predictions.csv ]; then
+            cp outputs/mitra_classifier_predictions.csv /content/predictions.csv
+          fi
 
       - name: Assert integration-smoke outputs
         id: assert-outputs
