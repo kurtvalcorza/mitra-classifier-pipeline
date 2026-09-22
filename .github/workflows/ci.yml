@@ -32,7 +32,7 @@ jobs:
         run: python scripts/check_contract.py
       - name: Lint
         run: ruff check mitra_pipeline tests tools
-      - name: Unit tests (offline: snapshot helpers, role helpers, parity)
+      - name: "Unit tests (offline: snapshot helpers, role helpers, parity)"
         run: pytest -q
       - name: Repository-specific spec 1.1 checks
         run: python scripts/validate_colab_tutorial.py
