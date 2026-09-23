@@ -59,7 +59,7 @@ Concrete application domains envisioned during development: binary and multiclas
 
 ###### Primary Intended Users
 
-Machine-learning researchers, data scientists, machine-learning engineers, and software developers working with structured datasets, and practitioners who want a pretrained foundation model for small-data tabular classification. The envisioned deployment setting is internal enterprise or research use through the DIMER platform, not a public-facing service.
+Machine-learning researchers, data scientists, machine-learning engineers, and software developers working with structured datasets, and practitioners who want a pretrained foundation model for small-data tabular classification. The envisioned deployment setting is research or in-house enterprise use on infrastructure the user controls, not a public-facing service.
 
 The pipeline assumes its users understand the provenance and semantics of their input data, the meaning of the target variable, the consequences of classification errors, and the limits of their own evaluation methodology: a user is expected to know that `predict()` is an argmax over uncalibrated class probabilities, that a holdout metric on a 50-row table has wide variance, and that a public benchmark table may overlap the tutorial data. A user who cannot tell a stratified holdout from an in-sample score is outside the assumed competency.
 
