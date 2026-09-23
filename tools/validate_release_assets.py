@@ -183,9 +183,9 @@ NOTEBOOKS = {
 # build_notebook.py parity and do not inherit clean-runtime evidence from the generated pair.
 AUXILIARY_NOTEBOOKS = {
     "DIMER_FreshRetailNet_MultiModel_Classification_Workshop.ipynb": {
-        "profile": "WORKSHOP",
+        "profile": "E2E",
         "mode": "WORKSHOP",
-        "revision": "1.0.0",
+        "revision": "2.0.0",
         "code_markers": (
             'EXPECTED_DATASET_SHA256 = "ad2d2a8729749bb055754e4867acfb048fc27816f4eb344961d962b59c0be6dd"',
             'PRIMARY_METRIC = "balanced_accuracy"',
