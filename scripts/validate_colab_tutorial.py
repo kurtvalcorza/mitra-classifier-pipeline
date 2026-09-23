@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Repository-specific static checks for the standalone Mitra Classifier tutorials (NOTEBOOK_SPEC 1.1).
+"""Repository-specific static checks for the standalone Mitra Classifier tutorials (NOTEBOOK_SPEC 2.0).
 
 The carrier, parity, hygiene and profile checks live in ``tools/validate_release_assets.py`` (run first). This
 script keeps the invariants specific to this repository's contract: the notebooks exercise the public API in
@@ -70,7 +70,7 @@ def load_notebook(path: Path) -> tuple[dict, str, list[str], list[str]]:
 def require_profile(payload: dict, filename: str, expected: str) -> None:
     dimer = payload.get("metadata", {}).get("dimer", {})
     require(dimer.get("notebook_profile") == expected, f"{filename}: metadata profile must be {expected}")
-    require(str(dimer.get("notebook_spec")) == "1.1" and dimer.get("standalone") is True, f"{filename}: must be standalone spec 1.1")
+    require(str(dimer.get("notebook_spec")) == "2.0" and dimer.get("standalone") is True, f"{filename}: must be standalone spec 2.0")
 
 
 def require_markers(text: str, markers: tuple[str, ...], label: str) -> None:
@@ -230,7 +230,7 @@ def main() -> int:
     main_tutorial()
     inference_tutorial()
     docs_and_api()
-    print("Mitra Classifier repository-specific Notebook Specification 1.1 static conformance: OK")
+    print("Mitra Classifier repository-specific Notebook Specification 2.0 static conformance: OK")
     print("NOTE: static validation is not clean-runtime execution evidence.")
     return 0
 
