@@ -185,15 +185,18 @@ AUXILIARY_NOTEBOOKS = {
     "DIMER_FreshRetailNet_MultiModel_Classification_Workshop.ipynb": {
         "profile": "E2E",
         "mode": "WORKSHOP",
+        "notebook_spec": "2.1",
+        "standalone": True,
         "revision": "2.0.0",
         "code_markers": (
             'EXPECTED_DATASET_SHA256 = "ad2d2a8729749bb055754e4867acfb048fc27816f4eb344961d962b59c0be6dd"',
             'PRIMARY_METRIC = "balanced_accuracy"',
-            'FOUNDATION_PYTHON_SPEC = "3.12"',
+            "CARRIED_ADAPTER_SOURCES = ",
+            "MODEL_ENVIRONMENT_DEPENDENCIES = ",
             '"run_fingerprint": run_fingerprint',
             '"artifact_inventory": file_inventory',
             'verify_file_inventory(run_dir / "artifact", entry["artifact_inventory"])',
-            'EVALUATE_FROZEN_TEST = False',
+            'EVALUATE_FROZEN_TEST = True',
             "RUNNER_SOURCE = ",
         ),
         "markdown_markers": (
@@ -709,8 +712,12 @@ def _validate_auxiliary_workshop(path: Path, notebook: dict, spec: dict, registr
     dimer = metadata.get("dimer", {})
     _check(dimer.get("notebook_profile") == spec["profile"], f"{path.name}: auxiliary profile mismatch")
     _check(dimer.get("notebook_mode") == spec["mode"], f"{path.name}: auxiliary mode mismatch")
-    _check(dimer.get("notebook_spec") == NOTEBOOK_SPEC, f"{path.name}: auxiliary notebook spec must be {NOTEBOOK_SPEC}")
-    _check(dimer.get("standalone") is False, f"{path.name}: multi-repository workshop must not claim standalone parity")
+    auxiliary_spec = spec.get("notebook_spec", NOTEBOOK_SPEC)
+    _check(dimer.get("notebook_spec") == auxiliary_spec, f"{path.name}: auxiliary notebook spec must be {auxiliary_spec}")
+    _check(
+        dimer.get("standalone") is spec.get("standalone", False),
+        f"{path.name}: auxiliary standalone declaration does not match its reviewed carrier contract",
+    )
 
     cells = notebook.get("cells", [])
     _check(bool(cells), f"{path.name}: notebook has no cells")
