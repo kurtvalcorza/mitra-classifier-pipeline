@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Upstream model | `autogluon/mitra-classifier` (Hugging Face) |
-| Files | `model.safetensors` (302,717,904 bytes), `config.json` (81 bytes) |
+| Files | `model.safetensors` (302,717,904 bytes), `config.json` (86 bytes) |
 | Immutable revision | `c425e9fa0910a6be1c494321792e7ba2a1367b1a` |
 | SHA-256 `model.safetensors` | `e06a055e91a3baeffc37f9cf634d9e69a27d904b6686131dc3b702f9c0126b19` |
 | SHA-256 `config.json` | `2c96c24dd25f64e92753f6f2ba00cc7833b9923459403dcd8504e8700c0995df` |
