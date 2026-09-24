@@ -187,7 +187,7 @@ AUXILIARY_NOTEBOOKS = {
         "mode": "WORKSHOP",
         "notebook_spec": "2.1",
         "standalone": True,
-        "revision": "2.0.1",
+        "revision": "2.1.0",
         "code_markers": (
             'EXPECTED_DATASET_SHA256 = "ad2d2a8729749bb055754e4867acfb048fc27816f4eb344961d962b59c0be6dd"',
             'PRIMARY_METRIC = "balanced_accuracy"',
