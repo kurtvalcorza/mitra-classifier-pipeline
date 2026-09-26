@@ -220,6 +220,8 @@ AUXILIARY_NOTEBOOKS = {
         ),
     },
     "DIMER_FreshRetailNet_MultiModel_Classification_Workshop_v2.ipynb": {
+        # Committed with the outputs of its recorded Colab run (kept by maintainer decision).
+        "committed_outputs": "executed-record",
         "profile": "E2E",
         "mode": "WORKSHOP",
         "notebook_spec": "2.1",
@@ -824,8 +826,16 @@ def _validate_auxiliary_workshop(path: Path, notebook: dict, spec: dict, registr
     for index, cell in enumerate(cells):
         source = _cell_source(cell)
         if cell.get("cell_type") == "code":
-            _check(cell.get("execution_count") is None, f"{path.name}: code cell {index} must have no execution count")
-            _check(not cell.get("outputs"), f"{path.name}: code cell {index} must have no committed outputs")
+            if spec.get("committed_outputs") == "executed-record":
+                # The maintainer keeps this notebook's recorded Colab run in the file, so outputs and
+                # execution counts are allowed. A recorded run must still be error-free.
+                _check(
+                    not any(output.get("output_type") == "error" for output in cell.get("outputs", [])),
+                    f"{path.name}: code cell {index} has an error output in the committed executed record",
+                )
+            else:
+                _check(cell.get("execution_count") is None, f"{path.name}: code cell {index} must have no execution count")
+                _check(not cell.get("outputs"), f"{path.name}: code cell {index} must have no committed outputs")
             _check(
                 not re.search(r"(?m)^\s*[%!]|get_ipython\(\)", source),
                 f"{path.name}: code cell {index} must use plain Python, not notebook magic/shell escapes",
