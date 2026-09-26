@@ -161,3 +161,18 @@ Evidence recorded on 2026-09-26; **Candidate**, not a release promotion. This se
 5. Retain both BYOD records against the exact revised blob and reconcile the registry only after reviewing their outcomes. Do not claim REL12 from validation-only checks. The original default-path record combines maintainer-confirmed fresh execution with saved-output inspection; it does not establish a rerun of the revised prose blob.
 
 The optional learning activity stops before freeze/test and leaves the canonical default unchanged. A learner who has seen test outcomes must not reuse them to reselect models or claim a fresh unbiased evaluation.
+
+
+## Maintainer-supplied Colab execution — 2026-09-26
+
+The maintainer reported that this notebook passed an end-to-end Colab run and authorized merging its open PR. The supplied [executed notebook](execution-evidence/2026-09-26/DIMER_FreshRetailNet_MultiModel_Classification_Workshop_v2.ipynb) is preserved byte-for-byte as evidence.
+
+- Reviewed source commit: `2b1ff008f178159aa42a321f8491469747c8a7b7`.
+- Executed-file SHA-256: `d0566df5b8db6bda7ccf9e784b8e713e039add117b5e2f5f30c7a78b3fb8205e`.
+- Independently inspected: 22 executed code cells; zero saved error outputs; terminal completion and exports present.
+- Configuration/source comparison: Default controls; cell sources match the reviewed PR exactly.
+- Evidence boundary: saved outputs were inspected; execution was not independently repeated. This submission establishes the recorded path, not optional FULL/BYOD paths. Fresh-runtime/restart details beyond the maintainer's explicit prior confirmations are not inferred.
+
+This record supersedes the pending rerun item for the source/configuration above. It does not promote the whole pipeline or close untested optional-path qualification.
+
+The older v1 tutorial saved outputs were moved unchanged to [legacy evidence](execution-evidence/2026-09-26/legacy-classification-saved-outputs.ipynb) so its source carrier satisfies the existing clean-output validator. No v1 code changed.
