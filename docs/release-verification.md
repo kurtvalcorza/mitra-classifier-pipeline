@@ -13,7 +13,7 @@ CI runs `tools/validate_release_assets.py`, which preserves full generator/parit
 - notebook JSON parses; every code cell compiles as plain Python (no `%`/`!` magics); no persisted outputs or
   execution counts; no unresolved placeholder markers; every code cell is preceded by an explanatory markdown cell;
 - the tutorial directory contains exactly the two generated standalone notebooks plus explicitly allowlisted auxiliary notebooks; the generated pair remains named in `tutorials/README.md` with its profile, notebook-spec version and standalone carrier, while the comparative workshop is registered separately as `E2E` / `WORKSHOP`, Notebook Spec `2.1`, with a standalone embedded-adapter carrier; it does not inherit generated-notebook parity evidence;
-- the auxiliary FreshRetailNet workshop has no committed outputs or execution counts, every code cell and its embedded isolated runner parse as Python, `metadata.dimer` records `E2E` / `WORKSHOP`, spec `2.1`, `standalone: true`, and the pinned dataset SHA / balanced-accuracy / `uv`-managed Python-3.12 / identity-bound cache / frozen-artifact verification markers are present;
+- the original auxiliary FreshRetailNet workshop requires no committed outputs or execution counts; the v2 executed-record exception retains outputs and counts and rejects saved errors. For both, every code cell and its embedded isolated runner parse as Python, `metadata.dimer` records `E2E` / `WORKSHOP`, spec `2.1`, `standalone: true`, and the pinned dataset SHA / balanced-accuracy / `uv`-managed Python-3.12 / identity-bound cache / frozen-artifact verification markers are present;
 - the standalone carrier (ST1–ST6, PAR1–PAR3): no clone, repository install or repository import on the primary path
   (the previous pair's `git clone` of this repository is gone); one cell tagged `embedded_module` equal to
   `mitra_pipeline/tutorial_api.py` after the generator's documented rewrite (the `DEFAULT_WEIGHTS_DIR` line); the inline
@@ -136,3 +136,28 @@ cell in a runtime that has no repository checkout — has been validated statica
 package import blocked), never run. The clean runs will be the first execution of the standalone path, of the staging path,
 of the new helpers (`validate_inputs`, `majority_class_baseline`, `evaluation_report`) and of `MitraClassificationPipeline`
 against the real weights.
+
+## FreshRetailNet Classification v2: saved Colab execution and guided update
+
+Evidence recorded on 2026-09-26; **Candidate**, not a release promotion. This section applies only to `tutorials/DIMER_FreshRetailNet_MultiModel_Classification_Workshop_v2.ipynb`, not the original workshop or generated tutorial pair.
+
+| Evidence | Recorded fact / limit |
+|---|---|
+| Original notebook commit | `33602f8952dbcab61f3b19925d36ffc4f696bc28` |
+| Original notebook Git blob | `d8a4c6290b29261a44364dc0b42a483dc7af4b3d` |
+| Execution report | Maintainer confirmed a fresh Colab runtime and default Run all, with no manual restarts or rerunning cells. Saved outputs were independently inspected; execution was not independently rerun. The precise run timestamp is not recorded. |
+| Saved outputs inspected | 22/22 code cells have execution counts and outputs; zero saved error outputs. Terminal summary records `pinned-public-sample`, 9 validation models, 11 frozen test models, no foundation failures, and completion of validation, freeze, artifact reload, independent test evaluation, inference preview, and export. |
+| Declared default configuration | `USE_BYOD=False`; four in-context foundation models enabled; optional fine-tuned conditions disabled; classical ablations enabled; optional foundation ablation disabled; freeze, test evaluation, and ZIP export enabled. These saved source settings match the maintainer-confirmed fresh default Run all. |
+| Runtime boundary | Maintainer-confirmed fresh Google Colab execution; the notebook uses isolated Python 3.12 model environments. Fresh/default execution provenance is established by that confirmation for the original code revision. A complete runtime/device/package inventory should accompany the next exact-revision run; no independent rerun is claimed. |
+| Revised guided layer | Markdown adds Input → Model → Output, section roles, predictions before results, and a bounded validation-only ablation exercise. Every code-cell object, including source, output, count and metadata, is retained from the original blob. Saved outputs therefore document the original execution, not a new run of the revised notebook. |
+| Local BYOD evidence | Actual v2 acquisition and validation code accepted a path-based compatible ZIP (60 rows per split, 17 numeric features, all three classes) and rejected a ZIP whose validation CSV lacked `lag_1` with `val: schema mismatch`. Only existing form assignments were overridden in memory; helpers were extracted from the notebook. No models were executed. This is validation-only evidence, not full REL12. |
+
+### Remaining exact-revision release checks
+
+1. Record the revised notebook commit/blob, a fresh supported Colab runtime, Python/package/device inventory, clean model-cache status, and unchanged default controls. Run all and retain the full executed notebook plus exported report. Inspect the final summary and every selected model result, not just the terminal message.
+2. For positive BYOD coverage, use a separate fresh runtime and a lawful representative retail dataset with pre-split `train.csv`, `val.csv`, and `test.csv`. Match the exact ordered 17-feature schema from Section 2.1 plus `target`, use finite numeric features, and include `low`, `mid`, and `high` in every split. Preserve leakage-aware temporal splits and document how the training-only band edges were obtained. Do not use the 60-row parser fixture as proof of real model compatibility.
+3. Stage that ZIP outside the notebook workspace, for example `/content/classification-byod.zip`. In Section 1.1 set `USE_BYOD=True`, `BYOD_METHOD="path"`, and `BYOD_ZIP_PATH="/content/classification-byod.zip"`. Leave the other defaults unchanged. Execute the full downstream path: acquisition, schema/class validation, baseline fits, all four selected foundation models, validation comparison, default classical ablations, freeze, saved-artifact reload, independent test scoring, inference preview, and export. Require no foundation failures; record ZIP/split hashes, actual row counts, package/device inventory, model outcomes and export inventory.
+4. In another fresh session, copy the valid ZIP and remove `lag_1` from `val.csv`. Select that file through the same path controls and run through Section 2.1. Require `val: schema mismatch` before any model fit; save the exact error and invalid-fixture digest. This negative check must fail, so do not count its intentional error as a successful Run all.
+5. Retain both BYOD records against the exact revised blob and reconcile the registry only after reviewing their outcomes. Do not claim REL12 from validation-only checks. The original default-path record combines maintainer-confirmed fresh execution with saved-output inspection; it does not establish a rerun of the revised prose blob.
+
+The optional learning activity stops before freeze/test and leaves the canonical default unchanged. A learner who has seen test outcomes must not reuse them to reselect models or claim a fresh unbiased evaluation.
