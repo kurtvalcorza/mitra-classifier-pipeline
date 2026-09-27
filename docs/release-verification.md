@@ -203,3 +203,20 @@ Code cells changed, so the saved outputs of the 2.1.0 run no longer describe the
 - the valid BYOD run listed above.
 
 The review's learner-observation recommendation (a representative basic-Python learner completing the notebook unaided) is not addressed by code and remains open.
+
+
+### Maintainer-supplied Colab execution of revision 2.1.1 — 2026-09-27
+
+The maintainer supplied an executed copy of revision 2.1.1 and authorized merging. It is preserved byte-for-byte as [evidence](execution-evidence/2026-09-27/DIMER_FreshRetailNet_MultiModel_Classification_Workshop_v2.ipynb).
+
+- Source: branch `fix/notebook-review-findings` at `7c444f0`, notebook blob `1b166029e174`. All 56 cell ids and sources match exactly.
+- Executed-file SHA-256: `248429a7e73608c608634799893b3d856a10961879bc72b7be2b8a62f5b450a5`.
+- Runtime: Colab `gpuType` T4 (AutoGluon reports one 14.56 GB CUDA GPU). Host Python 3.13.15, NumPy 2.1.3, pandas 2.2.3, scikit-learn 1.6.1, LightGBM 4.6.0, matplotlib 3.10.0; `host_within_tested_range` True.
+- Execution: 22 of 22 code cells executed in order (counts 1–22); no error outputs. The completion summary reports validation 9, frozen test models 11, no foundation failures, and "Run-all complete".
+- Validation balanced accuracy: TabPFN-3 0.6021, TabICLv2 0.5962, TabDPT 0.5956, Mitra 0.5839, Random Forest 0.5733 (all four foundation models on `cuda`).
+- Test balanced accuracy after the freeze: TabPFN-3 0.5587, TabICLv2 0.5452, TabDPT 0.5421, Mitra 0.5399, Logistic Regression 0.5247, Random Forest 0.5244, LightGBM 0.5205.
+- Bootstrap (1,000 draws, comparator Random Forest, the validation-best classical baseline): TabPFN-3 +0.0341 [0.0139, 0.0552]; TabICLv2, TabDPT and Mitra intervals include 0.
+- The review fixes are visible in the outputs. §7.1 reports the ablations as `trained from scratch` against full-feature LightGBM (−0.0056 without stockout, −0.0032 without period proxies). §8.2 names the comparator on every row. Test-file feature ranges appear only in §8.1b, after the freeze. The export ZIP SHA-256 is `18031397ba00ff9c…`.
+- Evidence boundary: saved outputs were inspected; execution was not independently repeated. This covers the default in-context path only.
+
+This record satisfies the fresh default `Run all` item above. These items remain open: the Mitra/TabICLv2 fast path, the fine-tuned TabICLv2 ablation on a GPU, the invalid-then-corrected and valid BYOD runs, and the post-freeze settings check. **Status: Candidate.**
