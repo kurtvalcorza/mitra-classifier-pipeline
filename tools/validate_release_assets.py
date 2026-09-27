@@ -220,13 +220,14 @@ AUXILIARY_NOTEBOOKS = {
         ),
     },
     "DIMER_FreshRetailNet_MultiModel_Classification_Workshop_v2.ipynb": {
-        # Committed with the outputs of its recorded Colab run (kept by maintainer decision).
+        # Outputs may be committed from a recorded Colab run (maintainer decision). Revision 2.1.1 changed code cells,
+        # so its outputs were cleared; the 2.1.0 run is preserved in docs/execution-evidence/2026-09-26/.
         "committed_outputs": "executed-record",
         "profile": "E2E",
         "mode": "WORKSHOP",
         "notebook_spec": "2.1",
         "standalone": True,
-        "revision": "2.1.0",
+        "revision": "2.1.1",
         "code_markers": (
             'EXPECTED_DATASET_SHA256 = "ad2d2a8729749bb055754e4867acfb048fc27816f4eb344961d962b59c0be6dd"',
             'PRIMARY_METRIC = "balanced_accuracy"',
@@ -247,6 +248,15 @@ AUXILIARY_NOTEBOOKS = {
             'FREEZE_NOW = True',
             'EVALUATE_FROZEN_TEST = True',
             "RUNNER_SOURCE = ",
+            # Notebook Review Framework v1 findings (2026-09-27); tests/test_workshop_v2_review_fixes.py exercises them.
+            '"ablation_group": ablation_group',  # NR-01: adaptation mode never carries the ablation label
+            'f"Adaptation mode differs',  # NR-01: a mixed-factor ablation is refused
+            '"comparator": test_names.loc[reference_key, "model"]',  # NR-02: every interval names its comparator
+            "ABLATION_CONTRASTS = pd.DataFrame(contrast_rows)",  # NR-02: ablated vs full-feature LightGBM
+            'staging_root = DATA_ROOT / f".staging-{uuid.uuid4().hex[:8]}"',  # NR-03: transactional staging
+            'development_config = json.loads((run_dir / "run_config.json").read_text())',  # NR-04: frozen config
+            "HOST_OUTSIDE_TESTED_RANGE = {",  # NR-05: host versions checked against the tested range
+            '"comparison_definitions": {',  # NR-07: recomputable export
         ),
         "markdown_markers": (
             "Mitra Classifier",

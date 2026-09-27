@@ -1,0 +1,65 @@
+{
+  "revision": "6c9f911294712eccf993817ef7c48c9f342bc194",
+  "scope": "Isolated control-flow reproductions from the reviewed notebook.\n\nThese are deliberately small synthetic probes, not executions of the notebook,\nits adapters, the real dataset, or a Colab/GPU model run.",
+  "results": [
+    {
+      "probe": "TabICLv2 ablation adaptation dispatch",
+      "base_condition": "in_context",
+      "ablation_condition": "in_context_no_stockout",
+      "base_uses_finetuning": false,
+      "ablation_uses_finetuning": false,
+      "adaptation_mode_preserved": true
+    },
+    {
+      "probe": "TabICLv2 ablation adaptation dispatch",
+      "base_condition": "in_context",
+      "ablation_condition": "in_context_no_period_proxies",
+      "base_uses_finetuning": false,
+      "ablation_uses_finetuning": false,
+      "adaptation_mode_preserved": true
+    },
+    {
+      "probe": "TabICLv2 ablation adaptation dispatch",
+      "base_condition": "fine_tuned",
+      "ablation_condition": "fine_tuned_no_stockout",
+      "base_uses_finetuning": true,
+      "ablation_uses_finetuning": false,
+      "adaptation_mode_preserved": false
+    },
+    {
+      "probe": "TabICLv2 ablation adaptation dispatch",
+      "base_condition": "fine_tuned",
+      "ablation_condition": "fine_tuned_no_period_proxies",
+      "base_uses_finetuning": true,
+      "ablation_uses_finetuning": false,
+      "adaptation_mode_preserved": false
+    },
+    {
+      "probe": "Unchanged development config file does not bind live test configuration",
+      "persisted_development_config_hash_check_passes": true,
+      "persisted_development_configuration": {
+        "n_ensembles": 4,
+        "context_size": 4180,
+        "batch_size": 4096
+      },
+      "test_configuration_taken_from_live_mapping": {
+        "n_ensembles": 8,
+        "context_size": 4180,
+        "batch_size": 4096
+      },
+      "configuration_matches_development": false
+    },
+    {
+      "probe": "Synthetic illustration: paired intervals are specific to their comparator",
+      "ablated_minus_separate_reference_95pct_interval": [
+        -0.6666666666666667,
+        -0.6666666666666667
+      ],
+      "ablated_minus_full_same_model_95pct_interval": [
+        0.0,
+        0.0
+      ],
+      "full_and_ablated_predictions_identical": true
+    }
+  ]
+}

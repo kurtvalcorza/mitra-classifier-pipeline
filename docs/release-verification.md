@@ -176,3 +176,47 @@ The maintainer reported that this notebook passed an end-to-end Colab run and au
 This record supersedes the pending rerun item for the source/configuration above. It does not promote the whole pipeline or close untested optional-path qualification.
 
 The older v1 tutorial saved outputs were moved unchanged to [legacy evidence](execution-evidence/2026-09-26/legacy-classification-saved-outputs.ipynb) so its source carrier satisfies the existing clean-output validator. No v1 code changed.
+
+
+## FreshRetailNet Classification v2: Notebook Review Framework v1 findings — revision 2.1.1 (2026-09-27)
+
+A review under the Notebook Review Framework v1 (reviewed commit `6c9f911`, notebook blob `c4e850d3`) concluded **Needs revision**. It reported four major and three minor findings, and fresh Colab verification remains pending. Revision 2.1.1 of `tutorials/DIMER_FreshRetailNet_MultiModel_Classification_Workshop_v2.ipynb` addresses every finding. `tests/test_workshop_v2_review_fixes.py` executes the notebook's own cell code against synthetic inputs. All of its 11 checks fail on the reviewed revision and pass on 2.1.1. These are logic checks, not model runs.
+
+| Finding | Correction in 2.1.1 | Acceptance check |
+|---|---|---|
+| **NR-01** (major): the fine-tuned TabICLv2 ablation silently ran in-context, because its condition string became `fine_tuned_no_stockout` | The adaptation mode stays the base condition, and the ablation is a separate `ablation_group` identity field. The runner accepts only `in_context` or `fine_tuned`. §7.1 refuses to report a comparison whose two runs used different effective modes | The §5.4 run identity for a fine-tuned ablation keeps `condition="fine_tuned"`; the runner rejects `fine_tuned_no_stockout` before writing any output |
+| **NR-02** (major): the worked answer cited an interval against Random Forest as evidence about ablated versus full-feature LightGBM | Every bootstrap row names its `comparator`. A new paired contrast table compares each LightGBM ablation with full-feature LightGBM on the same draws (`ABLATION_CONTRASTS`, exported). The worked answer cites only the point difference and directs learners to the contrast table | Identical full and ablated predictions give a contrast of exactly 0 with a [0, 0] interval, while their interval against a stronger reference stays below 0 |
+| **NR-03** (major): a failed or repeated acquisition hit `FileExistsError` | The archive is validated and extracted into a fresh temporary directory, which becomes the active data only on success; a failure leaves nothing behind. A different dataset clears every downstream result and the freeze record. §4.1 refits into a clean folder | Missing split, then corrected ZIP, then repeat all behave as documented; switching datasets removes stale results and `freeze.json` |
+| **NR-04** (major): the frozen test used live §5.1 settings while checking only the development file's hash | The test request is built from the verified development `run_config.json`. Only `phase`, `split_paths`, `output_dir`, `source_run_dir` and `frozen_run_fingerprint` may differ. A changed runner or dataset is rejected, and the persisted test configuration must equal the request | With a frozen `n_ensembles=4` and a live value of 8, the test executes with 4, and the exported effective configuration matches |
+| **NR-05** (minor): host package versions were unconstrained, yet the text promised identical results | §0.1 checks NumPy, pandas, scikit-learn, LightGBM and matplotlib against a documented tested range, taken from the recorded Colab run and the CI pins. It warns without forcing a restart and records the result in the export. The seed and worked-answer wording no longer promise invariant results | Static markers; the recorded 2.1.0 versions and the CI versions fall inside the range |
+| **NR-06** (minor): test-feature summaries were shown before the freeze | §2.2 summarises the training and validation files only. The test-file ranges move to §8.1b, after the freeze. §8 states what is known before the freeze (the split dates) and what is withheld (test labels, scores and feature distributions) | Static checks of both cells and the §7 wording |
+| **NR-07** (minor): the export could not recompute its own metrics | The bundle adds per-row validation and test predictions (optional via `EXPORT_ROW_LEVEL_PREDICTIONS`, with a notice for user data), each foundation run's effective development and test configuration, the notebook identity (file, revision 2.1.1, runner SHA-256) and comparison definitions | Static markers |
+| Probe finding: `align_probabilities` accepted negative probabilities that sum to 1, and scikit-learn's `log_loss` then crashed | The host and runner both reject negative probabilities with a clear error | Both copies reject `[-0.2, 0.6, 0.6]` |
+
+Code cells changed, so the saved outputs of the 2.1.0 run no longer describe the notebook and were cleared. That run remains byte-for-byte in `execution-evidence/2026-09-26/`. **Status: Candidate.** The following exact-revision evidence is required:
+
+- a fresh Colab T4 default `Run all` of revision 2.1.1;
+- the documented Mitra/TabICLv2 fast path;
+- a corrected fine-tuned TabICLv2 ablation on a GPU;
+- an invalid-then-corrected BYOD archive in one session;
+- a post-freeze change to a §5.1 setting, showing the test uses the frozen value;
+- the valid BYOD run listed above.
+
+The review's learner-observation recommendation (a representative basic-Python learner completing the notebook unaided) is not addressed by code and remains open.
+
+
+### Maintainer-supplied Colab execution of revision 2.1.1 — 2026-09-27
+
+The maintainer supplied an executed copy of revision 2.1.1 and authorized merging. It is preserved byte-for-byte as [evidence](execution-evidence/2026-09-27/DIMER_FreshRetailNet_MultiModel_Classification_Workshop_v2.ipynb).
+
+- Source: branch `fix/notebook-review-findings` at `7c444f0`, notebook blob `1b166029e174`. All 56 cell ids and sources match exactly.
+- Executed-file SHA-256: `248429a7e73608c608634799893b3d856a10961879bc72b7be2b8a62f5b450a5`.
+- Runtime: Colab `gpuType` T4 (AutoGluon reports one 14.56 GB CUDA GPU). Host Python 3.13.15, NumPy 2.1.3, pandas 2.2.3, scikit-learn 1.6.1, LightGBM 4.6.0, matplotlib 3.10.0; `host_within_tested_range` True.
+- Execution: 22 of 22 code cells executed in order (counts 1–22); no error outputs. The completion summary reports validation 9, frozen test models 11, no foundation failures, and "Run-all complete".
+- Validation balanced accuracy: TabPFN-3 0.6021, TabICLv2 0.5962, TabDPT 0.5956, Mitra 0.5839, Random Forest 0.5733 (all four foundation models on `cuda`).
+- Test balanced accuracy after the freeze: TabPFN-3 0.5587, TabICLv2 0.5452, TabDPT 0.5421, Mitra 0.5399, Logistic Regression 0.5247, Random Forest 0.5244, LightGBM 0.5205.
+- Bootstrap (1,000 draws, comparator Random Forest, the validation-best classical baseline): TabPFN-3 +0.0341 [0.0139, 0.0552]; TabICLv2, TabDPT and Mitra intervals include 0.
+- The review fixes are visible in the outputs. §7.1 reports the ablations as `trained from scratch` against full-feature LightGBM (−0.0056 without stockout, −0.0032 without period proxies). §8.2 names the comparator on every row. Test-file feature ranges appear only in §8.1b, after the freeze. The export ZIP SHA-256 is `18031397ba00ff9c…`.
+- Evidence boundary: saved outputs were inspected; execution was not independently repeated. This covers the default in-context path only.
+
+This record satisfies the fresh default `Run all` item above. These items remain open: the Mitra/TabICLv2 fast path, the fine-tuned TabICLv2 ablation on a GPU, the invalid-then-corrected and valid BYOD runs, and the post-freeze settings check. **Status: Candidate.**
