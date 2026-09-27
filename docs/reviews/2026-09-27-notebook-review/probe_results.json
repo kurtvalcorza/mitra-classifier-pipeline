@@ -1,0 +1,70 @@
+{
+  "scope": "Transcribed notebook logic; synthetic inputs; no model downloads or Colab run",
+  "sklearn": "1.8.0",
+  "numpy": "2.3.5",
+  "probes": [
+    {
+      "probe": "correct semantic probability reordering",
+      "result": "[[0.2, 0.1, 0.7]]",
+      "raised": null
+    },
+    {
+      "probe": "reject missing class",
+      "result": null,
+      "raised": "ValueError",
+      "message": "Model probabilities omit required classes: ['high']"
+    },
+    {
+      "probe": "reject non-finite probabilities",
+      "result": null,
+      "raised": "ValueError",
+      "message": "Probabilities contain non-finite values."
+    },
+    {
+      "probe": "accepts negative probability with unit row sum",
+      "result": "[[-0.2, 0.6, 0.6]]",
+      "raised": null
+    },
+    {
+      "probe": "log_loss invalid probability behavior in installed sklearn",
+      "result": null,
+      "raised": "ValueError",
+      "message": "y_prob contains values lower than 0: -0.2"
+    },
+    {
+      "probe": "first valid archive staging",
+      "result": "['train', 'val', 'test']",
+      "raised": null
+    },
+    {
+      "probe": "repeat same acquisition cell",
+      "result": null,
+      "raised": "FileExistsError",
+      "message": "[Errno 17] File exists: '/tmp/tmp14mcdgou/normal/staged'"
+    },
+    {
+      "probe": "invalid archive missing test",
+      "result": null,
+      "raised": "ValueError",
+      "message": "Dataset is missing required split files: ['test.csv']"
+    },
+    {
+      "probe": "retry corrected archive in same session",
+      "result": null,
+      "raised": "FileExistsError",
+      "message": "[Errno 17] File exists: '/tmp/tmp14mcdgou/retry/staged'"
+    },
+    {
+      "probe": "reject path traversal",
+      "result": null,
+      "raised": "ValueError",
+      "message": "Unsafe ZIP path: ../train.csv"
+    },
+    {
+      "probe": "reject duplicate split",
+      "result": null,
+      "raised": "ValueError",
+      "message": "Duplicate split member: train.csv"
+    }
+  ]
+}
