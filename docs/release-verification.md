@@ -8,6 +8,16 @@ from FreshRetailNet. Source/data checks and CPU tests do not qualify its pretrai
 Required next evidence: exact-revision fresh Colab T4 default Run all, exported verification bundle,
 measured resources, and representative BYOD evaluation plus artifact-inference runs.
 
+Review fixes (Notebook Review Framework v1, 2026-09-28; see the
+[finding table](customer-capstone.md#notebook-review-framework-v1-findings-and-fixes-2026-09-28)):
+source-checked and CPU-tested only. The real `prepare` stage was rerun on the pinned UCI archive
+(SHA-256 `572e3627…7bfb`) for the reviewed and the fixed revision on CPU. All eight results files
+and the decompressed prepared transactions (`ec29448e…78e3db`) are byte-identical, and the stage
+receipts differ only in source identity, pid and seconds. The new teaching timeline reconciles to
+its snapshot on the workbook. Later stages were not rerun on the workbook.
+No pretrained Mitra, GPU or hosted execution was run; the fixed revision still needs its own fresh
+Colab T4 Run all and representative BYOD evaluation and artifact-inference runs.
+
 `tutorials/mitra_classifier_colab.ipynb` (`E2E`) and `tutorials/mitra_classifier_predictor_inference_colab.ipynb`
 (`ARTIFACT-INFERENCE`) are **release candidates** until the exact notebook revisions have executed top-to-bottom in a
 clean supported runtime. Unit tests, JSON validation, code-cell compilation, and `tools/validate_release_assets.py` are

@@ -76,6 +76,30 @@ CPU/source success does **not** establish that pretrained Mitra completes within
 20 GiB initial free disk or 12 GiB peak allocated GPU memory. Hosted qualification is pending.
 The run summary records resources and remains Candidate for maintainer review even after execution.
 
+## Notebook Review Framework v1 findings and fixes (2026-09-28)
+
+The review of head `c113dde` (notebook blob `df062f6`) requested changes. The fixes are in the
+generator and carried modules; the notebook is regenerated, never hand-edited.
+
+| Finding | Change | Regression evidence |
+|---|---|---|
+| M1a: mixed date representations silently became missing events and flipped labels | `customer_data.parse_source_times` parses text `invoice_time` strictly as timezone-naive ISO date or date-time (mixed forms allowed) and refuses missing, locale, impossible or offset values with row number and original value before any snapshot. Prefix cleaning keeps unknown-time rows so the invalid-timestamp count cannot be filtered away. Workbook datetimes are unchanged. | The review's 50-customer fixture stays 25/25 through `prepare` at all eight cutoffs; mixed and consistent ISO inputs give identical snapshots; unsupported values stop with diagnostics. |
+| M1b: literal `NA` identifiers became missing before surrogate mapping | `customer_data.read_transactions_csv` reads every BYOD and intermediate CSV as text with `keep_default_na=False`; only empty fields are missing. The data manifest records empty identifier counts. | `NA`, `001`, `null` and `N/A` survive surrogate mapping; `NA`, `001` and `null` customers are scored through test, inference and export in the full lifecycle, and an empty customer ID is counted and excluded. |
+| E1: new lifecycle test failed CI (`torch.Tensor` missing from the stub) | The stand-in `torch` module now defines `Tensor`, so SciPy's array-API probe works whichever test first imports sklearn. | The test passes alone in a fresh interpreter and in the full suite (SciPy 1.18.1, scikit-learn 1.7.2). |
+| m1: raw JSON displayed as the lesson | Compact per-cutoff tables (n, prevalence, k, selected positives/negatives, P@budget, recall, lift, AP, AUROC, Brier), an explicit RFM-minus-R development table at both budgets and a paired-interval table. Full JSON stays in collapsed details and in `results.zip`. | On the reviewer's 1,000-customer fixtures, visible output falls from 8,292 to 14 lines (metrics) and from 14,189 to 9 lines (activity). |
+| m2: timeline was a raw preview | The teaching timeline marks each line as qualifying or excluded (cancellation, return, fee, duplicate/ambiguous/invalid), shows half-open window bounds, and `prepare` fails unless recomputed orders, value, products, recency and label equal the stored snapshot. | Checked in the synthetic lifecycle; remains private. Matched timelines for selected/missed test customers were not added. |
+| m3: final preview was sampling order | `infer` writes `inference_review_list.csv`: Mitra-RFM rank, score and 20% selection flag using the frozen hash-tie rule. BYOD shows intake counts, a compact preview and the bundle path. | Selected IDs equal `ranked_ids` in the lifecycle test. |
+| m4: fixed UCI limitations in BYOD mode | Source identity and the number of test dates come from the current mode and configuration. Default wording is unchanged. | BYOD run summary omits UCI/Philippine source claims and states the actual test-date count. |
+
+User-visible changes: BYOD CSVs with missing or non-ISO timestamps are now refused (previously
+coerced silently); literal `NA`-style identifiers are now kept; `inference_review_list.csv` and a
+private `teaching_timeline_summary.json` are new outputs; the default run summary text is unchanged.
+The default workbook path does not change prepared data: see the parity record in
+[release verification](release-verification.md).
+
+After the fixes, the full suite under CI's pins (Python 3.12, pandas 2.3.3, SciPy 1.18.1,
+scikit-learn 1.7.2) gives **123 passed, 1 skipped**; the reviewed head gave 1 failed, 109 passed, 1 skipped.
+
 ## Required hosted evidence
 
 Use a fresh Colab T4 with default Run all. Preserve exact notebook revision, executed output,
