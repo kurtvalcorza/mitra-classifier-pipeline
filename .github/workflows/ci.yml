@@ -25,7 +25,7 @@ jobs:
       - name: Install static test dependencies (the package is root-level; AutoGluon is never installed here)
         run: |
           python -m pip install --upgrade pip==26.2.1
-          python -m pip install pandas==2.3.3 numpy==2.3.5 scikit-learn==1.7.2 pytest==8.4.2 ruff==0.16.6
+          python -m pip install pandas==2.3.3 numpy==2.3.5 scikit-learn==1.7.2 pytest==8.4.2 ruff==0.16.6 openpyxl==3.1.5 matplotlib==3.10.8 nbformat==5.10.4
       - name: Shared-block parity
         run: python scripts/check_shared.py
       - name: DIMER contract
@@ -48,6 +48,7 @@ jobs:
         run: |
           python tools/build_notebook.py --check
           python tools/build_notebook.py --check --template tools/notebook_template_artifact_inference.py
+          python tools/build_customer_capstone.py --check
       - name: Compile deployables and tutorial API
         run: |
           python -m py_compile validator/validator.py validator/validate.py validator/contract_hardening.py

@@ -1,0 +1,6 @@
+tools/customer_*.py text eol=lf
+tools/build_customer_capstone.py text eol=lf
+tools/customer-requirements.* text eol=lf
+tutorials/customer_analytics/** text eol=lf
+tutorials/DIMER_Small_Business_Customer_Analytics_Capstone.ipynb text eol=lf
+docs/execution-evidence/** -text

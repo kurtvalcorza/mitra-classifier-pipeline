@@ -895,7 +895,8 @@ def validate_notebooks() -> None:
     notebooks = sorted(tutorials.glob("*.ipynb"))
     generated_names = sorted(NOTEBOOKS)
     auxiliary_names = sorted(AUXILIARY_NOTEBOOKS)
-    allowed_names = sorted(set(generated_names) | set(auxiliary_names))
+    capstone_name = "DIMER_Small_Business_Customer_Analytics_Capstone.ipynb"
+    allowed_names = sorted(set(generated_names) | set(auxiliary_names) | {capstone_name})
     _check(
         [p.name for p in notebooks] == allowed_names,
         f"tutorial notebooks must be the generated pair plus explicitly allowlisted auxiliaries {allowed_names}, found {[p.name for p in notebooks]}",
@@ -904,6 +905,19 @@ def validate_notebooks() -> None:
     registry = _read(tutorials / "README.md")
     for path in notebooks:
         notebook = json.loads(_read(path))
+        if path.name == capstone_name:
+            capstone = _load_tool("build_customer_capstone")
+            _check(notebook == capstone.build(), "Customer capstone generator parity failed")
+            _check(f"`{path.name}`" in registry, "Customer capstone missing from tutorial registry")
+            for cell in notebook["cells"]:
+                if cell["cell_type"] == "code":
+                    ast.parse(_cell_source(cell))
+                    _check(not cell["outputs"] and cell["execution_count"] is None,
+                           "Candidate capstone must not carry fabricated execution outputs")
+            for name, content in capstone.carried_files().items():
+                if name.endswith(".py"):
+                    ast.parse(content, filename=name)
+            continue
         if path.name in AUXILIARY_NOTEBOOKS:
             _validate_auxiliary_workshop(path, notebook, AUXILIARY_NOTEBOOKS[path.name], registry)
             continue

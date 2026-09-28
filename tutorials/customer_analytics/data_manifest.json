@@ -1,0 +1,60 @@
+{
+  "format_version": 1,
+  "dataset": "UCI Online Retail II",
+  "doi": "10.24432/C5CG6D",
+  "creator": "Daqing Chen",
+  "license": "CC-BY-4.0",
+  "acquired_date": "2026-09-28",
+  "archive": {
+    "url": "https://archive.ics.uci.edu/static/public/502/online+retail+ii.zip",
+    "bytes": 45622418,
+    "sha256": "572e36277c2390fbfde10664750731e0a86f55e33470d91919085f0408e67bfb"
+  },
+  "workbook": {
+    "filename": "online_retail_II.xlsx",
+    "bytes": 45622278,
+    "sha256": "bcbe73b35f5b7babf197fb0cb983a11f5d9ff929078d4aa53d171b1f2df2e980"
+  },
+  "currency": "GBP",
+  "source_clock": "timezone-naive",
+  "coverage_start": "2009-12-01",
+  "coverage_end": "2011-12-09",
+  "aliases": {
+    "Invoice": "invoice_id",
+    "InvoiceNo": "invoice_id",
+    "StockCode": "stock_code",
+    "Quantity": "quantity",
+    "InvoiceDate": "invoice_time",
+    "Price": "unit_price",
+    "UnitPrice": "unit_price",
+    "Customer ID": "customer_id",
+    "CustomerID": "customer_id",
+    "Country": "country"
+  },
+  "administrative_codes": [
+    "ADJUST",
+    "ADJUST2",
+    "AMAZONFEE",
+    "B",
+    "BANK CHARGES",
+    "C2",
+    "CRUK",
+    "D",
+    "DOT",
+    "GIFT_0001_10",
+    "GIFT_0001_20",
+    "GIFT_0001_30",
+    "GIFT_0001_40",
+    "GIFT_0001_50",
+    "GIFT_0001_70",
+    "GIFT_0001_80",
+    "M",
+    "POST",
+    "S",
+    "TEST001",
+    "TEST002"
+  ],
+  "administrative_code_basis": "Observed workbook descriptions: POSTAGE, DOTCOM POSTAGE, Discount, Manual, CARRIAGE, Bank Charges, AMAZON FEE, Adjustment, CRUK Commission, SAMPLES, Adjust bad debt, This is a test product., Dotcomgiftshop Gift Voucher. Unknown descriptions are not guessed.",
+  "duplicate_policy": "exact-line-deduplicated benchmark; retain-duplicates sensitivity required",
+  "cleaning_scope": "Only rows observed before each snapshot cutoff can affect feature cleaning."
+}
