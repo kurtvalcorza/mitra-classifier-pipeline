@@ -1,5 +1,8 @@
 # Customer analytics capstone — Candidate
 
+Status: default Colab T4 Run all passed at `c81db75` on 2026-09-28 ([record](release-verification.md)); BYOD
+qualification and maintainer review pending.
+
 The standalone notebook asks whether purchase history predicts a recorded positive purchase in
 the next 30 days. It is an optional small-business workflow capstone, using a historical UK online
 retailer with many wholesale customers. Business size is unknown. It is not a Philippine MSME

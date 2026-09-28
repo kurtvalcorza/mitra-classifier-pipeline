@@ -18,6 +18,32 @@ its snapshot on the workbook. Later stages were not rerun on the workbook.
 No pretrained Mitra, GPU or hosted execution was run; the fixed revision still needs its own fresh
 Colab T4 Run all and representative BYOD evaluation and artifact-inference runs.
 
+### Maintainer-supplied Colab execution of revision `c81db75` — 2026-09-28
+
+| Evidence | Recorded fact / limit |
+|---|---|
+| File | [`execution-evidence/2026-09-28/DIMER_Small_Business_Customer_Analytics_Capstone_c81db75.ipynb`](execution-evidence/2026-09-28/DIMER_Small_Business_Customer_Analytics_Capstone_c81db75.ipynb), byte-for-byte copy, SHA-256 `f462d4495e707c1f5b2d484528eb4ec13d0baac8bcd8fb846f31fa87a1f17d07` |
+| Source match | Executed against commit `c81db75`, notebook blob `5db77406b629`. All 21 cells match in id, order and source, except the `# @title` line Colab inserts into the two collapsed infrastructure cells, which is non-substantive. `RUN_BYOD=False` (default). |
+| Runtime | Colab Tesla T4. Isolated Python 3.12.12 with the hash-locked torch 2.9.1, AutoGluon 1.5.0, pandas 2.3.3, NumPy 2.3.5 and scikit-learn 1.7.2. Initial free disk was 202 GB. |
+| Executed cells | Execution counts 1–10, sequential, with no error outputs. All eight stages report PASS. |
+| Resources | 10.4 min wall time including setup before the report; stage seconds excluding install were 524 (`prepare` 340, `develop` 66, `evaluate` 50, `infer` 29, `verify` 35). Peak allocated GPU memory was 0.72 GB. All three targets were met: under 45 min, at least 20 GiB free disk, and at most 12 GiB GPU memory. |
+| Cohorts | Identical to the frozen audit: 4 × 512 support rows (155/168/188/122 positive); development 270 and 321 positive of 1,000; test 379 and 452 positive of 1,000. |
+| Held-out results (20% budget, equal-cutoff macro) | Mitra-RFM and Logistic-RFM both reach P@20% 0.735 (Sep 0.710, Nov 0.760), lift 1.78, AP 0.660 vs 0.659 and AUROC 0.704 vs 0.702. The primary paired contrast, Mitra-RFM minus Logistic-RFM P@20%, is **0.000, 95% CI [−0.015, 0.010]**: no measurable advantage. RFM adds about 0.23 over recency for both models (Mitra-RFM − Mitra-R 0.225 [0.181, 0.287]). All 2,000 bootstrap replicates are valid. |
+| Reconstruction | `verify` ran in a different process and replayed 1,000 final customers × 6 systems, with exact labels and top-k at atol 1e-5 and rtol 1e-4. |
+| Review fixes observed | Compact tables replaced inline JSON, with the full JSON collapsed. The development RFM-minus-R table and the ranked Mitra-RFM review list (200 of 1,000 selected) are shown. The timeline reconciles to the stored snapshot. Default-mode limitations are unchanged. No table was truncated. |
+| Evidence boundary | Saved outputs were inspected; execution was not independently repeated. This single default run does not exercise BYOD evaluation, artifact inference or the invalid-timestamp path. |
+
+| Journey | Verdict |
+|---|---|
+| Default Run all (fresh T4) | **Pass** |
+| Fresh-process reconstruction | **Pass** |
+| BYOD evaluation | Not assessed in this run |
+| BYOD artifact inference | Not assessed in this run |
+| Invalid-then-corrected BYOD timestamp | Not assessed in this run |
+
+Remaining before promotion: representative BYOD evaluation and artifact-inference runs under the pinned
+lock, a learner observation and maintainer review. Status remains **Candidate**.
+
 `tutorials/mitra_classifier_colab.ipynb` (`E2E`) and `tutorials/mitra_classifier_predictor_inference_colab.ipynb`
 (`ARTIFACT-INFERENCE`) are **release candidates** until the exact notebook revisions have executed top-to-bottom in a
 clean supported runtime. Unit tests, JSON validation, code-cell compilation, and `tools/validate_release_assets.py` are
@@ -138,6 +164,7 @@ they are measurements for the stated runtime, not general estimates.
 |---|---|---|---|---|---|
 | 2026-09-14 | `0e13847` / `9599d5c4832c` | Kaggle T4 (`kurtvalcorza/dimer-nb2-mitra-classifier` v2) | Standalone E2E default sample path | 215.5 s | **PASSED** — 9/9 ok code cells executed cleanly, 9 files, 605 MB staged |
 | | | | Standalone ARTIFACT-INFERENCE with an external bundle | | pending — queued to the GPU lane |
+| 2026-09-28 | `c81db75` / `5db77406b629` | Colab Tesla T4 (maintainer-supplied) | Customer analytics capstone, default Run all | 10.4 min | **PASSED**: 10/10 code cells, 8/8 stages, fresh-process verification passed; BYOD not exercised |
 
 ## Current status
 
