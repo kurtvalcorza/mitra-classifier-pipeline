@@ -184,16 +184,68 @@ def prepare(root: Path) -> None:
             "value_meaning": "gross positive purchase value, not net revenue or profit",
         },
     )
-    # A concrete timeline is constructed only from development data.
-    first = csv(root, "dev_snapshots.csv").iloc[0]
-    t = pd.Timestamp(first.cutoff)
-    timeline = raw[
-        (raw.customer_id == first.customer_id)
-        & (raw.invoice_time >= t - pd.Timedelta(days=90))
-        & (raw.invoice_time < t + pd.Timedelta(days=30))
+    teaching_timeline(root, raw, csv(root, "dev_snapshots.csv").iloc[0])
+
+
+def teaching_timeline(root: Path, raw: pd.DataFrame, snapshot: pd.Series) -> None:
+    """Reconcile one development customer's raw lines to its qualifying orders, features and label."""
+    t = pd.Timestamp(snapshot.cutoff)
+    start, end = t - pd.Timedelta(days=90), t + pd.Timedelta(days=30)
+    history, _ = data.clean_transactions(raw, asof=t, keep_index=True)
+    outcome, _ = data.clean_transactions(raw, asof=end, keep_index=True)
+    history = history[(history.customer_id == snapshot.customer_id) & (history.invoice_time >= start)]
+    outcome = outcome[(outcome.customer_id == snapshot.customer_id) & (outcome.invoice_time >= t)]
+    lines = raw[
+        (raw.customer_id == snapshot.customer_id) & (raw.invoice_time >= start) & (raw.invoice_time < end)
     ].copy()
-    timeline["window"] = np.where(timeline.invoice_time < t, "history", "outcome")
-    save_csv(root / "private/teaching_timeline.csv", timeline)
+    lines["window"] = np.where(lines.invoice_time < t, "history [t-90d, t)", "outcome [t, t+30d)")
+    qualifying = set(history.index) | set(outcome.index)
+    lines["line_status"] = [
+        "qualifying purchase line"
+        if index in qualifying
+        else "excluded: cancellation"
+        if str(invoice).upper().startswith("C")
+        else "excluded: return or non-positive quantity/price"
+        if not (quantity > 0 and price > 0)
+        else "excluded: fee/administrative code"
+        if str(stock).upper() in data.ADMIN_CODES
+        else "excluded: duplicate, ambiguous invoice or invalid field"
+        for index, invoice, quantity, price, stock in zip(
+            lines.index, lines.invoice_id, lines.quantity, lines.unit_price, lines.stock_code, strict=True
+        )
+    ]
+    lines["line_value"] = np.where(lines.index.isin(qualifying), lines.quantity * lines.unit_price, 0.0)
+    columns = ["invoice_time", "invoice_id", "stock_code", "quantity", "unit_price", "line_value"]
+    save_csv(root / "private/teaching_timeline.csv", lines[[*columns, "window", "line_status"]])
+    recomputed = {
+        "history_orders": int(history.invoice_id.nunique()),
+        "gross_value": float(history.quantity.mul(history.unit_price).sum()),
+        "product_count": int(history.stock_code.nunique()),
+        "recency_days": float((t - history.invoice_time.max()).total_seconds() / 86400),
+        "outcome_orders": int(outcome.invoice_id.nunique()),
+        "label": int(outcome.invoice_id.nunique() > 0),
+    }
+    recorded = {
+        "history_orders": int(snapshot.order_count),
+        "gross_value": float(snapshot.gross_value),
+        "product_count": int(snapshot.product_count),
+        "recency_days": float(snapshot.recency_days),
+        "label": int(snapshot.y_true),
+    }
+    if any(not np.isclose(recomputed[k], v, rtol=1e-12, atol=1e-9) for k, v in recorded.items()):
+        raise ValueError("Teaching timeline does not reconcile to the snapshot features/label")
+    write(
+        root / "private/teaching_timeline_summary.json",
+        {
+            "cutoff": str(t.date()),
+            "history_window": [str(start.date()), str(t.date())],
+            "outcome_window": [str(t.date()), str(end.date())],
+            "interval_rule": "half-open: start included, end excluded",
+            "recomputed_from_qualifying_lines": recomputed,
+            "snapshot_features_and_label": recorded,
+            "reconciled": True,
+        },
+    )
 
 
 def fit(root: Path) -> None:
@@ -294,15 +346,28 @@ def plot(root: Path, role: str, rows: list[dict]) -> None:
     write(output(root) / f"{role}_metrics.json", scores)
 
 
-def ranked_ids(rows: list[dict], budget: float = 0.2) -> list[str]:
-    rank = sorted(
+def rank_order(rows: list[dict]) -> list[dict]:
+    return sorted(
         rows,
         key=lambda r: (
             -r["score"],
             hashlib.sha256(("42:customer-budget-tie-v1:" + str(r["customer_id"])).encode()).hexdigest(),
         ),
     )
+
+
+def ranked_ids(rows: list[dict], budget: float = 0.2) -> list[str]:
+    rank = rank_order(rows)
     return [str(r["customer_id"]) for r in rank[: int(np.ceil(budget * len(rows)))]]
+
+
+def review_list(rows: list[dict], budget: float = 0.2) -> pd.DataFrame:
+    """Rank-ordered scores with the frozen hash-tie rule and a selected-at-budget flag."""
+    k = int(np.ceil(budget * len(rows)))
+    ranked = pd.DataFrame(rank_order(rows))
+    ranked.insert(0, "rank", np.arange(1, len(ranked) + 1))
+    ranked["selected_at_budget"] = ranked["rank"] <= k
+    return ranked
 
 
 def develop(root: Path) -> None:
@@ -386,6 +451,10 @@ def infer(root: Path) -> None:
         row.pop("y_true", None)
         row["evaluation_status"] = "not_measurable"
     save_csv(output(root) / "inference_predictions.csv", pd.DataFrame(rows))
+    save_csv(
+        output(root) / "inference_review_list.csv",
+        review_list([r for r in rows if r["system"] == "mitra_RFM"]),
+    )
     write(
         output(root) / "inference_provenance.json",
         {
@@ -502,6 +571,17 @@ def report(root: Path) -> None:
             for name in ("numpy", "pandas", "scikit-learn", "torch", "autogluon.tabular", "openpyxl")
         },
     )
+    cfg = config(root)
+    tests = len(cfg["test"])
+    dates = {1: "One test date", 2: "Two test dates"}.get(tests, f"{tests} test dates")
+    source = (
+        [
+            "User-supplied BYOD transactions; business type, size and representativeness not established",
+            "Evidence applies only to the supplied business, currency and cutoffs",
+        ]
+        if cfg.get("byod")
+        else ["Single historical UK retailer, many wholesale customers", "Not Philippine MSME evidence"]
+    )
     receipts = {s: read(output(root) / f"receipt_{s}.json") for s in STAGES[:-1]}
     seconds = sum(r["seconds"] for r in receipts.values())
     peak = max(r.get("peak_gpu_bytes", 0) for r in receipts.values())
@@ -509,7 +589,7 @@ def report(root: Path) -> None:
         output(root) / "run_summary.json",
         {
             "status": "Candidate",
-            "mode": "BYOD" if config(root).get("byod") else "sample",
+            "mode": "BYOD" if cfg.get("byod") else "sample",
             "verification": verification,
             "stage_seconds_excluding_install": seconds,
             "peak_gpu_bytes": peak,
@@ -521,10 +601,9 @@ def report(root: Path) -> None:
             "within_gpu_target": peak <= 12 * 1024**3,
             "stages": receipts,
             "limitations": [
-                "Single historical UK retailer, many wholesale customers",
-                "Not Philippine MSME evidence",
+                *source,
                 "No campaign response or causal uplift measurement",
-                "Two test dates; customer-cluster intervals conditional on dates and frozen models",
+                f"{dates}; customer-cluster intervals conditional on dates and frozen models",
                 "Log completeness assumed; pretraining overlap unknown; hosted review still required",
             ],
         },

@@ -49,6 +49,8 @@ ADMIN_CODES = {
     "GIFT_0001_70",
     "GIFT_0001_80",
 }
+# Declared source-clock text: ISO date or date-time, timezone-naive, no offsets or locale formats.
+SOURCE_TIME = r"\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?)?"
 TRAIN_CUTOFFS = ["2010-04-01", "2010-07-01", "2010-10-01", "2011-01-01"]
 DEV_CUTOFFS = ["2011-04-01", "2011-07-01"]
 TEST_CUTOFFS = ["2011-09-01", "2011-11-01"]
@@ -70,6 +72,26 @@ def normalize_id(value: object) -> str:
     return str(value).strip()
 
 
+def parse_source_times(values: pd.Series) -> pd.Series:
+    """Parse text timestamps strictly; refuse with row/value diagnostics instead of coercing to NaT."""
+    if pd.api.types.is_datetime64_any_dtype(values):
+        return pd.to_datetime(values, errors="coerce")
+    text = values.astype("string").str.strip()
+    valid = text.str.fullmatch(SOURCE_TIME).fillna(False).astype(bool)
+    parsed = pd.to_datetime(text.where(valid), format="ISO8601", errors="coerce")
+    rejected = ~valid | parsed.isna()
+    if rejected.any():
+        examples = "; ".join(
+            f"row {position + 1}: {values.iloc[position]!r}" for position in np.flatnonzero(rejected)[:5]
+        )
+        raise ValueError(
+            f"{int(rejected.sum())} invoice_time value(s) are missing or not timezone-naive ISO "
+            f"'YYYY-MM-DD[ HH:MM[:SS]]' on the declared source clock ({examples}). "
+            "Correct them before snapshots; unknown-time events cannot be assigned to a window."
+        )
+    return parsed
+
+
 def canonicalize(raw: pd.DataFrame) -> pd.DataFrame:
     data = raw.rename(columns=ALIASES).copy()
     required = set(COLUMNS) - {"country"}
@@ -80,7 +102,7 @@ def canonicalize(raw: pd.DataFrame) -> pd.DataFrame:
     data = data[COLUMNS].copy()
     for name in ("invoice_id", "stock_code", "customer_id", "country"):
         data[name] = data[name].map(normalize_id)
-    data["invoice_time"] = pd.to_datetime(data.invoice_time, errors="coerce")
+    data["invoice_time"] = parse_source_times(data.invoice_time)
     if getattr(data.invoice_time.dt, "tz", None) is not None:
         raise ValueError("Expected explicit timezone-naive source clock")
     for name in ("quantity", "unit_price"):
@@ -88,10 +110,13 @@ def canonicalize(raw: pd.DataFrame) -> pd.DataFrame:
     return data
 
 
-def clean_transactions(raw: pd.DataFrame, asof=None, deduplicate: bool = True) -> tuple[pd.DataFrame, dict]:
+def clean_transactions(
+    raw: pd.DataFrame, asof=None, deduplicate: bool = True, keep_index: bool = False
+) -> tuple[pd.DataFrame, dict]:
     data = canonicalize(raw)
     if asof is not None:
-        data = data.loc[data.invoice_time < pd.Timestamp(asof)].copy()
+        # Keep unknown times in every prefix so the invalid-timestamp diagnostic cannot be filtered away.
+        data = data.loc[~(data.invoice_time >= pd.Timestamp(asof))].copy()
     invalid_number = ~np.isfinite(data.quantity) | ~np.isfinite(data.unit_price)
     flags = {
         "missing_customer": data.customer_id.eq(""),
@@ -140,7 +165,7 @@ def clean_transactions(raw: pd.DataFrame, asof=None, deduplicate: bool = True) -
         raise ValueError("Nonfinite line value")
     audit["retained_lines"] = len(clean)
     audit["retained_orders"] = len(clean[["invoice_id", "customer_id"]].drop_duplicates())
-    return clean.reset_index(drop=True), audit
+    return (clean if keep_index else clean.reset_index(drop=True)), audit
 
 
 def snapshots(
@@ -335,6 +360,11 @@ def audit_snapshots(raw: pd.DataFrame, config: dict) -> dict:
     return result
 
 
+def read_transactions_csv(path: Path) -> pd.DataFrame:
+    """Only empty fields are missing; literal text such as NA or 001 stays an identifier."""
+    return pd.read_csv(path, dtype=str, keep_default_na=False)
+
+
 def validate_byod(csv_path: Path, config: dict) -> pd.DataFrame:
     if config.get("rights_confirmed") is not True:
         raise ValueError("Explicit processing-rights acknowledgement required")
@@ -344,7 +374,7 @@ def validate_byod(csv_path: Path, config: dict) -> pd.DataFrame:
         raise ValueError("Complete observation coverage acknowledgement required")
     if csv_path.stat().st_size > 200_000_000:
         raise ValueError("CSV exceeds 200 MB")
-    raw = pd.read_csv(csv_path, dtype={"customer_id": str, "invoice_id": str, "stock_code": str})
+    raw = read_transactions_csv(csv_path)
     if not set(raw.columns).issubset(COLUMNS) or not (set(COLUMNS) - {"country"}).issubset(raw.columns):
         raise ValueError("Unexpected/identifying columns or missing schema fields")
     data = canonicalize(raw)

@@ -71,7 +71,7 @@ def test_duplicates_change_value_not_purchase_labels():
         dict(customer=""),
         dict(invoice=""),
         dict(stock=""),
-        dict(time="broken"),
+        dict(time=pd.NaT),
         dict(price=0),
         dict(price=-2),
         dict(price=np.inf),
@@ -85,6 +85,31 @@ def test_duplicates_change_value_not_purchase_labels():
 def test_invalid_purchase_rows_are_reported(mutation):
     clean, audit = data.clean_transactions(pd.DataFrame([row(**mutation)]))
     assert clean.empty and audit["excluded_union_rows"] == 1
+
+
+@pytest.mark.parametrize("value", ["broken", "", "03/20/2011", "2011-02-30", "2011-04-02T12:00:00+08:00"])
+def test_unsupported_or_missing_text_timestamps_are_refused_with_row_and_value(value):
+    rows = [row("1", "2011-03-20"), row("2", value)]
+    with pytest.raises(ValueError, match=r"source clock \(row 2: "):
+        data.canonicalize(pd.DataFrame(rows))
+
+
+def test_mixed_iso_representations_give_identical_histories_and_labels():
+    consistent = [row("1", "2011-03-20 00:00:00"), row("2", "2011-04-02 12:00:00")]
+    mixed = [row("1", "2011-03-20"), row("2", "2011-04-02 12:00:00")]
+    iso_t = [row("1", "2011-03-20"), row("2", "2011-04-02T12:00")]
+    expected = snapshot(consistent)
+    assert expected.iloc[0].y_true == 1
+    pd.testing.assert_frame_equal(snapshot(mixed), expected)
+    pd.testing.assert_frame_equal(snapshot(iso_t), expected)
+
+
+def test_unknown_time_stays_in_every_prefix_audit():
+    rows = pd.DataFrame([row("1", "2011-03-20"), row("2", "2011-03-21")])
+    rows["invoice_time"] = pd.to_datetime(rows.invoice_time)
+    rows.loc[1, "invoice_time"] = pd.NaT
+    _, audit = data.clean_transactions(rows, asof="2011-04-01")
+    assert audit["exclusion_counts_overlapping"]["invalid_timestamp"] == 1
 
 
 def test_ambiguous_invoice_quarantined():

@@ -28,6 +28,15 @@ refused. This schema check does not prove that an identifier is anonymous: use
 local pseudonymous IDs and keep the original mapping private. The helper creates
 its own surrogate mapping outside the results directory before processing.
 
+`invoice_time` must be a timezone-naive ISO date or date-time on the declared
+source clock (`2011-04-02`, `2011-04-02 12:00:00` or `2011-04-02T12:00`); the
+forms may be mixed. Missing values, locale formats such as `04/02/2011`,
+impossible dates and timezone offsets are refused before any snapshot is built,
+with the row number and original value, because an event of unknown time cannot
+be assigned to a history or outcome window. Only empty fields are missing: a
+literal `NA`, `null` or `001` is kept as an identifier. The shareable data
+manifest records the count of empty identifier fields.
+
 Evaluation configuration example (replace these dates with fully covered dates
 in your own history):
 

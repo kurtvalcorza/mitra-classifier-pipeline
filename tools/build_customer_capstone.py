@@ -40,8 +40,9 @@ def carried_files() -> dict[str, str]:
 
 BOOTSTRAP = r"""
 from pathlib import Path
-import hashlib, json, os, platform, shutil, subprocess, time, urllib.request, zipfile
-from IPython.display import display, Markdown, Image
+import hashlib, html, json, os, platform, shutil, subprocess, time, urllib.request, zipfile
+import pandas as pd
+from IPython.display import display, HTML, Image
 ROOT = Path('/content/dimer_customer_analytics')
 assert platform.system() == 'Linux', 'Use a fresh hosted Colab T4 runtime.'
 INITIAL_FREE_DISK = shutil.disk_usage('/').free
@@ -87,8 +88,39 @@ command([UV,'pip','sync','--python',PY,'--require-hashes','--only-binary',':all:
 RESULTS=ROOT/'results'
 def stage(name):
     command([PY,ROOT/'customer_runtime.py','--root',ROOT,'--stage',name],name+'.log')
-def show(name):
-    display(Markdown('```json\n'+(RESULTS/name).read_text(encoding='utf-8')+'\n```'))
+def load(name, folder=None):
+    return json.loads(((folder or RESULTS)/name).read_text(encoding='utf-8'))
+def show(name, expanded=False, folder=None):
+    # Complete machine-readable record, collapsed; the compact tables below are for reading.
+    text=((folder or RESULTS)/name).read_text(encoding='utf-8')
+    display(HTML(f"<details{' open' if expanded else ''}><summary>Full {html.escape(name)} "
+        f"({len(text.splitlines()):,} lines; also in results.zip)</summary><pre>{html.escape(text)}</pre></details>"))
+def table(frame):
+    print(frame.to_string(index=False, float_format=lambda v: f'{v:.3f}'))
+COMPACT={'system':'system','cutoff':'cutoff','n':'n','prevalence':'prevalence','k':'k',
+    'selected_positives':'sel_pos','selected_negatives':'sel_neg','precision_at_budget':'P@budget',
+    'recall_at_budget':'recall','lift_at_budget':'lift','average_precision':'AP','auroc':'AUROC','brier':'Brier'}
+def metric_table(report):
+    print(f"Budget {report['budget']:.0%}: top ceil({report['budget']} x n) customers per cutoff; Brier only for probability systems.")
+    table(pd.DataFrame(report['per_cutoff'])[list(COMPACT)].rename(columns=COMPACT))
+def feature_contrast(activity):
+    rows=[]
+    for key in ('canonical_budget_20','optional_display_budget_10'):
+        cells={(r['system'],r['cutoff']):r for r in activity[key]['per_cutoff']}
+        for model in ('logistic','mitra'):
+            for cutoff in sorted({c for _,c in cells}):
+                r,f=cells[(model+'_R',cutoff)],cells[(model+'_RFM',cutoff)]
+                rows.append({'budget':f"{activity[key]['budget']:.0%}",'model':model,'cutoff':cutoff,'k':r['k'],
+                    'P@budget R':r['precision_at_budget'],'P@budget RFM':f['precision_at_budget'],
+                    'RFM-R P@budget':f['precision_at_budget']-r['precision_at_budget'],
+                    'RFM-R AP':None if None in (f['average_precision'],r['average_precision']) else f['average_precision']-r['average_precision'],
+                    'RFM-R AUROC':None if None in (f['auroc'],r['auroc']) else f['auroc']-r['auroc']})
+    table(pd.DataFrame(rows))
+def interval_table(paired):
+    print(f"{paired['valid_replicates']:,} valid of {paired['replicates']:,} customer-cluster replicates; "
+          f"{paired['invalid_replicates']:,} invalid (empty or single-class cutoff).")
+    table(pd.DataFrame([{'contrast':name,'difference':c['difference'],'ci95_low':c['ci95'][0],'ci95_high':c['ci95'][1],
+        'measure':c['measure']} for name,c in paired['contrasts'].items()]))
 print('Isolated environment ready; no notebook restart required.')
 """
 
@@ -154,11 +186,15 @@ Training cutoffs: April/July/October 2010 and January 2011. Development: April/J
 
 **Predict:** Would total spending through the end of the workbook be a valid feature for an April 2011 prediction?
 <details><summary>Worked answer</summary>No. That total contains purchases after the prediction date. Every feature uses only records visible before its cutoff, including cleaning decisions.</details>""")
-    code("stage('prepare')\nshow('cohort_manifest.json')\nshow('dataset_audit.json')")
     code(
-        "import pandas as pd\ntimeline=pd.read_csv(ROOT/'private/teaching_timeline.csv')\ndisplay(timeline.head(20))\nprint('History builds features; outcome establishes the label. Raw logs stay outside results.zip.')"
+        "stage('prepare')\ntable(pd.DataFrame(load('cohort_manifest.json')['cohorts']).drop(columns='id_hash'))\nshow('cohort_manifest.json')\nshow('dataset_audit.json')"
     )
-    md("""**What to notice:** inspect exclusions, eligible versus selected counts and both label classes at each cutoff. The data gate stops if either scored class has fewer than 20 customers. A negative label means no qualifying event at this retailer in that window, not permanent churn.
+    code(
+        "summary=load('teaching_timeline_summary.json', ROOT/'private')\ntimeline=pd.read_csv(ROOT/'private/teaching_timeline.csv', dtype=str, keep_default_na=False)\nprint(f\"Cutoff t = {summary['cutoff']}. History {summary['history_window']} and outcome {summary['outcome_window']} are half-open: start included, end excluded.\")\nprint(timeline.to_string(index=False))\nfor name,values in (('Recomputed from qualifying lines',summary['recomputed_from_qualifying_lines']),('Stored snapshot features and label',summary['snapshot_features_and_label'])):\n    print(name+':', values)\nprint('History builds features; outcome establishes the label. Raw logs stay outside results.zip.')"
+    )
+    md("""**Try it:** in the timeline, count the distinct invoices marked *qualifying* in the history window and add their line values. They must equal the stored order count and gross value; a qualifying outcome invoice makes the label 1. Cancelled, returned, fee and duplicate lines are listed but never count as orders.
+
+**What to notice:** inspect exclusions, eligible versus selected counts and both label classes at each cutoff. The data gate stops if either scored class has fewer than 20 customers. A negative label means no qualifying event at this retailer in that window, not permanent churn.
 
 ### 3. Six fair comparisons
 
@@ -175,7 +211,7 @@ Mitra uses **in-context conditioning**, not gradient fine-tuning. Support labels
 
 **Predict:** Will the richer feature set consistently beat recency alone?""")
     code(
-        "stage('fit')\nshow('support_metadata.json')\nstage('develop')\ndisplay(Image(filename=str(RESULTS/'dev_comparison.png')))\nshow('dev_metrics.json')"
+        "stage('fit')\nshow('support_metadata.json')\nstage('develop')\ndisplay(Image(filename=str(RESULTS/'dev_comparison.png')))\nmetric_table(load('dev_metrics.json'))\nshow('dev_metrics.json')"
     )
     md("""### 4. Change one thing: R → RFM
 
@@ -185,7 +221,7 @@ Compare the two logistic conditions, then the two Mitra conditions **on developm
 
 <details><summary>Interpretation guidance</summary>RFM can help by distinguishing equally recent customers with different purchasing histories. It can also add noise. State the actual difference and period rather than assuming a larger model or more features must win. A likely buyer may buy anyway without an offer.</details>""")
     code(
-        "show('development_activity.json')\nstage('freeze')\nprint('Dataset, support, settings, cohorts and 20% budget frozen before held-out predictions.')"
+        "print('RFM minus R on development, same model, support, customers and horizon:')\nfeature_contrast(load('development_activity.json'))\nshow('development_activity.json')\nstage('freeze')\nprint('Dataset, support, settings, cohorts and 20% budget frozen before held-out predictions.')"
     )
     md("""### 5. Evaluate later periods
 
@@ -193,7 +229,7 @@ Compare the two logistic conditions, then the two Mitra conditions **on developm
 
 The 2,000-replicate paired bootstrap samples **customers**, retaining their snapshots and repeated draws. Intervals are conditional on these dates and frozen systems. Two test dates do not establish temporal robustness or transfer to another business. Invalid replicates are counted explicitly.""")
     code(
-        "stage('evaluate')\ndisplay(Image(filename=str(RESULTS/'test_comparison.png')))\nshow('test_metrics.json')\nshow('paired_intervals.json')\ndiagnostics=pd.read_csv(RESULTS/'customer_diagnostics.csv')\ndisplay(diagnostics.groupby(['cutoff','outcome_group']).head(2))"
+        "stage('evaluate')\ndisplay(Image(filename=str(RESULTS/'test_comparison.png')))\nmetric_table(load('test_metrics.json'))\nshow('test_metrics.json')\ninterval_table(load('paired_intervals.json'))\nshow('paired_intervals.json')\ndiagnostics=pd.read_csv(RESULTS/'customer_diagnostics.csv', dtype={'customer_id':str})\ntable(diagnostics.groupby(['cutoff','outcome_group']).head(2))"
     )
     md("""**What to notice:** selected negatives, missed positives, differences across dates, recurring versus unseen-in-support customers and the paired interval. Do not tune settings from these outcomes. Unknown pretraining overlap and single-retailer history limit every system's claim.
 
@@ -203,7 +239,7 @@ The December 1, 2011 demonstration uses earlier purchases only. The source does 
 
 Safe JSON and numeric arrays preserve schema, preprocessing, labels and support. A fresh process reconstructs the histories and scores, checks hashes, and requires probability parity (atol 1e−5, rtol 1e−4), exact predicted classes and exact top 20% IDs. Raw transactions and pretrained weights are excluded from the results ZIP. Pseudonymous dataset IDs are not a promise of anonymity for business records.""")
     code(
-        "stage('infer')\nstage('verify')\nshow('verification.json')\ndisplay(pd.read_csv(RESULTS/'inference_predictions.csv').query(\"system == 'mitra_RFM'\").head())"
+        "stage('infer')\nstage('verify')\nshow('verification.json', expanded=True)\nreview=pd.read_csv(RESULTS/'inference_review_list.csv', dtype={'customer_id':str})\nprint(f\"Mitra-RFM review list: top {int(review.selected_at_budget.sum())} of {len(review)} customers selected at the 20% budget (score, then the frozen hash tie rule). Outcomes are not measurable.\")\ntable(review.head(10)[['rank','customer_id','score','selected_at_budget','evaluation_status']])"
     )
     md("""### 7. Conclude with evidence
 
@@ -211,17 +247,17 @@ Complete this optional reflection: “For ___ customers at ___ cutoffs, Mitra-RF
 
 The notebook stays **Candidate** until its exact revision completes a fresh hosted default run and representative BYOD validation, and the maintainer reviews the evidence. Local CPU tests are not hosted model execution evidence.""")
     code(
-        "(ROOT/'wall_resources.json').write_text(json.dumps({'elapsed_seconds_including_setup_before_report':time.monotonic()-STARTED,'initial_free_disk_bytes':INITIAL_FREE_DISK,'gpu_name':gpu.strip()}))\nstage('report')\nshow('run_summary.json')\nprint('Wall minutes including setup:',round((time.monotonic()-STARTED)/60,2))\nprint('Evidence:',RESULTS/'results.zip')\nDOWNLOAD_RESULTS=False\nif DOWNLOAD_RESULTS:\n    from google.colab import files\n    files.download(str(RESULTS/'results.zip'))"
+        "(ROOT/'wall_resources.json').write_text(json.dumps({'elapsed_seconds_including_setup_before_report':time.monotonic()-STARTED,'initial_free_disk_bytes':INITIAL_FREE_DISK,'gpu_name':gpu.strip()}))\nstage('report')\nsummary=load('run_summary.json')\nprint('Mode:', summary['mode'])\nprint('Limitations:', *summary['limitations'], sep='\\n- ')\nshow('run_summary.json')\nprint('Wall minutes including setup:',round((time.monotonic()-STARTED)/60,2))\nprint('Evidence:',RESULTS/'results.zip')\nDOWNLOAD_RESULTS=False\nif DOWNLOAD_RESULTS:\n    from google.colab import files\n    files.download(str(RESULTS/'results.zip'))"
     )
     md("""### 8. Optional bring your own transactions
 
-Disabled during default Run all. Upload your prepared files using Colab's file browser, then set paths below. Use only records you are authorized to process. CSV columns: `invoice_id,stock_code,quantity,invoice_time,unit_price,customer_id` and optional `country`. Do not include names, emails, phone numbers or payment details. Unexpected columns are refused.
+Disabled during default Run all. Upload your prepared files using Colab's file browser, then set paths below. Use only records you are authorized to process. `invoice_time` must be a timezone-naive ISO date or date-time (`2011-04-02` or `2011-04-02 12:00:00`); missing or other formats are refused with the row and value so you can correct them. Only empty fields count as missing: a literal `NA` or `001` stays an identifier. CSV columns: `invoice_id,stock_code,quantity,invoice_time,unit_price,customer_id` and optional `country`. Do not include names, emails, phone numbers or payment details. Unexpected columns are refused.
 
 The config declares `rights_confirmed:true`, `complete_observation_coverage:true`, `source_clock:"timezone-naive"`, `currency:"GBP"`, `coverage_start`, `coverage_end`, `train_cutoffs`, `development_cutoffs`, `test_cutoffs`, and `inference_cutoff`. Provide full 90-day histories and 30-day labelled windows, chronologically mature support and ordered cutoffs. V1 refuses currencies other than GBP and incompatible policies rather than silently transferring a model. Local surrogate IDs replace original customer IDs in the shareable bundle; the private mapping stays outside it.
 
 **Evaluation mode** fits/conditions a separate business model and runs the same workflow. **Artifact-inference mode** explicitly consumes your compatible prior scorer, requires only history coverage, and exports unlabelled scores; it never silently substitutes the tutorial model. See the embedded reconstruction guide for the precise contract.""")
     code(
-        "RUN_BYOD=False\nBYOD_MODE='evaluate' # or 'artifact-inference'\nBYOD_CSV=ROOT/'my_transactions.csv'\nBYOD_CONFIG=ROOT/'my_configuration.json'\nBYOD_ARTIFACT=ROOT/'my_prior_results'\nif RUN_BYOD:\n    command([PY,ROOT/'customer_byod.py','--root',ROOT,'--csv',BYOD_CSV,'--config',BYOD_CONFIG,'--mode',BYOD_MODE,'--artifact',BYOD_ARTIFACT],'byod.log')"
+        "RUN_BYOD=False\nBYOD_MODE='evaluate' # or 'artifact-inference'\nBYOD_CSV=ROOT/'my_transactions.csv'\nBYOD_CONFIG=ROOT/'my_configuration.json'\nBYOD_ARTIFACT=ROOT/'my_prior_results'\nif RUN_BYOD:\n    existing=set(ROOT.glob('byod_*'))\n    command([PY,ROOT/'customer_byod.py','--root',ROOT,'--csv',BYOD_CSV,'--config',BYOD_CONFIG,'--mode',BYOD_MODE,'--artifact',BYOD_ARTIFACT],'byod.log')\n    (run,)=set(ROOT.glob('byod_*'))-existing\n    out=run/'results'\n    print('Intake:', load('data_manifest.json', run)['intake'])\n    if BYOD_MODE=='evaluate':\n        metric_table(load('test_metrics.json', out))\n        review=pd.read_csv(out/'inference_review_list.csv', dtype={'customer_id':str})\n    else:\n        review=pd.read_csv(out/'predictions.csv', dtype={'customer_id':str}).sort_values('score', ascending=False)\n    table(review.head(10))\n    print('Shareable BYOD bundle:', out/'results.zip')"
     )
     md("""### Troubleshooting and glossary
 

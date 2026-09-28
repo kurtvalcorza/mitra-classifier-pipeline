@@ -28,10 +28,18 @@ def initialize(root: Path, csv_path: Path, cfg: dict, inference_only: bool) -> t
         raise ValueError("V1 requires GBP and timezone-naive source-clock compatibility")
     if csv_path.stat().st_size > 200_000_000:
         raise ValueError("BYOD CSV exceeds200MB")
-    raw = pd.read_csv(csv_path, dtype=str)
+    raw = data.read_transactions_csv(csv_path)
     if not set(raw.columns).issubset(data.COLUMNS) or not (set(data.COLUMNS) - {"country"}).issubset(raw):
         raise ValueError("Refuse unexpected identifying columns or missing transaction fields")
     raw = data.canonicalize(raw)
+    intake = {
+        "rows": len(raw),
+        "empty_identifier_fields": {
+            c: int(raw[c].eq("").sum()) for c in ("customer_id", "invoice_id", "stock_code")
+        },
+        "missing_value_policy": "Only empty fields are missing; literal text such as NA is an identifier",
+        "timestamp_policy": "Timezone-naive ISO date or date-time; other or missing values are refused",
+    }
     mappings = {}
     for column, prefix in (("customer_id", "customer"), ("invoice_id", "invoice"), ("stock_code", "product")):
         ids = sorted(set(raw[column]) - {""})
@@ -83,6 +91,7 @@ def initialize(root: Path, csv_path: Path, cfg: dict, inference_only: bool) -> t
             "currency": "GBP",
             "source_clock": "timezone-naive",
             "raw_csv_sha256": runtime.sha(csv_path),
+            "intake": intake,
             "administrative_codes": sorted(data.ADMIN_CODES),
             "license": "User-supplied rights acknowledgement",
         },
@@ -151,7 +160,7 @@ def check_artifact(root: Path, artifact: Path) -> None:
 def inference(root: Path, artifact: Path, verify_only: bool = False) -> None:
     check_artifact(root, artifact)
     cfg = runtime.config(root)
-    raw = data.canonicalize(pd.read_csv(root / "private/input.csv", dtype=str))
+    raw = data.canonicalize(data.read_transactions_csv(root / "private/input.csv"))
     frame = data.select_cohort(
         data.snapshots(
             raw, cfg["inference_cutoff"], cfg["coverage_start"], cfg["coverage_end"], require_labels=False

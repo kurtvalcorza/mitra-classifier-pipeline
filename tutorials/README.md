@@ -14,7 +14,7 @@ performance, campaign response or causal uplift. See [implementation/evidence](.
 
 | Notebook | Profile | Mode | Status | Default runtime | Qualification |
 |---|---|---|---|---|---|
-| `DIMER_Small_Business_Customer_Analytics_Capstone.ipynb` | `E2E` | `GUIDED` | Candidate | Fresh Colab T4, isolated Python 3.12 | CPU/source audit only; pretrained hosted run and representative BYOD pending |
+| `DIMER_Small_Business_Customer_Analytics_Capstone.ipynb` | `E2E` | `GUIDED` | Candidate | Fresh Colab T4, isolated Python 3.12 | Default Colab T4 Run all passed at `c81db75` (2026-09-28); representative BYOD runs and maintainer review pending |
 
 [![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat&logo=github&logoColor=white)](https://github.com/kurtvalcorza/mitra-classifier-pipeline)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kurtvalcorza/mitra-classifier-pipeline/blob/main/tutorials/mitra_classifier_colab.ipynb)

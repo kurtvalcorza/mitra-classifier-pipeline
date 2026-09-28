@@ -1,6 +1,8 @@
 """BYOD privacy, refusal and safe numeric reconstruction checks; no model weights."""
 
+import ast
 import importlib
+import json
 import shutil
 import subprocess
 import sys
@@ -218,6 +220,101 @@ def test_future_new_identifiers_cannot_renumber_past_customers(tmp_path):
     )
 
 
+LITERAL_IDS = {0: "NA", 1: "001", 2: "null"}
+
+
+def mixed_date_fixture(path):
+    """Review M1 fixture: 50 customers per cutoff, 25 buy again; one outcome per cutoff is date-time."""
+    rows = []
+    for cutoff in runtime.DEFAULT["train"] + runtime.DEFAULT["dev"] + runtime.DEFAULT["test"]:
+        t = pd.Timestamp(cutoff)
+        for i in range(50):
+            base = dict(customer_id=f"P{i:02}", stock_code="10001", quantity=1, unit_price=2)
+            history = (t - pd.Timedelta(days=10 + i % 7)).strftime("%Y-%m-%d")
+            rows.append(dict(base, invoice_id=f"INV-{cutoff}-{i}-h", invoice_time=history))
+            if i < 25:
+                when = t + pd.Timedelta(days=5)
+                text = when.strftime("%Y-%m-%d %H:%M:%S") if i == 0 else when.strftime("%Y-%m-%d")
+                rows.append(dict(base, invoice_id=f"INV-{cutoff}-{i}-f", invoice_time=text))
+    pd.DataFrame(rows).to_csv(path, index=False)
+
+
+def test_mixed_iso_dates_keep_25_25_labels_through_prepare(tmp_path):
+    root, path, cfg, _ = setup(tmp_path)
+    mixed_date_fixture(path)
+    cfg.update(
+        coverage_start="2009-12-01",
+        coverage_end="2011-12-09",
+        inference_cutoff="2011-12-01",
+        train_cutoffs=runtime.DEFAULT["train"],
+        development_cutoffs=runtime.DEFAULT["dev"],
+        test_cutoffs=runtime.DEFAULT["test"],
+    )
+    target, _ = byod.initialize(root, path, cfg, False)
+    runtime.run_stage(target, "prepare")
+    cohorts = runtime.read(runtime.output(target) / "cohort_manifest.json")["cohorts"]
+    assert len(cohorts) == 8
+    assert all((c["selected"], c["positives"]) == (50, 25) for c in cohorts)
+    mapping = runtime.read(target / "private/original_id_mappings.json")["customer_id"]
+    dev = runtime.csv(target, "dev_snapshots.csv")
+    assert set(dev.loc[dev.customer_id == mapping["P00"], "y_true"]) == {1}
+
+
+def test_unparseable_byod_timestamp_stops_before_snapshots(tmp_path):
+    root, path, cfg, _ = setup(tmp_path)
+    frame = pd.read_csv(path)
+    frame = pd.concat([frame, frame.assign(invoice_time="04/02/2011 12:00")], ignore_index=True)
+    frame.to_csv(path, index=False)
+    with pytest.raises(ValueError, match=r"row 2: '04/02/2011 12:00'"):
+        byod.initialize(root, path, cfg, True)
+    assert not list(root.glob("byod_*"))
+
+
+@pytest.mark.parametrize("literal", ["NA", "001", "null", "N/A"])
+def test_literal_identifiers_are_not_parsed_as_missing(tmp_path, literal):
+    root, path, cfg, _ = setup(tmp_path)
+    frame = pd.read_csv(path)
+    frame["customer_id"] = literal
+    frame["invoice_id"] = literal
+    frame.to_csv(path, index=False)
+    target, _ = byod.initialize(root, path, cfg, True)
+    mappings = runtime.read(target / "private/original_id_mappings.json")
+    assert list(mappings["customer_id"]) == [literal] and list(mappings["invoice_id"]) == [literal]
+    history = byod.data.snapshots(
+        byod.data.read_transactions_csv(target / "private/input.csv"),
+        "2011-04-01",
+        cfg["coverage_start"],
+        cfg["coverage_end"],
+        require_labels=False,
+    )
+    assert history.customer_id.tolist() == [mappings["customer_id"][literal]]
+
+
+def notebook_display_helpers(target):
+    """Run the notebook's own compact-summary helpers on real stage outputs (m1-m3)."""
+    builder = importlib.import_module("build_customer_capstone")
+    tree = ast.parse(builder.BOOTSTRAP)
+    keep = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name != "command" and node.name != "stage"
+        or isinstance(node, ast.Assign) and node.targets[0].id == "COMPACT"
+    ]
+    shown = []
+    namespace = dict(
+        pd=pd, json=json, html=importlib.import_module("html"), RESULTS=runtime.output(target), ROOT=target,
+        display=shown.append, HTML=str, print=lambda *a, **k: shown.append(" ".join(map(str, a))),
+    )
+    exec(compile(ast.Module(keep, []), "bootstrap", "exec"), namespace)
+    namespace["metric_table"](namespace["load"]("test_metrics.json"))
+    namespace["feature_contrast"](namespace["load"]("development_activity.json"))
+    namespace["interval_table"](namespace["load"]("paired_intervals.json"))
+    namespace["show"]("test_metrics.json")
+    text = "\n".join(shown)
+    assert "logistic_RFM" in text and "RFM-R P@budget" in text and "ci95_low" in text
+    assert "<details><summary>Full test_metrics.json" in text and "..." not in text.split("<details>")[0]
+
+
 def test_byod_evaluation_full_cpu_lifecycle_and_private_bundle(tmp_path, monkeypatch):
     root, path, cfg, _ = setup(tmp_path)
     rows = []
@@ -227,14 +324,15 @@ def test_byod_evaluation_full_cpu_lifecycle_and_private_bundle(tmp_path, monkeyp
                 rows.append(
                     dict(
                         invoice_id=f"SECRET-{cutoff}-{i}-{offset}",
-                        customer_id=f"SECRET-person-{i}",
+                        customer_id=LITERAL_IDS.get(i, f"SECRET-person-{i}"),
                         stock_code="10001",
                         quantity=1,
                         unit_price=i + 1,
                         invoice_time=pd.Timestamp(cutoff) + pd.Timedelta(days=offset),
                     )
                 )
-    pd.DataFrame(rows).to_csv(path, index=False)
+    empty_customer = dict(rows[0], invoice_id="SECRET-no-customer", customer_id="")
+    pd.DataFrame([*rows, empty_customer]).to_csv(path, index=False)
     cfg.update(
         coverage_start="2009-12-01",
         coverage_end="2011-12-09",
@@ -255,7 +353,10 @@ def test_byod_evaluation_full_cpu_lifecycle_and_private_bundle(tmp_path, monkeyp
     monkeypatch.setattr(
         models, "mitra_predict", lambda model, support, labels, query: 1 / (1 + np.exp(query[:, 0] / 30 - 1))
     )
+    # SciPy's array-API helpers probe sys.modules["torch"].Tensor when sklearn is first imported,
+    # so the stand-in must be internally consistent rather than rely on earlier test imports.
     torch = types.ModuleType("torch")
+    torch.Tensor = type("Tensor", (), {})
     torch.cuda = types.SimpleNamespace(
         is_available=lambda: True,
         reset_peak_memory_stats=lambda: None,
@@ -274,6 +375,22 @@ def test_byod_evaluation_full_cpu_lifecycle_and_private_bundle(tmp_path, monkeyp
         runtime.run_stage(target, stage)
     results = runtime.output(target)
     assert runtime.read(results / "run_summary.json")["mode"] == "BYOD"
+    mapping = runtime.read(target / "private/original_id_mappings.json")["customer_id"]
+    assert set(LITERAL_IDS.values()) <= set(mapping) and "" not in mapping
+    intake = runtime.read(target / "data_manifest.json")["intake"]
+    assert intake["empty_identifier_fields"]["customer_id"] == 1
+    for name in ("test_predictions.csv", "inference_predictions.csv"):
+        scored = set(runtime.csv(target, name).customer_id)
+        assert {mapping[v] for v in LITERAL_IDS.values()} <= scored
+    limitations = runtime.read(results / "run_summary.json")["limitations"]
+    assert not any("UK retailer" in item or "Philippine" in item for item in limitations)
+    assert any(item.startswith("Two test dates;") for item in limitations)
+    assert runtime.read(target / "private/teaching_timeline_summary.json")["reconciled"] is True
+    review = runtime.csv(target, "inference_review_list.csv")
+    final = [r for r in runtime.prediction_rows(target, "inference") if r["system"] == "mitra_RFM"]
+    assert review["rank"].tolist() == list(range(1, len(final) + 1))
+    assert review[review.selected_at_budget].customer_id.tolist() == runtime.ranked_ids(final)
+    notebook_display_helpers(target)
     with zipfile.ZipFile(results / "results.zip") as archive:
         assert not any("private" in name or "mapping" in name for name in archive.namelist())
         for name in archive.namelist():
