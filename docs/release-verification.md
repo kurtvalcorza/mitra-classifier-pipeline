@@ -1,5 +1,13 @@
 # Release verification
 
+## Customer analytics capstone — Candidate
+
+The new `DIMER_Small_Business_Customer_Analytics_Capstone.ipynb` has its own
+[implementation and evidence record](customer-capstone.md). It inherits no execution evidence
+from FreshRetailNet. Source/data checks and CPU tests do not qualify its pretrained Mitra path.
+Required next evidence: exact-revision fresh Colab T4 default Run all, exported verification bundle,
+measured resources, and representative BYOD evaluation plus artifact-inference runs.
+
 `tutorials/mitra_classifier_colab.ipynb` (`E2E`) and `tutorials/mitra_classifier_predictor_inference_colab.ipynb`
 (`ARTIFACT-INFERENCE`) are **release candidates** until the exact notebook revisions have executed top-to-bottom in a
 clean supported runtime. Unit tests, JSON validation, code-cell compilation, and `tools/validate_release_assets.py` are

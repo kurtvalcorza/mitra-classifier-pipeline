@@ -1,5 +1,10 @@
 # Mitra Classifier — DIMER Pipeline
 
+New candidate: [Who Is Likely to Buy Again?](tutorials/DIMER_Small_Business_Customer_Analytics_Capstone.ipynb)
+is a standalone, guided customer-analytics capstone using audited UCI Online Retail II transactions.
+It compares six fixed systems, tests future repeat-purchase ranking, and exports reconstructable numeric scorers.
+See [scope and validation](docs/customer-capstone.md). Fresh Colab T4 and BYOD qualification remain pending.
+
 [![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat&logo=github&logoColor=white)](https://github.com/kurtvalcorza/mitra-classifier-pipeline)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kurtvalcorza/mitra-classifier-pipeline/blob/main/tutorials/mitra_classifier_colab.ipynb)
 [![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-autogluon%2Fmitra--classifier-ffcc4d?style=flat)](https://huggingface.co/autogluon/mitra-classifier)

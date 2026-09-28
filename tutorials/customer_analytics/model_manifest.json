@@ -1,0 +1,20 @@
+{
+  "format": "dimer_hf_snapshot",
+  "formatVersion": 1,
+  "modelKey": "mitra-classifier",
+  "modelId": "autogluon/mitra-classifier",
+  "revision": "c425e9fa0910a6be1c494321792e7ba2a1367b1a",
+  "files": [
+    {
+      "path": "model.safetensors",
+      "bytes": 302717904,
+      "sha256": "e06a055e91a3baeffc37f9cf634d9e69a27d904b6686131dc3b702f9c0126b19"
+    },
+    {
+      "path": "config.json",
+      "bytes": 86,
+      "sha256": "2c96c24dd25f64e92753f6f2ba00cc7833b9923459403dcd8504e8700c0995df"
+    }
+  ],
+  "totalBytes": 302717990
+}
