@@ -44,6 +44,16 @@ Colab T4 Run all and representative BYOD evaluation and artifact-inference runs.
 Remaining before promotion: representative BYOD evaluation and artifact-inference runs under the pinned
 lock, a learner observation and maintainer review. Status remains **Candidate**.
 
+### Notebook source layout change (2026-10-02)
+
+The infrastructure cell `customer-03` used to hold all carried files on one 235,880-character source
+line. The generator now writes each carried string as short implicitly concatenated pieces (at most
+1,000 characters each); the longest notebook line is now 637 characters. The ten carried files are
+unchanged byte for byte, and so are their SHA-256 values in `source.json`. The only carried difference
+is `source.json`'s `builder_sha256`, which records the generator's own hash and changes whenever the
+generator changes. The notebook blob changes from `5db77406b629` to `0eade8804f02`. The hosted run
+above executed blob `5db77406b629`; a hosted re-run of the new blob is pending.
+
 `tutorials/mitra_classifier_colab.ipynb` (`E2E`) and `tutorials/mitra_classifier_predictor_inference_colab.ipynb`
 (`ARTIFACT-INFERENCE`) are **release candidates** until the exact notebook revisions have executed top-to-bottom in a
 clean supported runtime. Unit tests, JSON validation, code-cell compilation, and `tools/validate_release_assets.py` are
