@@ -38,6 +38,28 @@ def carried_files() -> dict[str, str]:
     return files
 
 
+# Carried strings are written as short implicitly concatenated pieces so no notebook line is
+# hundreds of thousands of characters long (one huge line can freeze a browser tab). Python joins
+# the pieces back into identical text, so the written files and their SHA-256 values are unchanged.
+CARRIER_PIECE = 1000
+
+
+def carried_literal(value: object) -> str:
+    """Return a Python literal for ``value`` (str, or dict of them) with no long source lines."""
+    if isinstance(value, dict):
+        return "{\n" + "".join(f"{key!r}: {carried_literal(item)},\n" for key, item in value.items()) + "}"
+    if isinstance(value, str):
+        pieces = [
+            line[start : start + CARRIER_PIECE]
+            for line in value.splitlines(keepends=True)
+            for start in range(0, len(line), CARRIER_PIECE)
+        ]
+        if not pieces:
+            return repr(value)
+        return "(\n" + "".join(f"    {piece!r}\n" for piece in pieces) + ")"
+    return repr(value)
+
+
 BOOTSTRAP = r"""
 from pathlib import Path
 import hashlib, html, json, os, platform, shutil, subprocess, time, urllib.request, zipfile
@@ -176,7 +198,7 @@ Money stays in **GBP gross positive purchase value**, never net revenue or profi
 <details><summary>Worked answer</summary>No. They can describe ten products on one order. Counting lines as orders changes the meaning of purchase frequency.</details>""")
     md("""### Infrastructure — carried implementation and isolated environment
 Run these cells without studying the packaging code. All experiment source is embedded below; runtime downloads are limited to pinned upstream dependencies, model files and the official dataset.""")
-    code("FILES = " + repr(carried_files()), True)
+    code("FILES = " + carried_literal(carried_files()), True)
     code(BOOTSTRAP, True)
     md("""### 2. Build histories without seeing the future
 

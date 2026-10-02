@@ -31,3 +31,15 @@ def test_hash_lock_has_pins_and_distribution_hashes():
     for entry in lock.replace("\\\n", " ").splitlines():
         if entry and not entry.startswith(("#", " ", "--")):
             assert "==" in entry and "--hash=sha256:" in entry
+
+
+def test_notebook_has_no_long_lines_and_carrier_round_trips():
+    notebook = json.loads(builder.NOTEBOOK.read_text(encoding="utf-8"))
+    for cell in notebook["cells"]:
+        for line in cell["source"]:
+            assert len(line) <= 2000, (cell["id"], len(line))
+    samples = {"empty": "", "long": "x" * 2500 + "\n", "multi": "a\r\nb\n\nc'\"\\é d", "tail": "no newline"}
+    for value in (samples, *samples.values()):
+        literal = builder.carried_literal(value)
+        assert ast.literal_eval(literal) == value
+        assert max(map(len, literal.splitlines())) <= 2000
