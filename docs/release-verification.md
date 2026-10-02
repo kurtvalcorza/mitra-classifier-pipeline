@@ -52,7 +52,18 @@ line. The generator now writes each carried string as short implicitly concatena
 unchanged byte for byte, and so are their SHA-256 values in `source.json`. The only carried difference
 is `source.json`'s `builder_sha256`, which records the generator's own hash and changes whenever the
 generator changes. The notebook blob changes from `5db77406b629` to `0eade8804f02`. The hosted run
-above executed blob `5db77406b629`; a hosted re-run of the new blob is pending.
+above executed blob `5db77406b629`; the new blob was re-run on 2026-10-03 (below).
+
+### Colab CLI execution of revision `9698515` (blob `0eade880`) — 2026-10-03
+
+| Item | Record |
+| --- | --- |
+| File | [`execution-evidence/2026-10-03/DIMER_Small_Business_Customer_Analytics_Capstone_9698515_colab-cli-t4.ipynb`](execution-evidence/2026-10-03/DIMER_Small_Business_Customer_Analytics_Capstone_9698515_colab-cli-t4.ipynb), SHA-256 `c53a3f6d6559fe1cf670beca70dc65a5ce6924b12b17c8bf791ab1717d91f34b`, byte-for-byte copy of the CLI's output notebook |
+| Executor | Google Colab CLI 0.7.4 (`colab new --gpu T4`, `colab exec -f`, `colab stop`) from WSL, on a fresh Colab Tesla T4 session (`Shape: Standard`). This is sequential execution of every code cell in one kernel, not a browser Run all; the CLI does not record `execution_count`, so order is evidenced by its `Executing cell k/10` log |
+| Source match | The notebook was downloaded from GitHub at `9698515` and its git blob `0eade8804f02` checked before the session was created. All 21 cells match the PR head in id, order and source |
+| Result | **PASSED**: 10/10 code cells, no error output, stages prepare / fit / develop / freeze / evaluate / infer / verify / report all PASS; wall 638 s (10.44 min including setup) |
+| Equivalence | Every printed stage result equals the 2026-09-28 run of blob `5db77406b629`; only the dependency-resolve time and wall time differ. The carrier split changed no runtime behaviour |
+| Boundary | Saved outputs were inspected; BYOD was not exercised. Status remains **Candidate** |
 
 `tutorials/mitra_classifier_colab.ipynb` (`E2E`) and `tutorials/mitra_classifier_predictor_inference_colab.ipynb`
 (`ARTIFACT-INFERENCE`) are **release candidates** until the exact notebook revisions have executed top-to-bottom in a
@@ -175,6 +186,7 @@ they are measurements for the stated runtime, not general estimates.
 | 2026-09-14 | `0e13847` / `9599d5c4832c` | Kaggle T4 (`kurtvalcorza/dimer-nb2-mitra-classifier` v2) | Standalone E2E default sample path | 215.5 s | **PASSED** — 9/9 ok code cells executed cleanly, 9 files, 605 MB staged |
 | | | | Standalone ARTIFACT-INFERENCE with an external bundle | | pending — queued to the GPU lane |
 | 2026-09-28 | `c81db75` / `5db77406b629` | Colab Tesla T4 (maintainer-supplied) | Customer analytics capstone, default Run all | 10.4 min | **PASSED**: 10/10 code cells, 8/8 stages, fresh-process verification passed; BYOD not exercised |
+| 2026-10-03 | `9698515` / `0eade8804f02` | Colab CLI 0.7.4, fresh Colab Tesla T4 | Customer analytics capstone, all code cells in order | 638 s | **PASSED**: 10/10 code cells, 8/8 stages; results equal the 2026-09-28 run |
 
 ## Current status
 
