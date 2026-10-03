@@ -316,3 +316,9 @@ Code cells changed in 2.1.1. **Status: Candidate.** The following exact-revision
 - a rerun of §8.0 after §8.1, showing the refusal, and once with `REFREEZE_REASON` showing the recorded earlier freeze;
 - a corrected fine-tuned TabICLv2 ablation on a GPU;
 - an invalid-then-corrected BYOD archive in one session, and a valid representative BYOD run (REL12).
+
+## FreshRetailNet classification workshops (v1 and v2): 2026-10-03 uv isolated environment
+
+Both editions moved together to the uv isolated environment, so their shared cells stay identical: compact v1 revision 2.1.1 → 2.2.0 (notebook blob `d378e906` → `d17c298b`) and guided v2 revision 2.1.1 → 2.2.0 (blob `1b166029` → `b3c33de9`). Nothing is installed into the notebook kernel and Run all needs no restart. Section 0.1 checks for a Linux x86_64 kernel with Colab's scikit-learn and LightGBM instead of pip-installing LightGBM. Section 5.2 no longer pip-installs `uv`: it downloads uv 0.12.15 by SHA-256, creates each model environment with `uv venv --managed-python --python 3.12.12`, and installs the carried `tutorials/requirements-workshop-<stack>.lock.txt` with `--require-hashes --only-binary :all:`, then `uv pip check`. TabDPT's `antlr4-python3-runtime` 4.9.3 has no wheel, so its hash-pinned source archive is built with the locked setuptools. Top-level pins, data, seeds, models and metrics are unchanged. The notebooks are now **Linux x86_64 only** (Colab, Kaggle, Linux Jupyter). `tests/test_workshop_uv_environment.py` covers the change: 16 of its 22 checks fail on the previous revisions, and the other 6 check the lock files and the shared cells only.
+
+A hosted re-run of both revisions is pending. **Status: Candidate.**
