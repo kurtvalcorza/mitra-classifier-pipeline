@@ -187,14 +187,21 @@ AUXILIARY_NOTEBOOKS = {
         "mode": "WORKSHOP",
         "notebook_spec": "2.1",
         "standalone": True,
-        "revision": "2.1.0",
+        "revision": "2.2.0",
         "code_markers": (
             'EXPECTED_DATASET_SHA256 = "ad2d2a8729749bb055754e4867acfb048fc27816f4eb344961d962b59c0be6dd"',
             'PRIMARY_METRIC = "balanced_accuracy"',
             "CARRIED_ADAPTER_SOURCES = ",
             "MODEL_ENVIRONMENT_DEPENDENCIES = ",
-            'FOUNDATION_PYTHON_SPEC = "3.12"',
+            'FOUNDATION_PYTHON_SPEC = "3.12.12"',
+            # uv isolated environment (2026-10-03): pinned uv, managed CPython, hash-locked wheels, no kernel installs.
+            'UV_SHA256 = "aee9802f46bae436bd91751bb33ddeb379ef1596b5c19df193219d545d244b60"',
             "uv_path = ensure_uv()",
+            '"venv", "--managed-python", "--python", FOUNDATION_PYTHON_SPEC',
+            '"--require-hashes", "--no-deps"',
+            '"--only-binary", ":all:"',
+            "CARRIED_ENVIRONMENT_LOCKS = ",
+            'missing_packages = [name for name in ("sklearn", "lightgbm")',
             '"python_spec": FOUNDATION_PYTHON_SPEC',
             '"run_fingerprint": run_fingerprint',
             '"artifact_inventory": file_inventory',
@@ -208,6 +215,18 @@ AUXILIARY_NOTEBOOKS = {
             'FREEZE_NOW = True',
             'EVALUATE_FROZEN_TEST = True',
             "RUNNER_SOURCE = ",
+            # Notebook Review Framework v1 findings (2026-10-03, FRC1); tests/test_frc1_workshop_v1_review_fixes.py
+            # exercises them. The NR-0x fixes are ported from the v2 notebook.
+            '"ablation_group": ablation_group',  # FRC1-M1: adaptation mode never carries the ablation label
+            'f"Adaptation mode differs',  # FRC1-M1: a mixed-factor ablation is refused
+            'staging_root = DATA_ROOT / f".staging-{uuid.uuid4().hex[:8]}"',  # FRC1-M2: transactional staging
+            'development_config = json.loads((run_dir / "run_config.json").read_text())',  # FRC1-M3: frozen config
+            'REFREEZE_REASON = ""',  # FRC1-M3: no silent refreeze after test scores were seen
+            "TEST_PER_CLASS_RECALL = pd.DataFrame(",  # FRC1-m1: test balance and per-class recall after the freeze
+            "HOST_OUTSIDE_TESTED_RANGE = {",  # FRC1-m3: host versions checked against the tested range
+            "MODEL_OPERATIONAL_CEILINGS = {",  # FRC1-m4: model ceilings checked before any foundation run
+            '"comparison_definitions": {',  # FRC1-m5: recomputable export
+            "ABLATION_CONTRASTS = pd.DataFrame(contrast_rows)",  # FRC1-m6: ablated vs full-feature LightGBM
         ),
         "markdown_markers": (
             "Mitra Classifier",
@@ -217,24 +236,34 @@ AUXILIARY_NOTEBOOKS = {
             "training partition only",
             "not benchmark evidence",
             "non-commercial weights",
+            "**Edition:** compact edition",  # FRC1-M4: the notebook says which edition it is
+            "### Where you practise each objective",  # FRC1-M5: every objective has an activity
+            "### Reading the baseline table",  # FRC1-m2: the lag-7 log loss is explained
         ),
     },
     "DIMER_FreshRetailNet_MultiModel_Classification_Workshop_v2.ipynb": {
-        # Outputs may be committed from a recorded Colab run (maintainer decision). Revision 2.1.1 changed code cells,
-        # so its outputs were cleared; the 2.1.0 run is preserved in docs/execution-evidence/2026-09-26/.
+        # Outputs may be committed from a recorded Colab run (maintainer decision). Revisions 2.1.1 and 2.2.0 changed
+        # code cells, so their outputs were cleared; earlier runs are preserved in docs/execution-evidence/.
         "committed_outputs": "executed-record",
         "profile": "E2E",
         "mode": "WORKSHOP",
         "notebook_spec": "2.1",
         "standalone": True,
-        "revision": "2.1.1",
+        "revision": "2.2.0",
         "code_markers": (
             'EXPECTED_DATASET_SHA256 = "ad2d2a8729749bb055754e4867acfb048fc27816f4eb344961d962b59c0be6dd"',
             'PRIMARY_METRIC = "balanced_accuracy"',
             "CARRIED_ADAPTER_SOURCES = ",
             "MODEL_ENVIRONMENT_DEPENDENCIES = ",
-            'FOUNDATION_PYTHON_SPEC = "3.12"',
+            'FOUNDATION_PYTHON_SPEC = "3.12.12"',
+            # uv isolated environment (2026-10-03): pinned uv, managed CPython, hash-locked wheels, no kernel installs.
+            'UV_SHA256 = "aee9802f46bae436bd91751bb33ddeb379ef1596b5c19df193219d545d244b60"',
             "uv_path = ensure_uv()",
+            '"venv", "--managed-python", "--python", FOUNDATION_PYTHON_SPEC',
+            '"--require-hashes", "--no-deps"',
+            '"--only-binary", ":all:"',
+            "CARRIED_ENVIRONMENT_LOCKS = ",
+            'missing_packages = [name for name in ("sklearn", "lightgbm")',
             '"python_spec": FOUNDATION_PYTHON_SPEC',
             '"run_fingerprint": run_fingerprint',
             '"artifact_inventory": file_inventory',
