@@ -40,11 +40,26 @@ TEMPLATE = {
     "notebook_name": "mitra_classifier_colab.ipynb",
     "profile": "E2E",
     "mode": "GUIDED",
+    "isolated_runtime": True,
+    "infrastructure_labels": True,
+    # The fleet's uv isolated-environment mechanism (generator /2.2): managed CPython, a
+    # size- and SHA-256-verified uv wheel, and a lock compiled from the pyproject pins with
+    # `uv pip compile pyproject.toml --python-version 3.12 --python-platform x86_64-manylinux_2_28 --generate-hashes
+    # --only-binary :all: -o tutorials/requirements-colab-isolated.lock.txt`
+    # (the pip-compile `requirements-colab*.lock.txt` files beside it are the pre-existing reference locks and are unchanged).
+    "managed_python": "3.12.12",
+    "uv": {
+        "version": "0.12.15",
+        "url": "https://files.pythonhosted.org/packages/1e/fd/432451d732917c49152a291de3ef171aa6b0f1a22d39780fb2c1f085ca4c/uv-0.12.15-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+        "bytes": 20081404,
+        "sha256": "aee9802f46bae436bd91751bb33ddeb379ef1596b5c19df193219d545d244b60",
+    },
+    "lock": "tutorials/requirements-colab-isolated.lock.txt",
     "run_all": (
-        "Selecting **Run all** in a fresh supported runtime installs the pinned dependencies, stages and digest-verifies the pinned Mitra snapshot, loads scikit-learn's bundled Breast Cancer Wisconsin table (no download), validates the tables into an input manifest and checks class coverage and split overlap, fits the pretrained Mitra predictor by **in-context conditioning on the training split** (the adaptation stage that runs by default — no gradient update) alongside executable baselines, evaluates on the held-out split and writes the evaluation report, exports the deployable predictor bundle and reloads it from disk to prove the fresh boundary. Gradient fine-tuning of the Mitra weights is an optional experiment (`RUN_FINE_TUNING`, off by default, Section 6) because it needs a GPU-sized time budget; a reviewer reading NOTEBOOK_SPEC 2.0 RUN7/FT2 as requiring gradient adaptation on the default path should treat that as an open decision. No repository clone, DIMER worker or service, credential, upload dialog or configuration edit is required (§5)."
+        "Selecting **Run all** in a fresh supported runtime builds an isolated, hash-locked environment with the pinned dependencies (nothing is installed into the notebook kernel, so no restart is needed), stages and digest-verifies the pinned Mitra snapshot, loads scikit-learn's bundled Breast Cancer Wisconsin table (no download), validates the tables into an input manifest and checks class coverage and split overlap, fits the pretrained Mitra predictor by **in-context conditioning on the training split** (the adaptation stage that runs by default — no gradient update) alongside executable baselines, evaluates on the held-out split and writes the evaluation report, exports the deployable predictor bundle and reloads it from disk to prove the fresh boundary. Gradient fine-tuning of the Mitra weights is an optional experiment (`RUN_FINE_TUNING`, off by default, Section 6) because it needs a GPU-sized time budget; a reviewer reading NOTEBOOK_SPEC 2.0 RUN7/FT2 as requiring gradient adaptation on the default path should treat that as an open decision. No repository clone, DIMER worker or service, credential, upload dialog or configuration edit is required (§5)."
     ),
     "byod": (
-        "After the sample workflow completes, set `USE_BYOD = True` in Section 4 and re-run from that cell to upload one labelled CSV (or pre-split `train.csv`/`val.csv`/`test.csv`); it enters the same validation, split, in-context fitting, baseline, evaluation, export and fresh-reload cells as the sample (DAT14), and `RUN_NEW_DATA_INFERENCE` in Section 8 scores your own unlabelled rows with the fitted predictor. Expected schema, ceilings and privacy guidance are stated in the Prerequisites and in Section 4; uploads stay inside this runtime. BYOD is optional and never part of the default path."
+        "After the sample workflow completes, set `USE_BYOD = True` in Section 4 (with an `Upload …` `DATA_SOURCE`, and `BYOD_PATH` pointing at one labelled CSV or at a directory holding pre-split `train.csv`/`val.csv`/`test.csv`; on Colab an empty path opens the upload dialog) and re-run from that cell; it enters the same validation, split, in-context fitting, baseline, evaluation, export and fresh-reload cells as the sample (DAT14), and `RUN_NEW_DATA_INFERENCE` in Section 8 scores your own unlabelled rows with the fitted predictor. Expected schema, ceilings and privacy guidance are stated in the Prerequisites and in Section 4; uploads stay inside this runtime. BYOD is optional and never part of the default path."
     ),
     "pipeline_class": "MitraClassificationPipeline",
     "weights_key": "mitra-classifier",
@@ -84,8 +99,12 @@ TEMPLATE = {
         "over uncalibrated class probabilities; the fine-tuning path runs only on a GPU and only when "
         "`RUN_FINE_TUNING` is switched on; Mitra supports at most `MAX_CLASSES` classes."
     ),
+    "guided": {"opening": [(
+        "**Who this notebook is for.** A learner who knows basic pandas, has used Colab or Jupyter and has met a train/holdout split and accuracy, and wants to see what an in-context tabular foundation model does with a small table: how it is *conditioned* on support rows instead of trained, how its numbers are read against trivial and classical baselines on the same rows, and what the exported predictor bundle contains. The audience is students and practitioners deciding whether Mitra fits their own tables; no prior experience with AutoGluon or Mitra is assumed — each term is explained where it first matters and again in the **Glossary**. CPU is enough for the default path; the optional fine-tuning gate needs a GPU.\n\n**Input → Model → Output.**\n\n| | |\n|---|---|\n| Input | a labelled table (`DATA_SOURCE`): the default is scikit-learn's bundled Breast Cancer Wisconsin table (569 rows, 30 numeric features, two classes), split 60/20/20 into support, holdout and an independent test partition; or your own CSV (one file, or pre-split `train.csv` / `val.csv` / `test.csv`) via `BYOD_PATH` or the Colab upload dialog |\n| Model | the pinned `autogluon/mitra-classifier` checkpoint (302,717,904-byte `model.safetensors`) served through AutoGluon's `TabularPredictor`; `fit` with `fine_tune=False` registers the support rows — no weight is gradient-updated — and `RUN_FINE_TUNING` (off) is the only path that trains |\n| Output | accuracy, balanced accuracy, macro F1, MCC, log loss and ROC-AUC on the holdout and the test partition beside a majority-class predictor, LightGBM and Random Forest; an input manifest with one recorded refusal; an evaluation report with the verdict `sample-sanity`; eight scored rows; a predictor bundle (`outputs/mitra_classifier_predictor.zip`) that is reloaded from fresh files and checked against the in-memory model; `result.json` |\n\n**How to use this notebook.** Choose any runtime, then **Runtime → Run all**. Run all completes in one pass: Section 1 installs nothing into the notebook's own Python, so no restart is needed (the recorded hosted run of the previous version needed one; this version removes it). Sections 1–3 are **infrastructure** — the isolated environment, the carried module and the verified snapshot — and their cells are collapsed; you may run them without studying them. The learning path starts in Section 4. Form fields (`# @param`) are the only values meant to be edited, and the defaults reproduce the recorded run. Before each principal result the notebook asks you to **Predict**; after it comes a collapsible **Check your reasoning** with a worked answer: the recorded Kaggle T4 run of 14 September 2026 (215.5 s, 9 of 9 cells) kept the stages and the partition sizes but not the metric values, so the answers give directions and magnitudes, not numbers to match. **Troubleshooting**, a **Glossary** and a **Conclusion** template are at the end. Budget about ten minutes; the AutoGluon install and the 300 MB checkpoint dominate.\n\n**Roadmap:** 1–3 infrastructure → 4 the table and its split *(core concept: support, holdout and an independent test partition)* → 5 validation, the input manifest and one deliberate refusal *(core concept: the data contract, class coverage and leakage checks)* → 6 the pretrained model beside a majority-class predictor, LightGBM and Random Forest on the same rows *(evaluation practice: baselines first; in-context conditioning versus training)* → 7 the evaluation report and its verdict *(evaluation practice)* → 8 optional new-data inference → 9 export the bundle and prove a fresh reload *(engineering)* → conclude."
+    )]},
     "prerequisites": [
-        "- **Runtime:** a fresh supported runtime (Google Colab or Jupyter, Python 3.10–3.13 as required by AutoGluon 1.5.0). The default path runs on CPU and uses CUDA automatically when available; the fine-tuning gate requires a GPU. The pinned `autogluon.tabular[mitra]==1.5.0` install (with its torch) is the largest download of the run.",
+        "- **Learner:** basic pandas and Colab or Jupyter familiarity; no prior experience with AutoGluon or Mitra. In-context conditioning, the partitions, the metrics, the baselines and the bundle are explained where they are first used and again in the Glossary.",
+        "- **Runtime:** a fresh supported **Linux x86_64** runtime (Google Colab, Kaggle or a Linux Jupyter server). Section 1 builds its own Python 3.12.12 environment from a hash-locked list of manylinux wheels (AutoGluon 1.5.0 and its torch), so the Python version of the kernel itself does not matter and nothing is installed into it; a Windows or macOS kernel is not supported. The default path runs on CPU and uses CUDA automatically when available; the fine-tuning gate requires a GPU. The pinned `autogluon.tabular[mitra]==1.5.0` install (with its torch) is the largest download of the run.",
         "- **Knowledge:** basic pandas; what a stratified holdout, an independent test partition, accuracy, balanced accuracy, log loss and ROC-AUC are.",
         "- **Data:** the default sample is scikit-learn's bundled Breast Cancer Wisconsin table (569 rows, 30 numeric features, two classes), loaded from the installed package, so nothing is downloaded and no private data is needed; `Sample: Wine` is the bundled three-class table. BYOD (one labelled CSV, or pre-split `train.csv`/`val.csv`/`test.csv` — the repository's `examples/sample-data/` archives such as FreshRetailNet, Telco Churn and Adult Census can be supplied this way) is selected through `DATA_SOURCE` and is off by default so the sample path runs top-to-bottom without interaction. Do not upload confidential or restricted data to a hosted notebook environment unless you are authorized to do so. Uploaded inputs remain in the notebook runtime; this pipeline does not send them to a third-party inference API.",
     ],
@@ -104,7 +123,8 @@ TEMPLATE = {
                 "SHA-256 of the data payloads so the exported provenance can be tied to the exact data.\n\n"
                 "**BYOD privacy boundary.** Uploaded CSV bytes are read inside the current notebook runtime and are not sent "
                 "by this notebook to an external inference or training service; the only network request on the default "
-                "path is the pinned checkpoint download of Section 3."
+                "path is the pinned checkpoint download of Section 3.\n\n"
+                "**Predict:** 569 rows split 60/20/20 with stratification. How many rows land in each partition, and will the class shares of the holdout match the support rows' exactly, approximately, or not at all?"
             ),
             "code": (
                 "import hashlib\n\n"
@@ -112,6 +132,7 @@ TEMPLATE = {
                 "from sklearn.model_selection import train_test_split\n\n"
                 "DATA_SOURCE = 'Sample: Breast Cancer'  # @param [\"Sample: Breast Cancer\", \"Sample: Wine\", \"Upload CSV\", \"Upload pre-split train/val/test\"]\n"
                 "USE_BYOD = False  # @param {{type:\"boolean\"}}\n"
+                "BYOD_PATH = ''  # @param {{type:\"string\"}}\n"
                 "TARGET_COLUMN = 'target'  # @param {{type:\"string\"}}\n"
                 "DROP_COLUMNS = ''  # @param {{type:\"string\"}}\n"
                 "VALIDATION_SPLIT = 0.20  # @param {{type:\"number\"}}\n"
@@ -125,6 +146,38 @@ TEMPLATE = {
                 "    train, remainder = train_test_split(frame, test_size=0.4, random_state=SEED, stratify=frame[TARGET_COLUMN])\n"
                 "    holdout, test = train_test_split(remainder, test_size=0.5, random_state=SEED, stratify=remainder[TARGET_COLUMN])\n"
                 "    return train, holdout, test\n\n"
+                'def byod_payloads(path, expected=None):\n'
+                '    """BYOD path first (works on Colab, Kaggle and Jupyter): one labelled CSV, or a directory holding the expected files; on Colab an empty path opens the upload dialog."""\n'
+                '    if str(path).strip():\n'
+                '        source = Path(str(path).strip()).expanduser()\n'
+                '        if expected:\n'
+                '            if not source.is_dir():\n'
+                "                raise FileNotFoundError(f'BYOD_PATH {{str(source)!r}} must be a directory holding {{list(expected)}} for the pre-split option (relative paths start at {{os.getcwd()}}).')\n"
+                '            missing = sorted(name for name in expected if not (source / name).is_file())\n'
+                '            if missing:\n'
+                "                raise FileNotFoundError(f'BYOD directory {{str(source)!r}} is missing {{missing}}.')\n"
+                '            return {{name: (source / name).read_bytes() for name in expected}}\n'
+                '        if not source.is_file():\n'
+                "            raise FileNotFoundError(f'BYOD_PATH {{str(source)!r}} does not exist or is not a file (relative paths start at {{os.getcwd()}}); give the path of one labelled CSV.')\n"
+                "        if not source.name.lower().endswith('.csv'):\n"
+                "            raise ValueError(f'{{source.name}}: expected a labelled CSV file.')\n"
+                '        return {{source.name: source.read_bytes()}}\n'
+                '    try:\n'
+                '        from google.colab import files\n'
+                '    except ImportError:\n'
+                "        raise RuntimeError('USE_BYOD is on but BYOD_PATH is empty, and the upload dialog exists only in Google Colab: copy the CSV (or the pre-split directory) into this runtime, or attach it as a Kaggle dataset, and set BYOD_PATH.') from None\n"
+                '    uploaded = files.upload()\n'
+                '    if expected:\n'
+                '        by_base = {{Path(name).name.lower(): payload for name, payload in uploaded.items()}}\n'
+                '        missing = sorted(set(expected) - set(by_base))\n'
+                '        if missing:\n'
+                '            raise RuntimeError(f\'Upload {{", ".join(expected)}} together (received {{sorted(by_base) or "nothing; a cancelled dialog sends none"}}). Missing: {{missing}}. Run this cell again.\')\n'
+                '        return {{name: by_base[name] for name in expected}}\n'
+                "    csvs = [(name, payload) for name, payload in uploaded.items() if name.lower().endswith('.csv')]\n"
+                '    if len(csvs) != 1:\n'
+                "        raise RuntimeError(f'Upload exactly one labelled CSV (received {{len(uploaded)}} files; a cancelled dialog sends none). Run this cell again.')\n"
+                '    return dict(csvs)\n'
+                '\n'
                 "test_data = None\n"
                 "if DATA_SOURCE == 'Sample: Breast Cancer':\n"
                 "    dataset = load_breast_cancer(as_frame=True)\n"
@@ -141,25 +194,14 @@ TEMPLATE = {
                 "    payloads = {{'sample.csv': frame.to_csv(index=False).encode('utf-8')}}\n"
                 "    data_name, sample_kind = 'sklearn-wine', 'sample'\n"
                 "elif DATA_SOURCE == 'Upload pre-split train/val/test':\n"
-                "    from google.colab import files\n"
-                "    uploaded = files.upload()\n"
-                "    by_base = {{Path(name).name.lower(): payload for name, payload in uploaded.items()}}\n"
-                "    missing = sorted({{'train.csv', 'val.csv', 'test.csv'}} - set(by_base))\n"
-                "    if missing:\n"
-                "        raise RuntimeError(f'Upload train.csv, val.csv, and test.csv together. Missing: {{missing}}')\n"
-                "    payloads = {{name: by_base[name] for name in ('train.csv', 'val.csv', 'test.csv')}}\n"
+                "    payloads = byod_payloads(BYOD_PATH, ('train.csv', 'val.csv', 'test.csv'))\n"
                 "    train_data = read_csv_bytes(payloads['train.csv'], 'train.csv')\n"
                 "    holdout_data = read_csv_bytes(payloads['val.csv'], 'val.csv')\n"
                 "    test_data = read_csv_bytes(payloads['test.csv'], 'test.csv')\n"
                 "    data_name, sample_kind = 'pre-split upload', 'BYOD'\n"
                 "else:\n"
-                "    from google.colab import files\n"
-                "    uploaded = files.upload()\n"
-                "    csvs = [(name, payload) for name, payload in uploaded.items() if name.lower().endswith('.csv')]\n"
-                "    if len(csvs) != 1:\n"
-                "        raise RuntimeError('Upload exactly one labelled CSV.')\n"
-                "    data_name, payload = csvs[0]\n"
-                "    payloads = {{data_name: payload}}\n"
+                "    payloads = byod_payloads(BYOD_PATH)\n"
+                "    data_name, payload = next(iter(payloads.items()))\n"
                 "    data, _features, _report = validate_labeled_frame(read_csv_bytes(payload, data_name), TARGET_COLUMN, name=data_name, drop_columns=drop_columns, min_rows=MIN_TRAIN_ROWS, min_classes=MIN_CLASSES, min_class_count=MIN_CLASS_COUNT)\n"
                 "    if not 0.05 <= VALIDATION_SPLIT <= 0.40:\n"
                 "        raise ValueError('VALIDATION_SPLIT must be between 0.05 and 0.40.')\n"
@@ -168,6 +210,11 @@ TEMPLATE = {
                 "    print('Upload CSV uses a seeded stratified random holdout and assumes approximately IID rows; use the pre-split option for temporal/grouped data.')\n"
                 "DATA_DIGEST = hashlib.sha256(json.dumps({{name: hashlib.sha256(payload).hexdigest() for name, payload in sorted(payloads.items())}}, sort_keys=True).encode()).hexdigest()\n"
                 "print({{'sample_kind': sample_kind, 'name': data_name, 'target': TARGET_COLUMN, 'drop_columns': drop_columns, 'train_rows': len(train_data), 'holdout_rows': len(holdout_data), 'test_rows': 0 if test_data is None else len(test_data), 'data_sha256': DATA_DIGEST}})"
+            ),
+        },
+        {
+            "md": (
+                '<details><summary>Check your reasoning</summary>341 support, 114 holdout and 114 test rows — the sizes the recorded Kaggle T4 run printed. Stratification keeps the class shares approximately equal across partitions (the table is about 63 % benign / 37 % malignant), not exactly: 114 rows cannot split 62.7 / 37.3 to the row. The data SHA-256 printed here is what ties the exported provenance to this exact table.</details>'
             ),
         },
         {
@@ -188,7 +235,8 @@ TEMPLATE = {
                 "only predict classes present in its support rows), exact cross-partition overlaps are reported "
                 "(`split_overlap_report`), support rows above `MAX_TRAIN_ROWS` are capped with the class-preserving "
                 "`cap_training_rows`, and the trivial baseline is computed with `majority_class_baseline` (always predict "
-                "the most frequent support class). Everything in Section 6 should be read against that baseline."
+                "the most frequent support class). Everything in Section 6 should be read against that baseline.\n\n"
+                "**Predict:** the cell validates a probe with `MIN_TRAIN_ROWS - 1` rows. Which rule refuses it, and does the refusal stop the notebook? And what accuracy will the majority-class baseline score on a stratified holdout of a 63 / 37 table?"
             ),
             "code": (
                 "os.makedirs('outputs', exist_ok=True)\n"
@@ -235,6 +283,11 @@ TEMPLATE = {
         },
         {
             "md": (
+                "<details><summary>Check your reasoning</summary>The `MIN_TRAIN_ROWS` rule (50 support rows): `validate_inputs` raises a `ValueError` naming it, and the cell records the message as a finding in the input manifest — the recorded run's manifest holds three accepted tables and this one rejection — so the notebook continues. The majority-class baseline predicts `benign` for every holdout row and scores about 0.63 accuracy with chance-level balanced accuracy and macro F1: that is the floor, and any model number is read against it.</details>"
+            ),
+        },
+        {
+            "md": (
                 "## 6. Evaluate pretrained Mitra and executable baselines, then optionally fine-tune\n\n"
                 "`pipe.fit(...)` with `fine_tune=False` registers the support rows and the model configuration through "
                 "AutoGluon (`fit_mitra_predictor`); no weight is gradient-updated. `classification_metrics` scores the "
@@ -253,7 +306,8 @@ TEMPLATE = {
                 "beats it on the holdout under `EVAL_METRIC` and the holdout has at least `MIN_SELECTION_HOLDOUT_ROWS` "
                 "rows. The independent test is evidence only; a worse test result is surfaced as a warning and never "
                 "changes the selection. **Reproducibility boundary.** `SEED` drives the split, the cap and Mitra's "
-                "`random_state`; bitwise-identical results across devices and library builds are not promised."
+                "`random_state`; bitwise-identical results across devices and library builds are not promised.\n\n"
+                "**Predict:** three learners on the same 341 support rows — pretrained Mitra (no training), LightGBM and Random Forest — scored on 114 holdout rows. Will Mitra beat the trees, and by more than the one-row resolution the cell prints?"
             ),
             "code": (
                 "import gc\n"
@@ -360,6 +414,11 @@ TEMPLATE = {
         },
         {
             "md": (
+                '<details><summary>Check your reasoning</summary>On this well-separated table all three learners land high; Mitra is conditioned on 341 rows with no gradient update and is typically within one or two rows of LightGBM and Random Forest, in either direction. One holdout row is 0.88 % of accuracy (100 / 114), which the cell prints as `one_row_resolution_pct`; a difference of a row or two is noise, not a ranking. The recorded run kept the stages, not the values, so read your own table — and read log loss and ROC-AUC, which move more smoothly than accuracy.</details>'
+            ),
+        },
+        {
+            "md": (
                 "## 7. Evaluate → evaluation report\n\n"
                 "`evaluation_report` is the package's public evaluation stage and always produces a report. Here it "
                 "carries the active model's holdout metrics (`accuracy`, `balanced_accuracy`, `log_loss`, `roc_auc`, "
@@ -367,7 +426,8 @@ TEMPLATE = {
                 "exists, and the majority-class baseline, with the verdict `sample-sanity`: one seeded stratified split "
                 "with no dispersion estimate, tutorial evidence rather than a benchmark; the executable-baseline table "
                 "is attached. Without a labelled holdout the verdict would be `not-measurable`. The report is written "
-                "to `outputs/{stem}_evaluation_report.json`."
+                "to `outputs/{stem}_evaluation_report.json`.\n\n"
+                "**Predict:** which verdict will the report give for the sample path, and what would change it to `not-measurable`? Which partition's metrics does the `selection` field refer to?"
             ),
             "code": (
                 "report = evaluation_report(active_metrics, baseline=baseline, independent_test=active_test_metrics, n_holdout=len(holdout_data), n_test=None if test_data is None else len(test_data), class_labels=CLASSES, target_column=TARGET_COLUMN, selection=SELECTION_BASIS, sample_kind=sample_kind, estimation='single seeded stratified split (support/holdout/independent test); no dispersion estimate')\n"
@@ -375,6 +435,11 @@ TEMPLATE = {
                 "with open('outputs/{stem}_evaluation_report.json', 'w', encoding='utf-8') as handle:\n"
                 "    json.dump(report, handle, indent=2, ensure_ascii=False)\n"
                 "print(json.dumps({{key: report[key] for key in ('verdict', 'reason', 'decision_rule', 'selection', 'n_holdout', 'n_test')}}, indent=2))"
+            ),
+        },
+        {
+            "md": (
+                '<details><summary>Check your reasoning</summary>`sample-sanity`: one seeded stratified split of a public sample with 114 holdout and 114 test rows and no dispersion estimate — tutorial evidence that the contract works, not a benchmark. The verdict becomes `not-measurable` only without a labelled holdout. `selection` reads `default:pretrained` because the fine-tuning gate was off; with it on, the holdout alone selects and the independent test is evidence only.</details>'
             ),
         },
         {
@@ -441,7 +506,8 @@ TEMPLATE = {
                 "agree with the in-memory model's on eight held-out rows within `rtol=1e-6, atol=1e-8` (VER1–VER5). "
                 "The result JSON then records everything: predictions, metrics, the evaluation report, the input "
                 "manifest, the data digest, the bundle identity, the notebook's source, the model identity, revision "
-                "and licence, and the runtime."
+                "and licence, and the runtime.\n\n"
+                "**Predict:** the reloaded predictor is built from the ZIP alone in a fresh directory. Will its predictions on eight held-out rows equal the in-memory model's exactly, within `rtol=1e-6`, or differ? And what inside the bundle makes it confidential?"
             ),
             "code": (
                 "from datetime import datetime, timezone\n\n"
@@ -503,6 +569,11 @@ TEMPLATE = {
                 "print(sorted(os.listdir('outputs')))"
             ),
         },
+        {
+            "md": (
+                "<details><summary>Check your reasoning</summary>Equal within `rtol=1e-6, atol=1e-8`, and the labels identical: the recorded run printed `PASS` after `validate_artifact_directory` verified every file's size and SHA-256 and the provenance before `TabularPredictor.load` ran. The bundle contains the registered support rows themselves (Mitra predicts by attending over them), so it inherits the source data's confidentiality, licensing and retention obligations — a point the `tutorial_run_metadata.json` records as the data digest.</details>"
+            ),
+        },
     ],
     "closing": (
         "## Interpretation and limits\n\n"
@@ -523,7 +594,45 @@ TEMPLATE = {
         "bundle with its manifest and provenance, and reload an equivalent predictor from that bundle alone — without "
         "the repository being reachable. It does **not** establish benchmark superiority, domain generalisation, "
         "fairness, robustness, probability calibration, production safety, or deployment fitness.\n\n"
-        "**Next experiments:** switch `DATA_SOURCE` to `Sample: Wine` (three classes: watch one-vs-rest ROC-AUC and the "
+        '## Troubleshooting\n'
+        '\n'
+        '- **Section 1 stops with "This notebook needs a Linux x86_64 runtime"** — use Google Colab, Kaggle or a Linux x86_64 Jupyter server.\n'
+        '- **The uv wheel fails its size/SHA-256 check, or a download in Section 1 times out** — run Section 1 again; a complete environment is reused and an incomplete one is finished. If it repeats, `files.pythonhosted.org` or `pypi.org` is blocked or altered.\n'
+        '- **You re-ran Section 1 on its own** — nothing is lost: it keeps the running worker and every variable. After a session restart, run from the top.\n'
+        '- **"The isolated environment\'s Python process exited"** — usually out of memory; restart the session and choose **Run all**.\n'
+        '- **Section 3 reports a size or SHA-256 mismatch, or cannot reach the Hub** — the message names the file (`model.safetensors`, 302,717,904 bytes, or `config.json`). Delete the folder Section 3 prints as `weights_dir` and run Section 3 again.\n'
+        "- **Section 6 is slow or runs out of memory** — AutoGluon's in-context fit scales with the support rows (capped at `MAX_TRAIN_ROWS`); lower `MAX_MEMORY_USAGE_RATIO`'s pressure by using a smaller table, or use a GPU runtime. `RUN_FINE_TUNING = True` on a CPU runtime stops with a clear message: it needs a GPU.\n"
+        '- **The metrics differ from another run** — expected in the last decimals: the one-row resolution of the holdout is printed in Section 6, and bitwise-identical results across devices and library builds are not promised. A Mitra row below LightGBM or Random Forest is a finding to read, not an error.\n'
+        '- **`USE_BYOD=True requires an Upload DATA_SOURCE` / `Set USE_BYOD=True`** — the gate and the source must agree: pick an `Upload …` source and set `USE_BYOD = True`.\n'
+        '- **BYOD: "BYOD path … does not exist" / "is missing [...]" / "the upload dialog exists only in Google Colab" / "Upload exactly one labelled CSV"** — set `BYOD_PATH` to a CSV file (or, for the pre-split option, a directory holding `train.csv`, `val.csv` and `test.csv`) in the runtime; it works on Kaggle and Jupyter. On Colab an empty path opens the dialog, and a cancelled dialog stops with that message.\n'
+        '- **A `ValueError` from `validate_inputs` or `validate_labeled_frame`** — it names the table and the rule: a missing or duplicate column, fewer than `MIN_TRAIN_ROWS` rows, more than `MAX_FEATURES` features, fewer than `MIN_CLASSES` or more than `MAX_CLASSES` classes, a class with fewer than `MIN_CLASS_COUNT` support rows, or a holdout class absent from the support rows. Fix the table rather than the check.\n'
+        "- **Section 9's reload check fails** — the export or the reload is broken; run Sections 6–9 again. Do not use the bundle.\n"
+        '\n'
+        '## Change one thing (next experiments)\n'
+        '\n'
+        "Each of these changes one default and keeps the rest of the path. Switch `DATA_SOURCE` to `Sample: Wine` (three classes: watch one-vs-rest ROC-AUC and the `multiclass` problem type) or to `Upload pre-split train/val/test` with one of the repository's `examples/sample-data` archives (FreshRetailNet, Telco Churn, Adult Census) or your own partitions; change `EVAL_METRIC` to `log_loss` and watch whether the executable baselines reorder; change `SEED` and read how far the holdout metrics move on a small table; enable `RUN_FINE_TUNING` on a GPU runtime and watch the holdout-based selection and the independent-test warning; feed the exported `outputs/mitra_classifier_predictor.zip` to the companion predictor-inference notebook in a separate session.\n"
+        '\n'
+        '## Glossary\n'
+        '\n'
+        '- **In-context conditioning** — Mitra predicts a query row by attending over the support rows registered at `fit`; nothing is gradient-updated unless `RUN_FINE_TUNING` is on.\n'
+        '- **Support / holdout / independent test** — the rows the model is conditioned on; the partition that scores it and, with fine-tuning on, selects between the two predictors; the partition that is evidence only and never drives a selection.\n'
+        '- **Stratified split / class coverage** — every class keeps its share in each partition; a holdout or test class absent from the support rows is refused, because an in-context classifier can only predict classes it has seen.\n'
+        '- **Accuracy, balanced accuracy, macro F1, MCC** — discrete correctness under the `argmax` rule; **log loss** scores the probabilities (lower is better); **ROC-AUC** scores ranking quality independent of any threshold.\n'
+        '- **Majority-class baseline** — always predict the most frequent support class; the floor every model number is read against.\n'
+        "- **`align_probabilities`** — maps a baseline's probability columns onto Mitra's class order before scoring, so a label permutation can never pass silently.\n"
+        '- **Executable baselines** — LightGBM and Random Forest fitted on exactly the same support rows with train-fitted imputation and encoding, scored on exactly the same partitions.\n'
+        '- **One-row resolution** — 100 / holdout rows, the smallest step a holdout metric can move; differences below it are noise.\n'
+        "- **`sample-sanity` / `not-measurable`** — the evaluation report's verdict on one seeded split of a public sample (no dispersion estimate), and the verdict when no labelled holdout exists.\n"
+        '- **Predictor bundle** — the selected AutoGluon predictor directory with `tutorial_run_metadata.json` and `artifact_manifest.json`, zipped; it contains the support rows, so it inherits their confidentiality.\n'
+        '- **Fresh reload** — the ZIP extracted with `safe_extract_archive` into a new directory, verified by `validate_artifact_directory` before `TabularPredictor.load`, and checked against the in-memory model on eight rows.\n'
+        '- **Isolated environment** — the separate Python 3.12.12 environment Section 1 builds from the hash lock; every later cell runs there.\n'
+        '- **BYOD** — bring your own data: a CSV (or a pre-split directory) via `BYOD_PATH`, or the Colab upload dialog when the path is empty.\n'
+        '\n'
+        '## Conclusion (your notes)\n'
+        '\n'
+        'Before you leave, write three lines in this cell: (1) the pretrained Mitra row of Section 6 beside the majority-class predictor, LightGBM and Random Forest on the holdout, and whether the differences exceed the one-row resolution; (2) what the `sample-sanity` verdict does and does not license you to claim; (3) one property of your own table (row count, feature count, class balance, independence of rows) that would change how you read these numbers.\n'
+        '\n'
+        "**Next experiments (summary):** switch `DATA_SOURCE` to `Sample: Wine` (three classes: watch one-vs-rest ROC-AUC and the "
         "`multiclass` problem type) or to `Upload pre-split train/val/test` with one of the repository's "
         "`examples/sample-data` archives (FreshRetailNet, Telco Churn, Adult Census) or your own partitions; enable "
         "`RUN_FINE_TUNING` on a GPU runtime and watch the holdout-based selection and the independent-test warning; "
