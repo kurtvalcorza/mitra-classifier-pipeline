@@ -42,7 +42,9 @@ jobs:
           sudo mkdir -p /content
           sudo chown -R "$USER":"$USER" /content
           python -m pip install --upgrade pip==26.2.1
-          python -m pip install psutil==7.1.3 torch==2.9.1 nbconvert==7.17.1 ipykernel==7.3.0
+          # scikit-learn / pandas / numpy at the isolated lock's versions: the runner-Python steps below import sklearn, and the
+          # notebook no longer populates the runner's Python (its install moved into the isolated uv environment).
+          python -m pip install psutil==7.1.3 torch==2.9.1 nbconvert==7.17.1 ipykernel==7.3.0 scikit-learn==1.7.2 pandas==2.3.3 numpy==2.3.5
 
       - name: Validate generated tutorials and auxiliary workshop source
         run: python tools/validate_release_assets.py
@@ -164,13 +166,20 @@ jobs:
                   continue
               source = cell.get("source", [])
               text = "".join(source) if isinstance(source, list) else str(source)
-              if "EXPECTED_ZIP_SHA256 = ''" in text:
-                  text = text.replace("EXPECTED_ZIP_SHA256 = ''", f"EXPECTED_ZIP_SHA256 = '{zip_digest}'", 1)
-                  cell["source"] = text.splitlines(keepends=True)
-                  injected = True
-                  break
+              # The notebook's cells run in the isolated uv environment, which drops PYTHONPATH, so the google.colab
+              # upload shim below no longer reaches them: the bundle and the rows are handed over through the
+              # notebook's own path form fields (as the regressor workflow does); the digest stays the trusted value.
+              for marker, value in (
+                  ("ARTIFACT_ZIP_PATH = ''", f"ARTIFACT_ZIP_PATH = '{zip_path}'"),
+                  ("EXPECTED_ZIP_SHA256 = ''", f"EXPECTED_ZIP_SHA256 = '{zip_digest}'"),
+                  ("NEW_DATA_PATH = ''", "NEW_DATA_PATH = '/content/mitra-classifier-independent-inference.csv'"),
+              ):
+                  if marker in text:
+                      text = text.replace(marker, value, 1)
+                      cell["source"] = text.splitlines(keepends=True)
+                      injected = True
           if not injected:
-              raise RuntimeError("Could not locate EXPECTED_ZIP_SHA256 marker for artifact inference smoke.")
+              raise RuntimeError("Could not locate the form-field markers for artifact inference smoke.")
           smoke_path.write_text(json.dumps(notebook, indent=1), encoding="utf-8")
           print(f"Prepared inference smoke notebook with trusted digest: {zip_digest}")
           PY
