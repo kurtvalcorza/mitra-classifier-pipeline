@@ -84,7 +84,7 @@ CI runs `tools/validate_release_assets.py`, which preserves full generator/parit
   `mitra_pipeline/tutorial_api.py` after the generator's documented rewrite (the `DEFAULT_WEIGHTS_DIR` line); the inline
   `MANIFEST` equal to the committed `weights/mitra-classifier/dimer-base-manifest.json` and the inline `PINS` equal to the
   `pyproject.toml` runtime pins; the notebook byte-identical to `tools/build_notebook.py` output for its template; the
-  pinned-install cell with its restart-on-stale-import guard; `NOTEBOOK_SOURCE` recorded in exports;
+  isolated-environment bootstrap cell (generator /2.2: hash-locked `uv` environment, nothing installed into the kernel, no restart); `NOTEBOOK_SOURCE` recorded in exports;
 - `MODEL_ID`/`MODEL_REVISION` are bound only in the carried module cell (and repeated in the inline manifest, which the
   notebook asserts against the module before fetching), the revision is a 40-hex immutable commit, and the same identity
   string appears in `README.md`, `MODEL_CARD.md`, and `docs/WEIGHTS.md` with no stray revisions;
@@ -140,12 +140,12 @@ Before changing the registry status from `Candidate` to `Release-grade`:
    `metadata.dimer.generated_from` and that the installed core package versions equal the inline `PINS` (= `pyproject.toml`:
    `autogluon.tabular[mitra]==1.5.0`, `lightgbm==4.6.0`, `huggingface-hub==0.36.2`; torch and friends are AutoGluon's transitive pins);
 5. verify every default-path stage completes:
-   - pinned runtime installed from the inline `PINS` with no GitHub access;
+   - pinned runtime installed from the inline `PINS` (hash-locked, into the isolated environment of Section 1) with no GitHub access;
    - the carried module cell executes (defines `MitraClassificationPipeline`, the validation/metric helpers and the archive-safety
      functions) with no import of the repository package;
    - pinned `autogluon/mitra-classifier` acquisition at the immutable revision through the package: the inline `MANIFEST` is
      asserted against the module identity and written to `weights/mitra-classifier/`, `stage_missing_files(WEIGHTS_DIR, allow_download=True)`
-     reports the two manifest entries (`model.safetensors` 302,717,904 bytes, `config.json` 81 bytes) on a clean runtime,
+     reports the two manifest entries (`model.safetensors` 302,717,904 bytes, `config.json` 86 bytes) on a clean runtime,
      `verify_snapshot` returns the manifest dict, `from_pretrained` reports `source == 'local-snapshot'` and the offline HF
      snapshot path;
    - the Breast Cancer sample split 60/20/20 with stratification (`train=341, holdout=114, test=114`, two classes) with its data SHA-256 printed; the ceilings (`MIN_TRAIN_ROWS` 50, `MAX_TRAIN_ROWS` 10,000,
@@ -190,7 +190,7 @@ they are measurements for the stated runtime, not general estimates.
 
 ## Current status
 
-No clean-runtime execution of the standalone notebooks has been recorded yet; clean GPU execution evidence for the E2E path is now recorded below. Static validation (`tools/validate_release_assets.py`), nbformat validation, a `compile()` sweep over every code
+**Generated tutorial pair: Candidate; no execution evidence for the current notebook blobs.** The 2026-09-14 Kaggle T4 row above is evidence for the previous E2E blob (`9599d5c4832c`) only: an nbclient execution of the default sample path with a `google.colab` shim, not a browser Colab `Run all`. On 2026-10-08 both notebooks were regenerated (generator /2.2 isolated uv environment, DIMER Notebook Specification 2.2, Notebook Review Framework v1 fixes MCC-M1..M3 / MCC-m1..m6), so under NOTEBOOK_SPEC REL14 they return to Candidate until a run of the exact new blobs is recorded; the earlier row stays as history. The ARTIFACT-INFERENCE companion has no recorded run. Static validation (`tools/validate_release_assets.py`), nbformat validation, a `compile()` sweep over every code
 cell, and the offline unit suite passed on the tutorial source at the candidate revision, which is necessary but not
 sufficient. The registry status remains **Candidate** until a reviewer confirms a recorded run against the notebook blobs
 under review and an integrator promotes it; promotion is not performed by the builder. Facts a reviewer should weigh:
