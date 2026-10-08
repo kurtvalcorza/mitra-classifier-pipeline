@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -106,7 +107,8 @@ def main() -> None:
     assert "serving.predict(" in companion_text
     assert "serving.predict_proba(" in companion_text
     companion_code = chr(10).join("".join(c.get("source", [])) for c in companion["cells"] if c.get("cell_type") == "code")
-    assert "PIPELINE_API_URL" not in companion_code and "github.com/kurtvalcorza" not in companion_code
+    companion_without_sample = re.sub(r"https://github\.com/kurtvalcorza/mitra-classifier-pipeline/releases/download/sample-bundle-v\d+/[A-Za-z0-9_.-]+\.zip(?=['\"])", "", companion_code)
+    assert "PIPELINE_API_URL" not in companion_code and "github.com/kurtvalcorza" not in companion_without_sample
     print("Shared production-facing Mitra pipeline API contract: PASS")
 
 

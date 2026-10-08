@@ -215,8 +215,9 @@ def test_swp_g_checkpoint_answers_quote_only_recorded_facts():
     # No invented metric: no accuracy/MAE value is asserted as the run's result.
     assert not re.search(r"(scored|reached|measured) 0\.\d{2,}", " ".join(checks))
     inference = "\n".join(c["source"] for c in _nb(INFERENCE)["cells"] if c["cell_type"] == "markdown")
-    assert len(re.findall(r"<details><summary>Check your reasoning</summary>", inference)) == 3
-    assert "No hosted run of this companion is recorded yet" in inference
+    # Row 48 (MCP-M2) added the Section 8 activity answer; the companion now defers run numbers to docs (REL13).
+    assert len(re.findall(r"<details><summary>Check your reasoning</summary>", inference)) == 4
+    assert "recorded runs of each notebook revision are listed" in inference
 
 
 def _byod_payloads(nb: dict):
@@ -281,4 +282,4 @@ def test_swp_b_inference_notebook_names_the_missing_dialog_instead_of_a_name_err
     s6 = _cell(_nb(INFERENCE), "NEW_DATA_PATH = ''  # @param")
     branch = s6[s6.index("else:") : s6.index("new_upload = files.upload()")]
     assert "from google.colab import files" in branch and "except ImportError" in branch
-    assert "the upload dialog exists only in Google Colab" in branch
+    assert "needs the Colab upload dialog" in branch and "set NEW_DATA_PATH to its path" in branch
