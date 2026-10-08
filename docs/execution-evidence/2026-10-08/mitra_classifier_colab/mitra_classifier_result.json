@@ -1,0 +1,1009 @@
+{
+  "predictions": [
+    {
+      "mean radius": 12.16,
+      "mean texture": 18.03,
+      "mean perimeter": 78.29,
+      "mean area": 455.3,
+      "mean smoothness": 0.09087,
+      "mean compactness": 0.07838,
+      "mean concavity": 0.02916,
+      "mean concave points": 0.01527,
+      "mean symmetry": 0.1464,
+      "mean fractal dimension": 0.06284,
+      "radius error": 0.2194,
+      "texture error": 1.19,
+      "perimeter error": 1.678,
+      "area error": 16.26,
+      "smoothness error": 0.004911,
+      "compactness error": 0.01666,
+      "concavity error": 0.01397,
+      "concave points error": 0.005161,
+      "symmetry error": 0.01454,
+      "fractal dimension error": 0.001858,
+      "worst radius": 13.34,
+      "worst texture": 27.87,
+      "worst perimeter": 88.83,
+      "worst area": 547.4,
+      "worst smoothness": 0.1208,
+      "worst compactness": 0.2279,
+      "worst concavity": 0.162,
+      "worst concave points": 0.0569,
+      "worst symmetry": 0.2406,
+      "worst fractal dimension": 0.07729,
+      "prediction": "benign",
+      "probability_benign": 0.999946117401123,
+      "probability_malignant": 5.391084050643258e-05
+    },
+    {
+      "mean radius": 12.72,
+      "mean texture": 13.78,
+      "mean perimeter": 81.78,
+      "mean area": 492.1,
+      "mean smoothness": 0.09667,
+      "mean compactness": 0.08393,
+      "mean concavity": 0.01288,
+      "mean concave points": 0.01924,
+      "mean symmetry": 0.1638,
+      "mean fractal dimension": 0.061,
+      "radius error": 0.1807,
+      "texture error": 0.6931,
+      "perimeter error": 1.34,
+      "area error": 13.38,
+      "smoothness error": 0.006064,
+      "compactness error": 0.0118,
+      "concavity error": 0.006564,
+      "concave points error": 0.007978,
+      "symmetry error": 0.01374,
+      "fractal dimension error": 0.001392,
+      "worst radius": 13.5,
+      "worst texture": 17.48,
+      "worst perimeter": 88.54,
+      "worst area": 553.7,
+      "worst smoothness": 0.1298,
+      "worst compactness": 0.1472,
+      "worst concavity": 0.05233,
+      "worst concave points": 0.06343,
+      "worst symmetry": 0.2369,
+      "worst fractal dimension": 0.06922,
+      "prediction": "benign",
+      "probability_benign": 0.999973714351654,
+      "probability_malignant": 2.6274772608303465e-05
+    },
+    {
+      "mean radius": 9.683,
+      "mean texture": 19.34,
+      "mean perimeter": 61.05,
+      "mean area": 285.7,
+      "mean smoothness": 0.08491,
+      "mean compactness": 0.0503,
+      "mean concavity": 0.02337,
+      "mean concave points": 0.009615,
+      "mean symmetry": 0.158,
+      "mean fractal dimension": 0.06235,
+      "radius error": 0.2957,
+      "texture error": 1.363,
+      "perimeter error": 2.054,
+      "area error": 18.24,
+      "smoothness error": 0.00744,
+      "compactness error": 0.01123,
+      "concavity error": 0.02337,
+      "concave points error": 0.009615,
+      "symmetry error": 0.02203,
+      "fractal dimension error": 0.004154,
+      "worst radius": 10.93,
+      "worst texture": 25.59,
+      "worst perimeter": 69.1,
+      "worst area": 364.2,
+      "worst smoothness": 0.1199,
+      "worst compactness": 0.09546,
+      "worst concavity": 0.0935,
+      "worst concave points": 0.03846,
+      "worst symmetry": 0.2552,
+      "worst fractal dimension": 0.0792,
+      "prediction": "benign",
+      "probability_benign": 0.9999720454216003,
+      "probability_malignant": 2.7969303118879907e-05
+    },
+    {
+      "mean radius": 11.67,
+      "mean texture": 20.02,
+      "mean perimeter": 75.21,
+      "mean area": 416.2,
+      "mean smoothness": 0.1016,
+      "mean compactness": 0.09453,
+      "mean concavity": 0.042,
+      "mean concave points": 0.02157,
+      "mean symmetry": 0.1859,
+      "mean fractal dimension": 0.06461,
+      "radius error": 0.2067,
+      "texture error": 0.8745,
+      "perimeter error": 1.393,
+      "area error": 15.34,
+      "smoothness error": 0.005251,
+      "compactness error": 0.01727,
+      "concavity error": 0.0184,
+      "concave points error": 0.005298,
+      "symmetry error": 0.01449,
+      "fractal dimension error": 0.002671,
+      "worst radius": 13.35,
+      "worst texture": 28.81,
+      "worst perimeter": 87.0,
+      "worst area": 550.6,
+      "worst smoothness": 0.155,
+      "worst compactness": 0.2964,
+      "worst concavity": 0.2758,
+      "worst concave points": 0.0812,
+      "worst symmetry": 0.3206,
+      "worst fractal dimension": 0.0895,
+      "prediction": "benign",
+      "probability_benign": 0.9988304972648621,
+      "probability_malignant": 0.0011695101857185364
+    },
+    {
+      "mean radius": 12.7,
+      "mean texture": 12.17,
+      "mean perimeter": 80.88,
+      "mean area": 495.0,
+      "mean smoothness": 0.08785,
+      "mean compactness": 0.05794,
+      "mean concavity": 0.0236,
+      "mean concave points": 0.02402,
+      "mean symmetry": 0.1583,
+      "mean fractal dimension": 0.06275,
+      "radius error": 0.2253,
+      "texture error": 0.6457,
+      "perimeter error": 1.527,
+      "area error": 17.37,
+      "smoothness error": 0.006131,
+      "compactness error": 0.01263,
+      "concavity error": 0.009075,
+      "concave points error": 0.008231,
+      "symmetry error": 0.01713,
+      "fractal dimension error": 0.004414,
+      "worst radius": 13.65,
+      "worst texture": 16.92,
+      "worst perimeter": 88.12,
+      "worst area": 566.9,
+      "worst smoothness": 0.1314,
+      "worst compactness": 0.1607,
+      "worst concavity": 0.09385,
+      "worst concave points": 0.08224,
+      "worst symmetry": 0.2775,
+      "worst fractal dimension": 0.09464,
+      "prediction": "benign",
+      "probability_benign": 0.9999646544456482,
+      "probability_malignant": 3.535625000949949e-05
+    },
+    {
+      "mean radius": 12.76,
+      "mean texture": 18.84,
+      "mean perimeter": 81.87,
+      "mean area": 496.6,
+      "mean smoothness": 0.09676,
+      "mean compactness": 0.07952,
+      "mean concavity": 0.02688,
+      "mean concave points": 0.01781,
+      "mean symmetry": 0.1759,
+      "mean fractal dimension": 0.06183,
+      "radius error": 0.2213,
+      "texture error": 1.285,
+      "perimeter error": 1.535,
+      "area error": 17.26,
+      "smoothness error": 0.005608,
+      "compactness error": 0.01646,
+      "concavity error": 0.01529,
+      "concave points error": 0.009997,
+      "symmetry error": 0.01909,
+      "fractal dimension error": 0.002133,
+      "worst radius": 13.75,
+      "worst texture": 25.99,
+      "worst perimeter": 87.82,
+      "worst area": 579.7,
+      "worst smoothness": 0.1298,
+      "worst compactness": 0.1839,
+      "worst concavity": 0.1255,
+      "worst concave points": 0.08312,
+      "worst symmetry": 0.2744,
+      "worst fractal dimension": 0.07238,
+      "prediction": "benign",
+      "probability_benign": 0.9999545812606812,
+      "probability_malignant": 4.5397875510388985e-05
+    },
+    {
+      "mean radius": 10.08,
+      "mean texture": 15.11,
+      "mean perimeter": 63.76,
+      "mean area": 317.5,
+      "mean smoothness": 0.09267,
+      "mean compactness": 0.04695,
+      "mean concavity": 0.001597,
+      "mean concave points": 0.002404,
+      "mean symmetry": 0.1703,
+      "mean fractal dimension": 0.06048,
+      "radius error": 0.4245,
+      "texture error": 1.268,
+      "perimeter error": 2.68,
+      "area error": 26.43,
+      "smoothness error": 0.01439,
+      "compactness error": 0.012,
+      "concavity error": 0.001597,
+      "concave points error": 0.002404,
+      "symmetry error": 0.02538,
+      "fractal dimension error": 0.00347,
+      "worst radius": 11.87,
+      "worst texture": 21.18,
+      "worst perimeter": 75.39,
+      "worst area": 437.0,
+      "worst smoothness": 0.1521,
+      "worst compactness": 0.1019,
+      "worst concavity": 0.00692,
+      "worst concave points": 0.01042,
+      "worst symmetry": 0.2933,
+      "worst fractal dimension": 0.07697,
+      "prediction": "benign",
+      "probability_benign": 0.9998313188552856,
+      "probability_malignant": 0.00016865272482391447
+    },
+    {
+      "mean radius": 6.981,
+      "mean texture": 13.43,
+      "mean perimeter": 43.79,
+      "mean area": 143.5,
+      "mean smoothness": 0.117,
+      "mean compactness": 0.07568,
+      "mean concavity": 0.0,
+      "mean concave points": 0.0,
+      "mean symmetry": 0.193,
+      "mean fractal dimension": 0.07818,
+      "radius error": 0.2241,
+      "texture error": 1.508,
+      "perimeter error": 1.553,
+      "area error": 9.833,
+      "smoothness error": 0.01019,
+      "compactness error": 0.01084,
+      "concavity error": 0.0,
+      "concave points error": 0.0,
+      "symmetry error": 0.02659,
+      "fractal dimension error": 0.0041,
+      "worst radius": 7.93,
+      "worst texture": 19.54,
+      "worst perimeter": 50.41,
+      "worst area": 185.2,
+      "worst smoothness": 0.1584,
+      "worst compactness": 0.1202,
+      "worst concavity": 0.0,
+      "worst concave points": 0.0,
+      "worst symmetry": 0.2932,
+      "worst fractal dimension": 0.09382,
+      "prediction": "benign",
+      "probability_benign": 0.998245358467102,
+      "probability_malignant": 0.0017546144081279635
+    }
+  ],
+  "new_data": null,
+  "metrics": {
+    "active_mode": "pretrained",
+    "holdout": {
+      "accuracy": 0.9824561403508771,
+      "balanced_accuracy": 0.9767441860465116,
+      "log_loss": 0.04969521672861615,
+      "f1_macro": 0.9811507936507937,
+      "mcc": 0.962998132394131,
+      "roc_auc": 0.9993449066491975
+    },
+    "independent_test": {
+      "accuracy": 0.9824561403508771,
+      "balanced_accuracy": 0.9761904761904762,
+      "log_loss": 0.06489600852385918,
+      "f1_macro": 0.9809555629802873,
+      "mcc": 0.962621902223779,
+      "roc_auc": 0.9973544973544973
+    },
+    "pretrained_holdout": {
+      "accuracy": 0.9824561403508771,
+      "balanced_accuracy": 0.9767441860465116,
+      "log_loss": 0.04969521672861615,
+      "f1_macro": 0.9811507936507937,
+      "mcc": 0.962998132394131,
+      "roc_auc": 0.9993449066491975
+    },
+    "finetuned_holdout": null,
+    "executable_baselines": [
+      {
+        "model": "Majority-class",
+        "split": "holdout",
+        "accuracy": 0.6228070175438597,
+        "balanced_accuracy": 0.5,
+        "log_loss": 0.6627215844390356,
+        "f1_macro": 0.3837837837837838,
+        "mcc": 0.0,
+        "roc_auc": NaN
+      },
+      {
+        "model": "Majority-class",
+        "split": "test",
+        "accuracy": 0.631578947368421,
+        "balanced_accuracy": 0.5,
+        "log_loss": 0.6581444885744455,
+        "f1_macro": 0.3870967741935484,
+        "mcc": 0.0,
+        "roc_auc": NaN
+      },
+      {
+        "model": "LightGBM",
+        "split": "holdout",
+        "accuracy": 0.9649122807017544,
+        "balanced_accuracy": 0.9534883720930232,
+        "log_loss": 0.1005892217708805,
+        "f1_macro": 0.9619111259605746,
+        "mcc": 0.9266092224680211,
+        "roc_auc": 0.9980347199475925
+      },
+      {
+        "model": "LightGBM",
+        "split": "test",
+        "accuracy": 0.9736842105263158,
+        "balanced_accuracy": 0.9642857142857143,
+        "log_loss": 0.1004308683881379,
+        "f1_macro": 0.9712773998488284,
+        "mcc": 0.9441549509633318,
+        "roc_auc": 0.9937169312169312
+      },
+      {
+        "model": "RandomForest",
+        "split": "holdout",
+        "accuracy": 0.956140350877193,
+        "balanced_accuracy": 0.9464461185718964,
+        "log_loss": 0.09683433355956854,
+        "f1_macro": 0.9526381387619444,
+        "mcc": 0.9068106119605033,
+        "roc_auc": 0.9955781198820831
+      },
+      {
+        "model": "RandomForest",
+        "split": "test",
+        "accuracy": 0.9824561403508771,
+        "balanced_accuracy": 0.9761904761904762,
+        "log_loss": 0.11787933164284843,
+        "f1_macro": 0.9809555629802873,
+        "mcc": 0.962621902223779,
+        "roc_auc": 0.9933862433862434
+      },
+      {
+        "model": "Mitra-pretrained",
+        "split": "holdout",
+        "accuracy": 0.9824561403508771,
+        "balanced_accuracy": 0.9767441860465116,
+        "log_loss": 0.04969521672861615,
+        "f1_macro": 0.9811507936507937,
+        "mcc": 0.962998132394131,
+        "roc_auc": 0.9993449066491975
+      },
+      {
+        "model": "Mitra-pretrained",
+        "split": "test",
+        "accuracy": 0.9824561403508771,
+        "balanced_accuracy": 0.9761904761904762,
+        "log_loss": 0.06489600852385918,
+        "f1_macro": 0.9809555629802873,
+        "mcc": 0.962621902223779,
+        "roc_auc": 0.9973544973544973
+      }
+    ]
+  },
+  "majority_class_baseline": {
+    "accuracy": 0.6228070175438597,
+    "balanced_accuracy": 0.5,
+    "log_loss": 0.6627215844390356,
+    "f1_macro": 0.3837837837837838,
+    "mcc": 0.0,
+    "roc_auc": NaN
+  },
+  "evaluation_report": {
+    "task": "tabular classification by in-context conditioning on labelled support rows (AutoGluon Mitra)",
+    "decision_rule": "argmax",
+    "score_semantics": "class probabilities in class_labels order, uncalibrated; no threshold shipped",
+    "sample_kind": "sample",
+    "n_holdout": 114,
+    "n_test": 114,
+    "class_labels": [
+      "benign",
+      "malignant"
+    ],
+    "target_column": "target",
+    "selection": "default:pretrained",
+    "baselines": [
+      {
+        "id": "majority_class",
+        "metrics": [
+          {
+            "id": "accuracy",
+            "value": 0.6228070175438597,
+            "units": "unitless",
+            "higher_is_better": true
+          },
+          {
+            "id": "balanced_accuracy",
+            "value": 0.5,
+            "units": "unitless",
+            "higher_is_better": true
+          },
+          {
+            "id": "log_loss",
+            "value": 0.6627215844390356,
+            "units": "nats",
+            "higher_is_better": false
+          },
+          {
+            "id": "roc_auc",
+            "value": null,
+            "units": "unitless",
+            "higher_is_better": true
+          },
+          {
+            "id": "f1_macro",
+            "value": 0.3837837837837838,
+            "units": "unitless",
+            "higher_is_better": true
+          },
+          {
+            "id": "mcc",
+            "value": 0.0,
+            "units": "unitless",
+            "higher_is_better": true
+          }
+        ]
+      }
+    ],
+    "model_id": "autogluon/mitra-classifier",
+    "model_revision": "c425e9fa0910a6be1c494321792e7ba2a1367b1a",
+    "metrics": [
+      {
+        "id": "accuracy",
+        "value": 0.9824561403508771,
+        "units": "unitless",
+        "higher_is_better": true,
+        "estimation": "single seeded stratified split (support/holdout/independent test); no dispersion estimate"
+      },
+      {
+        "id": "balanced_accuracy",
+        "value": 0.9767441860465116,
+        "units": "unitless",
+        "higher_is_better": true,
+        "estimation": "single seeded stratified split (support/holdout/independent test); no dispersion estimate"
+      },
+      {
+        "id": "log_loss",
+        "value": 0.04969521672861615,
+        "units": "nats",
+        "higher_is_better": false,
+        "estimation": "single seeded stratified split (support/holdout/independent test); no dispersion estimate"
+      },
+      {
+        "id": "roc_auc",
+        "value": 0.9993449066491975,
+        "units": "unitless",
+        "higher_is_better": true,
+        "estimation": "single seeded stratified split (support/holdout/independent test); no dispersion estimate"
+      },
+      {
+        "id": "f1_macro",
+        "value": 0.9811507936507937,
+        "units": "unitless",
+        "higher_is_better": true,
+        "estimation": "single seeded stratified split (support/holdout/independent test); no dispersion estimate"
+      },
+      {
+        "id": "mcc",
+        "value": 0.962998132394131,
+        "units": "unitless",
+        "higher_is_better": true,
+        "estimation": "single seeded stratified split (support/holdout/independent test); no dispersion estimate"
+      }
+    ],
+    "independent_test": [
+      {
+        "id": "accuracy",
+        "value": 0.9824561403508771,
+        "units": "unitless",
+        "higher_is_better": true,
+        "estimation": "independent test partition, single run"
+      },
+      {
+        "id": "balanced_accuracy",
+        "value": 0.9761904761904762,
+        "units": "unitless",
+        "higher_is_better": true,
+        "estimation": "independent test partition, single run"
+      },
+      {
+        "id": "log_loss",
+        "value": 0.06489600852385918,
+        "units": "nats",
+        "higher_is_better": false,
+        "estimation": "independent test partition, single run"
+      },
+      {
+        "id": "roc_auc",
+        "value": 0.9973544973544973,
+        "units": "unitless",
+        "higher_is_better": true,
+        "estimation": "independent test partition, single run"
+      },
+      {
+        "id": "f1_macro",
+        "value": 0.9809555629802873,
+        "units": "unitless",
+        "higher_is_better": true,
+        "estimation": "independent test partition, single run"
+      },
+      {
+        "id": "mcc",
+        "value": 0.962621902223779,
+        "units": "unitless",
+        "higher_is_better": true,
+        "estimation": "independent test partition, single run"
+      }
+    ],
+    "verdict": "sample-sanity",
+    "reason": "114 labelled holdout row(s) from one seeded stratified split; tutorial evidence, not a benchmark",
+    "needs": "an independent, domain-representative labelled test set for any generalisable quality claim; the class probabilities are uncalibrated and any decision threshold must be chosen on the caller's data",
+    "executable_baselines": [
+      {
+        "model": "Majority-class",
+        "split": "holdout",
+        "accuracy": 0.6228070175438597,
+        "balanced_accuracy": 0.5,
+        "log_loss": 0.6627215844390356,
+        "f1_macro": 0.3837837837837838,
+        "mcc": 0.0,
+        "roc_auc": NaN
+      },
+      {
+        "model": "Majority-class",
+        "split": "test",
+        "accuracy": 0.631578947368421,
+        "balanced_accuracy": 0.5,
+        "log_loss": 0.6581444885744455,
+        "f1_macro": 0.3870967741935484,
+        "mcc": 0.0,
+        "roc_auc": NaN
+      },
+      {
+        "model": "LightGBM",
+        "split": "holdout",
+        "accuracy": 0.9649122807017544,
+        "balanced_accuracy": 0.9534883720930232,
+        "log_loss": 0.1005892217708805,
+        "f1_macro": 0.9619111259605746,
+        "mcc": 0.9266092224680211,
+        "roc_auc": 0.9980347199475925
+      },
+      {
+        "model": "LightGBM",
+        "split": "test",
+        "accuracy": 0.9736842105263158,
+        "balanced_accuracy": 0.9642857142857143,
+        "log_loss": 0.1004308683881379,
+        "f1_macro": 0.9712773998488284,
+        "mcc": 0.9441549509633318,
+        "roc_auc": 0.9937169312169312
+      },
+      {
+        "model": "RandomForest",
+        "split": "holdout",
+        "accuracy": 0.956140350877193,
+        "balanced_accuracy": 0.9464461185718964,
+        "log_loss": 0.09683433355956854,
+        "f1_macro": 0.9526381387619444,
+        "mcc": 0.9068106119605033,
+        "roc_auc": 0.9955781198820831
+      },
+      {
+        "model": "RandomForest",
+        "split": "test",
+        "accuracy": 0.9824561403508771,
+        "balanced_accuracy": 0.9761904761904762,
+        "log_loss": 0.11787933164284843,
+        "f1_macro": 0.9809555629802873,
+        "mcc": 0.962621902223779,
+        "roc_auc": 0.9933862433862434
+      },
+      {
+        "model": "Mitra-pretrained",
+        "split": "holdout",
+        "accuracy": 0.9824561403508771,
+        "balanced_accuracy": 0.9767441860465116,
+        "log_loss": 0.04969521672861615,
+        "f1_macro": 0.9811507936507937,
+        "mcc": 0.962998132394131,
+        "roc_auc": 0.9993449066491975
+      },
+      {
+        "model": "Mitra-pretrained",
+        "split": "test",
+        "accuracy": 0.9824561403508771,
+        "balanced_accuracy": 0.9761904761904762,
+        "log_loss": 0.06489600852385918,
+        "f1_macro": 0.9809555629802873,
+        "mcc": 0.962621902223779,
+        "roc_auc": 0.9973544973544973
+      }
+    ]
+  },
+  "input_manifest": {
+    "schema": {
+      "input": "pandas.DataFrame, one row per example; feature columns of any dtype plus a categorical target",
+      "columns": "unique names; `drop_columns` are removed before validation",
+      "target": "any label type; rows with a missing target are dropped and counted; MIN_CLASSES..MAX_CLASSES classes; every class needs MIN_CLASS_COUNT rows in the support split; holdout/test classes must match the support classes",
+      "train_rows": [
+        50,
+        10000
+      ],
+      "eval_rows": [
+        2,
+        null
+      ],
+      "features": [
+        1,
+        500
+      ],
+      "classes": [
+        2,
+        10
+      ],
+      "inference_input": "every fitted feature column present; no `prediction`/`probability_*` column; extras pass through",
+      "decision_rule": "argmax",
+      "preprocessing": "none by the package (AutoGluon's Mitra handles raw columns); training rows above MAX_TRAIN_ROWS are capped by seeded class-preserving sampling and the cap is reported"
+    },
+    "inputs": [
+      {
+        "id": "sklearn-breast-cancer:train",
+        "mode": "fit",
+        "rows": 341,
+        "feature_columns": [
+          "mean radius",
+          "mean texture",
+          "mean perimeter",
+          "mean area",
+          "mean smoothness",
+          "mean compactness",
+          "mean concavity",
+          "mean concave points",
+          "mean symmetry",
+          "mean fractal dimension",
+          "radius error",
+          "texture error",
+          "perimeter error",
+          "area error",
+          "smoothness error",
+          "compactness error",
+          "concavity error",
+          "concave points error",
+          "symmetry error",
+          "fractal dimension error",
+          "worst radius",
+          "worst texture",
+          "worst perimeter",
+          "worst area",
+          "worst smoothness",
+          "worst compactness",
+          "worst concavity",
+          "worst concave points",
+          "worst symmetry",
+          "worst fractal dimension"
+        ],
+        "categorical_columns": [],
+        "missing_value_columns": {},
+        "report": {
+          "rows_before_target_drop": 341,
+          "rows_after_target_drop": 341,
+          "dropped_missing_target_rows": 0,
+          "exact_duplicate_rows": 0,
+          "feature_count": 30,
+          "class_count": 2,
+          "class_counts": {
+            "benign": 214,
+            "malignant": 127
+          }
+        },
+        "classes": [
+          "benign",
+          "malignant"
+        ],
+        "class_counts": {
+          "benign": 214,
+          "malignant": 127
+        },
+        "majority_class_share": 0.6275659824046921
+      },
+      {
+        "id": "sklearn-breast-cancer:holdout",
+        "mode": "fit",
+        "rows": 114,
+        "feature_columns": [
+          "mean radius",
+          "mean texture",
+          "mean perimeter",
+          "mean area",
+          "mean smoothness",
+          "mean compactness",
+          "mean concavity",
+          "mean concave points",
+          "mean symmetry",
+          "mean fractal dimension",
+          "radius error",
+          "texture error",
+          "perimeter error",
+          "area error",
+          "smoothness error",
+          "compactness error",
+          "concavity error",
+          "concave points error",
+          "symmetry error",
+          "fractal dimension error",
+          "worst radius",
+          "worst texture",
+          "worst perimeter",
+          "worst area",
+          "worst smoothness",
+          "worst compactness",
+          "worst concavity",
+          "worst concave points",
+          "worst symmetry",
+          "worst fractal dimension"
+        ],
+        "categorical_columns": [],
+        "missing_value_columns": {},
+        "report": {
+          "rows_before_target_drop": 114,
+          "rows_after_target_drop": 114,
+          "dropped_missing_target_rows": 0,
+          "exact_duplicate_rows": 0,
+          "feature_count": 30,
+          "class_count": 2,
+          "class_counts": {
+            "benign": 71,
+            "malignant": 43
+          }
+        },
+        "classes": [
+          "benign",
+          "malignant"
+        ],
+        "class_counts": {
+          "benign": 71,
+          "malignant": 43
+        },
+        "majority_class_share": 0.6228070175438597
+      },
+      {
+        "id": "sklearn-breast-cancer:test",
+        "mode": "fit",
+        "rows": 114,
+        "feature_columns": [
+          "mean radius",
+          "mean texture",
+          "mean perimeter",
+          "mean area",
+          "mean smoothness",
+          "mean compactness",
+          "mean concavity",
+          "mean concave points",
+          "mean symmetry",
+          "mean fractal dimension",
+          "radius error",
+          "texture error",
+          "perimeter error",
+          "area error",
+          "smoothness error",
+          "compactness error",
+          "concavity error",
+          "concave points error",
+          "symmetry error",
+          "fractal dimension error",
+          "worst radius",
+          "worst texture",
+          "worst perimeter",
+          "worst area",
+          "worst smoothness",
+          "worst compactness",
+          "worst concavity",
+          "worst concave points",
+          "worst symmetry",
+          "worst fractal dimension"
+        ],
+        "categorical_columns": [],
+        "missing_value_columns": {},
+        "report": {
+          "rows_before_target_drop": 114,
+          "rows_after_target_drop": 114,
+          "dropped_missing_target_rows": 0,
+          "exact_duplicate_rows": 0,
+          "feature_count": 30,
+          "class_count": 2,
+          "class_counts": {
+            "benign": 72,
+            "malignant": 42
+          }
+        },
+        "classes": [
+          "benign",
+          "malignant"
+        ],
+        "class_counts": {
+          "benign": 72,
+          "malignant": 42
+        },
+        "majority_class_share": 0.631578947368421
+      }
+    ],
+    "target_column": "target",
+    "drop_columns": [],
+    "min_rows": 50,
+    "verdict": "accepted",
+    "findings": [
+      {
+        "input": "too-few-rows-probe",
+        "verdict": "rejected",
+        "message": "table-0 is not ready: use at least 50 labelled rows after missing-target drops"
+      }
+    ],
+    "model_id": "autogluon/mitra-classifier",
+    "model_revision": "c425e9fa0910a6be1c494321792e7ba2a1367b1a"
+  },
+  "inference": {
+    "decisionRule": "argmax over uncalibrated class probabilities",
+    "threshold": null,
+    "classLabels": [
+      "benign",
+      "malignant"
+    ],
+    "problemType": "binary"
+  },
+  "sample": {
+    "kind": "sample",
+    "name": "sklearn-breast-cancer",
+    "source": "Sample: Breast Cancer",
+    "data_sha256": "09d9b60e54c33916e4bea6f888a24958e0014fe8e8ac0a9ab301e46d0c0d2ffb",
+    "train_rows": 341,
+    "holdout_rows": 114,
+    "test_rows": 114,
+    "training_class_shares": {
+      "benign": 0.628,
+      "malignant": 0.372
+    }
+  },
+  "artifact": {
+    "zip": "mitra_classifier_predictor.zip",
+    "zip_sha256": "d2a330457fe8dbda2e7ad016e2ac0a0e8a461a738b1864ff5861654acb3cca01",
+    "run_metadata": {
+      "artifact_format": "dimer-autogluon-predictor",
+      "artifact_format_version": 1,
+      "base_model": "autogluon/mitra-classifier",
+      "base_model_revision": "c425e9fa0910a6be1c494321792e7ba2a1367b1a",
+      "weights_sha256": "e06a055e91a3baeffc37f9cf634d9e69a27d904b6686131dc3b702f9c0126b19",
+      "config_sha256": "2c96c24dd25f64e92753f6f2ba00cc7833b9923459403dcd8504e8700c0995df",
+      "notebook_source": {
+        "repository": "mitra-classifier-pipeline",
+        "repository_revision": "932be4c72648e52967c8d397948518c9e7848f76",
+        "embedded_module": "mitra_pipeline/tutorial_api.py",
+        "embedded_modules": [
+          "mitra_pipeline/tutorial_api.py"
+        ],
+        "module_sha256": "c346eedf2aa40d2aea9225dbfd38730b276b75329ab0ccdcd1538ddb03c69e37",
+        "generator": "build_notebook.py/2.2",
+        "notebook_spec": "2.2"
+      },
+      "model_source": "verified local snapshot (Section 3)",
+      "autogluon_version": "1.5.0",
+      "python_version": "3.12.12",
+      "torch_version": "2.9.1+cu128",
+      "device": "cuda",
+      "problem_type": "binary",
+      "target_column": "target",
+      "features": [
+        "mean radius",
+        "mean texture",
+        "mean perimeter",
+        "mean area",
+        "mean smoothness",
+        "mean compactness",
+        "mean concavity",
+        "mean concave points",
+        "mean symmetry",
+        "mean fractal dimension",
+        "radius error",
+        "texture error",
+        "perimeter error",
+        "area error",
+        "smoothness error",
+        "compactness error",
+        "concavity error",
+        "concave points error",
+        "symmetry error",
+        "fractal dimension error",
+        "worst radius",
+        "worst texture",
+        "worst perimeter",
+        "worst area",
+        "worst smoothness",
+        "worst compactness",
+        "worst concavity",
+        "worst concave points",
+        "worst symmetry",
+        "worst fractal dimension"
+      ],
+      "class_labels": [
+        "benign",
+        "malignant"
+      ],
+      "decision_rule": "argmax",
+      "mode": "pretrained",
+      "selection_basis": "default:pretrained",
+      "seed": 42,
+      "data_source": "Sample: Breast Cancer",
+      "data_sha256": "09d9b60e54c33916e4bea6f888a24958e0014fe8e8ac0a9ab301e46d0c0d2ffb",
+      "train_rows_before_cap": 341,
+      "train_rows_used": 341,
+      "train_row_cap_applied": false,
+      "support_rows": 341,
+      "mitra_context_rows": 272,
+      "autogluon_internal_validation": "automatic holdout_frac split of the support rows; Mitra is conditioned on mitra_context_rows of them",
+      "tree_baseline_rows": 341,
+      "holdout_rows": 114,
+      "independent_test_rows": 114,
+      "eval_metric": "accuracy",
+      "fine_tuning_requested": false,
+      "fine_tune_steps_requested": null,
+      "fine_tune_time_limit_seconds": null,
+      "max_memory_usage_ratio": 1.1,
+      "pretrained_holdout_metrics": {
+        "accuracy": 0.9824561403508771,
+        "balanced_accuracy": 0.9767441860465116,
+        "log_loss": 0.04969521672861615,
+        "f1_macro": 0.9811507936507937,
+        "mcc": 0.962998132394131,
+        "roc_auc": 0.9993449066491975
+      },
+      "pretrained_test_metrics": {
+        "accuracy": 0.9824561403508771,
+        "balanced_accuracy": 0.9761904761904762,
+        "log_loss": 0.06489600852385918,
+        "f1_macro": 0.9809555629802873,
+        "mcc": 0.962621902223779,
+        "roc_auc": 0.9973544973544973
+      },
+      "finetuned_holdout_metrics": null,
+      "finetuned_test_metrics": null,
+      "probability_calibration": "uncalibrated class probabilities; argmax decision rule; no threshold shipped",
+      "exported_at_utc": "2026-10-08T06:22:58.267623+00:00"
+    }
+  },
+  "notebook_source": {
+    "repository": "mitra-classifier-pipeline",
+    "repository_revision": "932be4c72648e52967c8d397948518c9e7848f76",
+    "embedded_module": "mitra_pipeline/tutorial_api.py",
+    "embedded_modules": [
+      "mitra_pipeline/tutorial_api.py"
+    ],
+    "module_sha256": "c346eedf2aa40d2aea9225dbfd38730b276b75329ab0ccdcd1538ddb03c69e37",
+    "generator": "build_notebook.py/2.2",
+    "notebook_spec": "2.2"
+  },
+  "repository_revision": "932be4c72648e52967c8d397948518c9e7848f76",
+  "model_id": "autogluon/mitra-classifier",
+  "model_revision": "c425e9fa0910a6be1c494321792e7ba2a1367b1a",
+  "model_license": "apache-2.0",
+  "runtime": {
+    "python": "3.12.12",
+    "torch": "2.9.1+cu128",
+    "autogluon": "1.5.0",
+    "lightgbm": "4.6.0",
+    "numpy": "2.3.5",
+    "pandas": "2.3.3",
+    "sklearn": "1.7.2",
+    "device": "cuda"
+  }
+}

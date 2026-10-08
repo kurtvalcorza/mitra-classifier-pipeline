@@ -84,7 +84,7 @@ CI runs `tools/validate_release_assets.py`, which preserves full generator/parit
   `mitra_pipeline/tutorial_api.py` after the generator's documented rewrite (the `DEFAULT_WEIGHTS_DIR` line); the inline
   `MANIFEST` equal to the committed `weights/mitra-classifier/dimer-base-manifest.json` and the inline `PINS` equal to the
   `pyproject.toml` runtime pins; the notebook byte-identical to `tools/build_notebook.py` output for its template; the
-  pinned-install cell with its restart-on-stale-import guard; `NOTEBOOK_SOURCE` recorded in exports;
+  isolated-environment bootstrap cell (generator /2.2: hash-locked `uv` environment, nothing installed into the kernel, no restart); `NOTEBOOK_SOURCE` recorded in exports;
 - `MODEL_ID`/`MODEL_REVISION` are bound only in the carried module cell (and repeated in the inline manifest, which the
   notebook asserts against the module before fetching), the revision is a 40-hex immutable commit, and the same identity
   string appears in `README.md`, `MODEL_CARD.md`, and `docs/WEIGHTS.md` with no stray revisions;
@@ -140,12 +140,12 @@ Before changing the registry status from `Candidate` to `Release-grade`:
    `metadata.dimer.generated_from` and that the installed core package versions equal the inline `PINS` (= `pyproject.toml`:
    `autogluon.tabular[mitra]==1.5.0`, `lightgbm==4.6.0`, `huggingface-hub==0.36.2`; torch and friends are AutoGluon's transitive pins);
 5. verify every default-path stage completes:
-   - pinned runtime installed from the inline `PINS` with no GitHub access;
+   - pinned runtime installed from the inline `PINS` (hash-locked, into the isolated environment of Section 1) with no GitHub access;
    - the carried module cell executes (defines `MitraClassificationPipeline`, the validation/metric helpers and the archive-safety
      functions) with no import of the repository package;
    - pinned `autogluon/mitra-classifier` acquisition at the immutable revision through the package: the inline `MANIFEST` is
      asserted against the module identity and written to `weights/mitra-classifier/`, `stage_missing_files(WEIGHTS_DIR, allow_download=True)`
-     reports the two manifest entries (`model.safetensors` 302,717,904 bytes, `config.json` 81 bytes) on a clean runtime,
+     reports the two manifest entries (`model.safetensors` 302,717,904 bytes, `config.json` 86 bytes) on a clean runtime,
      `verify_snapshot` returns the manifest dict, `from_pretrained` reports `source == 'local-snapshot'` and the offline HF
      snapshot path;
    - the Breast Cancer sample split 60/20/20 with stratification (`train=341, holdout=114, test=114`, two classes) with its data SHA-256 printed; the ceilings (`MIN_TRAIN_ROWS` 50, `MAX_TRAIN_ROWS` 10,000,
@@ -185,12 +185,36 @@ they are measurements for the stated runtime, not general estimates.
 |---|---|---|---|---|---|
 | 2026-09-14 | `0e13847` / `9599d5c4832c` | Kaggle T4 (`kurtvalcorza/dimer-nb2-mitra-classifier` v2) | Standalone E2E default sample path | 215.5 s | **PASSED** — 9/9 ok code cells executed cleanly, 9 files, 605 MB staged |
 | | | | Standalone ARTIFACT-INFERENCE with an external bundle | | pending — queued to the GPU lane |
+| 2026-10-08 | `83b4d0c` / `2748c0a2e7f8` | Colab CLI 0.7.4 sequential execution, fresh Colab Tesla T4 | Standalone E2E default sample path (no field edited; optional journeys not exercised) | 170.4 s | **PASSED** — one pass, no restart, 0 errors: 10/10 code cells in order (`exec.log`), isolated environment built in 83 s; evidence in `docs/execution-evidence/2026-10-08/mitra_classifier_colab/` |
 | 2026-09-28 | `c81db75` / `5db77406b629` | Colab Tesla T4 (maintainer-supplied) | Customer analytics capstone, default Run all | 10.4 min | **PASSED**: 10/10 code cells, 8/8 stages, fresh-process verification passed; BYOD not exercised |
 | 2026-10-03 | `9698515` / `0eade8804f02` | Colab CLI 0.7.4, fresh Colab Tesla T4 | Customer analytics capstone, all code cells in order | 638 s | **PASSED**: 10/10 code cells, 8/8 stages; results equal the 2026-09-28 run |
 
+### Colab CLI execution of the E2E notebook at `83b4d0c` (blob `2748c0a2e7f8`) — 2026-10-08
+
+- **Executor:** Colab CLI 0.7.4 sequential execution on a fresh Colab Tesla T4 VM (`colab exec -f`): every code cell in order in one
+  kernel, order taken from `exec.log` ("Executing cell k/10"). Not a browser **Run all**; no execution counts; forms not rendered.
+- **Notebook:** `tutorials/mitra_classifier_colab.ipynb`, commit `83b4d0c738ef1d207e4900921e954e688fb64c31`, blob
+  `2748c0a2e7f84c4c2799a7ce0673f984686e33f0` (fetched byte-exact at the commit; the executed copy's code cells equal the source).
+- **Path:** default sample path only, no field edited. Section 1 built the isolated uv environment (74 locked packages, Python
+  3.12.12; kernel Python 3.13.15) in 83 s; the model ran on `cuda`.
+- **Outcome:** **one pass, no restart, 0 errors**; 10/10 code cells; the carried-module cell has no output by design. Wall 170.4 s.
+- **Printed results:** partitions 341 / 114 / 114; Mitra conditioned on 272 of the 341 support rows (69 kept by AutoGluon for its
+  internal `Validation score` 0.9565); positive class `malignant`. Holdout rows correct of 114: Mitra 112, LightGBM 110,
+  Random Forest 109, majority class 71; test: 112 / 111 / 112 / 72. Mitra holdout accuracy 0.9825, log loss 0.0497, ROC-AUC 0.9993.
+  Evaluation verdict `sample-sanity`; `selection_basis` `default:pretrained`; fresh reload **PASS** (labels identical,
+  probabilities within `rtol=1e-6, atol=1e-8`).
+- **Exported bundle:** `outputs/mitra_classifier_predictor.zip`, 280,280,389 bytes, SHA-256
+  `d2a330457fe8dbda2e7ad016e2ac0a0e8a461a738b1864ff5861654acb3cca01` (printed by the run; the downloaded copy has the same digest).
+  It is the source of the `sample-bundle-v1` release asset used by the predictor-inference notebook.
+- **Evidence files** (`docs/execution-evidence/2026-10-08/mitra_classifier_colab/`, byte-exact, covered by the `-text` rule):
+  executed notebook `518e27b3d78199e5302cb937e3cf6157ac04b477647e6479d680c9188a7d55e0`, `run_summary.json` `a96513e2eee6d28b031187d25e28f213f576b7fd41ee9fb2bffb2f6f566631c8`, `exec.log` `75bfe90bdfc0da8dde6d463fa8fed6ab61e18bfe242264f6799fc7a242b1f1c3`, `mitra_classifier_result.json` `9a5280b7cb8554c43d8397fccefe9fbcc2e6daf58342692a881e67a387de0cdb`.
+- **Not exercised:** browser Run all, BYOD (single CSV and pre-split), `RUN_FINE_TUNING` on GPU, new-data inference upload,
+  the Wine activity. The worked answers were checked against this run (NOTEBOOK_SPEC REL13): they hold; the Section 5 answer's
+  "about 0.63" majority-class accuracy is 0.6228 on the holdout here (rounding).
+
 ## Current status
 
-No clean-runtime execution of the standalone notebooks has been recorded yet; clean GPU execution evidence for the E2E path is now recorded below. Static validation (`tools/validate_release_assets.py`), nbformat validation, a `compile()` sweep over every code
+**Generated tutorial pair: Candidate.** The E2E notebook's current blob `2748c0a2e7f8` has one recorded execution, the 2026-10-08 Colab CLI T4 run above (default path only); browser Run all, BYOD, the fine-tuning gate and the activity remain unexercised, and promotion is an integrator's decision. The 2026-09-14 Kaggle T4 row is evidence for the previous E2E blob (`9599d5c4832c`) only: an nbclient execution of the default sample path with a `google.colab` shim, not a browser Colab `Run all`. On 2026-10-08 both notebooks were regenerated (generator /2.2 isolated uv environment, DIMER Notebook Specification 2.2, Notebook Review Framework v1 fixes MCC-M1..M3 / MCC-m1..m6), so under NOTEBOOK_SPEC REL14 they return to Candidate until a run of the exact new blobs is recorded; the earlier row stays as history. The ARTIFACT-INFERENCE companion has no recorded run. Static validation (`tools/validate_release_assets.py`), nbformat validation, a `compile()` sweep over every code
 cell, and the offline unit suite passed on the tutorial source at the candidate revision, which is necessary but not
 sufficient. The registry status remains **Candidate** until a reviewer confirms a recorded run against the notebook blobs
 under review and an integrator promotes it; promotion is not performed by the builder. Facts a reviewer should weigh:

@@ -1,0 +1,123 @@
+[colab] Parsing notebook '/home/kurt/colab-runs/mitra-classifier-pipeline-83b4d0c-603279/mitra_classifier_colab_83b4d0c_colab-cli-t4.ipynb'...
+[colab] Executing cell 1/10 - Infrastructure: build (or reuse) the isolated environment and route later cells to it...
+{'isolated_environment': '/content/dimer_isolated_env_01caebfc22d9', 'reused': False, 'isolated_python': '3.12.12', 'kernel_python': '3.13.15', 'locked_packages': 74, 'setup_seconds': 83}
+{'routed_to': '/content/dimer_isolated_env_01caebfc22d9/bin/python', 'worker_pid': 1262, 'worker_reused': False}
+[colab] Executing cell 2/10 - Infrastructure: record the runtime...
+{'notebook_source': {'repository': 'mitra-classifier-pipeline', 'repository_revision': '932be4c72648e52967c8d397948518c9e7848f76', 'embedded_module': 'mitra_pipeline/tutorial_api.py', 'embedded_modules': ['mitra_pipeline/tutorial_api.py'], 'module_sha256': 'c346eedf2aa40d2aea9225dbfd38730b276b75329ab0ccdcd1538ddb03c69e37', 'generator': 'build_notebook.py/2.2', 'notebook_spec': '2.2'}, 'python': '3.12.12', 'executable': '/content/dimer_isolated_env_01caebfc22d9/bin/python', 'torch': '2.9.1+cu128', 'numpy': '2.3.5', 'pandas': '2.3.3', 'sklearn': '1.7.2', 'cuda': True}
+[colab] Executing cell 3/10 - mitra_classifier-09...
+[colab] Executing cell 4/10 - Infrastructure: stage and digest-verify the pinned snapshot, then load the model...
+{'model_id': 'autogluon/mitra-classifier', 'revision': 'c425e9fa0910a6be1c494321792e7ba2a1367b1a', 'license': 'apache-2.0', 'files': 2, 'total_bytes': 302717990}
+{'weights_dir': '/content/weights/mitra-classifier', 'fetched': ['model.safetensors', 'config.json']}
+{'verified_files': 2, 'revision': 'c425e9fa0910a6be1c494321792e7ba2a1367b1a'}
+{'device': 'cuda', 'source': 'local-snapshot'}
+[colab] Executing cell 5/10 - mitra_classifier-13...
+{'sample_kind': 'sample', 'name': 'sklearn-breast-cancer', 'target': 'target', 'drop_columns': [], 'train_rows': 341, 'holdout_rows': 114, 'test_rows': 114, 'data_sha256': '09d9b60e54c33916e4bea6f888a24958e0014fe8e8ac0a9ab301e46d0c0d2ffb'}
+[colab] Executing cell 6/10 - mitra_classifier-16...
+{'ceilings': {'MIN_TRAIN_ROWS': 50, 'MAX_TRAIN_ROWS': 10000, 'MAX_FEATURES': 500, 'MIN_CLASSES': 2, 'MAX_CLASSES': 10, 'MIN_CLASS_COUNT': 2}, 'decision_rule': 'argmax'}
+{
+  "id": "sklearn-breast-cancer:train",
+  "mode": "fit",
+  "rows": 341,
+  "feature_columns": [
+    "mean radius",
+    "mean texture",
+    "mean perimeter",
+    "mean area",
+    "mean smoothness",
+    "mean compactness",
+    "mean concavity",
+    "mean concave points",
+    "mean symmetry",
+    "mean fractal dimension",
+    "radius error",
+    "texture error",
+    "perimeter error",
+    "area error",
+    "smoothness error",
+    "compactness error",
+    "concavity error",
+    "concave points error",
+    "symmetry error",
+    "fractal dimension error",
+    "worst radius",
+    "worst texture",
+    "worst perimeter",
+    "worst area",
+    "worst smoothness",
+    "worst compactness",
+    "worst concavity",
+    "worst concave points",
+    "worst symmetry",
+    "worst fractal dimension"
+  ],
+  "categorical_columns": [],
+  "missing_value_columns": {},
+  "report": {
+    "rows_before_target_drop": 341,
+    "rows_after_target_drop": 341,
+    "dropped_missing_target_rows": 0,
+    "exact_duplicate_rows": 0,
+    "feature_count": 30,
+    "class_count": 2,
+    "class_counts": {
+      "benign": 214,
+      "malignant": 127
+    }
+  },
+  "classes": [
+    "benign",
+    "malignant"
+  ],
+  "class_counts": {
+    "benign": 214,
+    "malignant": 127
+  },
+  "majority_class_share": 0.6275659824046921
+}
+findings: [{'input': 'too-few-rows-probe', 'verdict': 'rejected', 'message': 'table-0 is not ready: use at least 50 labelled rows after missing-target drops'}]
+{'train': 341, 'holdout': 114, 'test': 114, 'features': 30, 'classes': ['benign', 'malignant'], 'problem_type': 'binary', 'training_class_shares': {'benign': 0.628, 'malignant': 0.372}, 'cap': {'applied': False, 'before': 341, 'after': 341}, 'overlaps': {'train_vs_holdout': 0, 'train_vs_test': 0, 'holdout_vs_test': 0}}
+majority-class baseline on the holdout {'accuracy': 0.6228070175438597, 'balanced_accuracy': 0.5, 'log_loss': 0.6627215844390356, 'f1_macro': 0.3837837837837838, 'mcc': 0.0, 'roc_auc': nan}
+[colab] Executing cell 7/10 - mitra_classifier-19...
+Automatically generating train/validation split with holdout_frac=0.2, Train Rows: 272, Val Rows: 69
+Fitting model: Mitra ... Training model for up to 299.97s of the 299.97s of remaining time.
+	0.9565	 = Validation score   (accuracy)
+{'support_rows': 341, 'mitra_context_rows': 272, 'autogluon_internal_validation_rows': 69, 'tree_baseline_rows': 341}
+{'autogluon_positive_class': 'malignant', 'note': 'AutoGluon f1 / precision / recall refer to this class'}
+pretrained holdout {'accuracy': 0.9824561403508771, 'balanced_accuracy': 0.9767441860465116, 'log_loss': 0.04969521672861615, 'f1_macro': 0.9811507936507937, 'mcc': 0.962998132394131, 'roc_auc': 0.9993449066491975} | AutoGluon evaluate: {'accuracy': 0.9824561403508771, 'balanced_accuracy': 0.9767441860465116, 'mcc': 0.962998132394131, 'roc_auc': 0.9993449066491975, 'f1': 0.9761904761904762, 'precision': 1.0, 'recall': 0.9534883720930233}
+pretrained independent test {'accuracy': 0.9824561403508771, 'balanced_accuracy': 0.9761904761904762, 'log_loss': 0.06489600852385918, 'f1_macro': 0.9809555629802873, 'mcc': 0.962621902223779, 'roc_auc': 0.9973544973544973}
+{'recommended_for_export': 'pretrained', 'selection_basis': 'default:pretrained', 'device': 'cuda', 'classes': ['benign', 'malignant']}
+           model   split  rows_correct  accuracy  balanced_accuracy  log_loss  f1_macro      mcc  roc_auc
+  Majority-class holdout            71  0.622807           0.500000  0.662722  0.383784 0.000000      NaN
+  Majority-class    test            72  0.631579           0.500000  0.658144  0.387097 0.000000      NaN
+        LightGBM holdout           110  0.964912           0.953488  0.100589  0.961911 0.926609 0.998035
+        LightGBM    test           111  0.973684           0.964286  0.100431  0.971277 0.944155 0.993717
+    RandomForest holdout           109  0.956140           0.946446  0.096834  0.952638 0.906811 0.995578
+    RandomForest    test           112  0.982456           0.976190  0.117879  0.980956 0.962622 0.993386
+Mitra-pretrained holdout           112  0.982456           0.976744  0.049695  0.981151 0.962998 0.999345
+Mitra-pretrained    test           112  0.982456           0.976190  0.064896  0.980956 0.962622 0.997354
+{'holdout_rows': 114, 'one_row_resolution_pct': 0.88, 'mitra_context_rows': 272, 'tree_baseline_rows': 341}
+All values above are current-run tutorial metrics. Lower log_loss is better; higher accuracy / balanced_accuracy / f1_macro / mcc / roc_auc is better.
+[colab] Executing cell 8/10 - mitra_classifier-22...
+{
+  "verdict": "sample-sanity",
+  "reason": "114 labelled holdout row(s) from one seeded stratified split; tutorial evidence, not a benchmark",
+  "decision_rule": "argmax",
+  "selection": "default:pretrained",
+  "n_holdout": 114,
+  "n_test": 114
+}
+[colab] Executing cell 9/10 - mitra_classifier-25...
+Inference upload skipped; eight held-out rows scored instead.
+     mean radius  mean texture  ...  probability_benign  probability_malignant
+480       12.160         18.03  ...            0.999946               0.000054
+294       12.720         13.78  ...            0.999974               0.000026
+548        9.683         19.34  ...            0.999972               0.000028
+531       11.670         20.02  ...            0.998830               0.001170
+418       12.700         12.17  ...            0.999965               0.000035
+
+[5 rows x 33 columns]
+[colab] Executing cell 10/10 - mitra_classifier-27...
+{'predictor_zip': '/content/outputs/mitra_classifier_predictor.zip', 'zip_sha256': 'd2a330457fe8dbda2e7ad016e2ac0a0e8a461a738b1864ff5861654acb3cca01', 'artifact_manifest': '/content/outputs/mitra-pretrained/artifact_manifest.json'}
+PASS: artifact manifest/provenance verified before deserialisation; predictor reloaded from fresh files; labels identical and probabilities equivalent (rtol=1e-6, atol=1e-8).
+['artifact-reload', 'mitra-pretrained', 'mitra_classifier_evaluation_report.json', 'mitra_classifier_input_manifest.json', 'mitra_classifier_predictions.csv', 'mitra_classifier_predictor.zip', 'mitra_classifier_result.json']
+[colab] Saving notebook with outputs to '/home/kurt/colab-runs/mitra-classifier-pipeline-83b4d0c-603279/mitra_classifier_colab_83b4d0c_colab-cli-t4_output.ipynb'...
