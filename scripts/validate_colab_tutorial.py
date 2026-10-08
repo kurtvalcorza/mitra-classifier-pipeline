@@ -169,7 +169,10 @@ def inference_tutorial() -> None:
     require(own_text.index("validate_artifact_directory(") < own_text.index("TabularPredictor.load("), "manifest/provenance must be verified before deserialization")
     require("AUTOGLUON_VERSION:" in own_text and "runtime_python_mm" in own_text, "runtime compatibility must be checked before deserialization")
     require("to_csv(" in own_text, "artifact-inference notebook must export CSV")
-    require("github.com/kurtvalcorza" not in "\n".join(code_cells), "artifact notebook must not reach this repository (ST1)")
+    # The pinned, SHA-256-checked sample-bundle release asset (MCP-B1, SART6) is a download, not a repository dependency.
+    artifact_code = re.sub(r"https://github\.com/kurtvalcorza/mitra-classifier-pipeline/releases/download/sample-bundle-v\d+/[A-Za-z0-9_.-]+\.zip(?=['\"])", "", "\n".join(code_cells))
+    require("github.com/kurtvalcorza" not in artifact_code, "artifact notebook must not reach this repository (ST1)")
+    require("SAMPLE_ARTIFACT = {'url': 'https://github.com/kurtvalcorza/mitra-classifier-pipeline/releases/download/sample-bundle-v" in own_text and "'sha256': '" in own_text, "artifact notebook must pin its sample bundle by URL and SHA-256 (SART6)")
 
 
 def docs_and_api() -> None:

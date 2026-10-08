@@ -184,7 +184,7 @@ they are measurements for the stated runtime, not general estimates.
 | Date (UTC) | Commit / notebook blob | Executor | Path exercised | Wall | Outcome |
 |---|---|---|---|---|---|
 | 2026-09-14 | `0e13847` / `9599d5c4832c` | Kaggle T4 (`kurtvalcorza/dimer-nb2-mitra-classifier` v2) | Standalone E2E default sample path | 215.5 s | **PASSED** — 9/9 ok code cells executed cleanly, 9 files, 605 MB staged |
-| | | | Standalone ARTIFACT-INFERENCE with an external bundle | | pending — queued to the GPU lane |
+| 2026-10-08 | `fb4e0eb` / `54e9966c16bd` | Colab CLI 0.7.4 sequential execution, fresh Colab Tesla T4 | Standalone ARTIFACT-INFERENCE default path: pinned `sample-bundle-v1` downloaded and digest-verified before extraction, 114 sample rows (no field edited) | 146.4 s | **PASSED** — one pass, no restart, 0 errors: 9/9 code cells in order; evidence in `docs/execution-evidence/2026-10-08/mitra_classifier_predictor_inference_colab/` |
 | 2026-10-08 | `83b4d0c` / `2748c0a2e7f8` | Colab CLI 0.7.4 sequential execution, fresh Colab Tesla T4 | Standalone E2E default sample path (no field edited; optional journeys not exercised) | 170.4 s | **PASSED** — one pass, no restart, 0 errors: 10/10 code cells in order (`exec.log`), isolated environment built in 83 s; evidence in `docs/execution-evidence/2026-10-08/mitra_classifier_colab/` |
 | 2026-09-28 | `c81db75` / `5db77406b629` | Colab Tesla T4 (maintainer-supplied) | Customer analytics capstone, default Run all | 10.4 min | **PASSED**: 10/10 code cells, 8/8 stages, fresh-process verification passed; BYOD not exercised |
 | 2026-10-03 | `9698515` / `0eade8804f02` | Colab CLI 0.7.4, fresh Colab Tesla T4 | Customer analytics capstone, all code cells in order | 638 s | **PASSED**: 10/10 code cells, 8/8 stages; results equal the 2026-09-28 run |
@@ -212,9 +212,30 @@ they are measurements for the stated runtime, not general estimates.
   the Wine activity. The worked answers were checked against this run (NOTEBOOK_SPEC REL13): they hold; the Section 5 answer's
   "about 0.63" majority-class accuracy is 0.6228 on the holdout here (rounding).
 
+### Colab CLI execution of the predictor-inference notebook at `fb4e0eb` (blob `54e9966c16bd`) — 2026-10-08
+
+- **Executor:** Colab CLI 0.7.4 sequential execution on a fresh Colab Tesla T4 VM; every code cell in order in one kernel (order
+  from `exec.log`). Not a browser **Run all**; no execution counts; no upload dialog was needed or answered.
+- **Notebook:** `tutorials/mitra_classifier_predictor_inference_colab.ipynb`, commit `fb4e0eb9f4d69961ffc06bc9d6a529d2cb4b6c4e`,
+  blob `54e9966c16bd20fa2de6c9113009e4be36d3d3b2` (fetched byte-exact; executed code cells equal the source).
+- **Default path, no field edited:** Section 4 downloaded release asset `sample-bundle-v1/mitra_classifier_predictor.zip`, matched
+  its whole-archive SHA-256 `d2a330457fe8dbda2e7ad016e2ac0a0e8a461a738b1864ff5861654acb3cca01` against the pin **before**
+  safe extraction, verified the manifest, provenance and base-model identity, and printed the producer (E2E blob `2748c0a2`,
+  commit `83b4d0c`, the 2026-10-08 run above). The predictor (`Mitra`, binary, `benign`/`malignant`) was reconstructed from the
+  bundle alone on `cuda`. Section 6 scored the 114 sample rows (the producer's independent test partition, label removed);
+  the evaluation report is `not-measurable` and four `mitra_classifier_predictor_inference_*` files were written.
+- **Activity (Section 8, default `worst area` × 2.0):** 3 labels flipped, all to `malignant`; mean `probability_malignant` +0.0899.
+- **Outcome:** **one pass, no restart, 0 errors**; 9/9 code cells (the carried-module cell has no output by design); isolated
+  environment built in 81 s; wall 146.4 s.
+- **Evidence files** (`docs/execution-evidence/2026-10-08/mitra_classifier_predictor_inference_colab/`, byte-exact, `-text`):
+  executed notebook `af19781f12ecc1a94e79cf79e7ac6799942b1db06aa83337f22380d6f407cf12`, `run_summary.json` `11ad039da588b4202c8a9bcbe3d74197265ef92e290ee5d61400058e29d750e2`, `exec.log` `399f4a5c4b2a06751996a15c09ff20aef56cae3be2e1c624577b5454928c3ece`.
+- **Not exercised:** browser Run all, your-own-bundle path (`ARTIFACT_ZIP_PATH`), BYOD rows (`NEW_DATA_PATH`), the Colab upload
+  dialog, the activity at another scale. The GitHub-hosted integration smoke (`notebook-release.yml`) exercises the own-bundle path
+  with a CI-produced bundle on every pull request; that is regression coverage, not release evidence.
+
 ## Current status
 
-**Generated tutorial pair: Candidate.** The E2E notebook's current blob `2748c0a2e7f8` has one recorded execution, the 2026-10-08 Colab CLI T4 run above (default path only); browser Run all, BYOD, the fine-tuning gate and the activity remain unexercised, and promotion is an integrator's decision. The 2026-09-14 Kaggle T4 row is evidence for the previous E2E blob (`9599d5c4832c`) only: an nbclient execution of the default sample path with a `google.colab` shim, not a browser Colab `Run all`. On 2026-10-08 both notebooks were regenerated (generator /2.2 isolated uv environment, DIMER Notebook Specification 2.2, Notebook Review Framework v1 fixes MCC-M1..M3 / MCC-m1..m6), so under NOTEBOOK_SPEC REL14 they return to Candidate until a run of the exact new blobs is recorded; the earlier row stays as history. The ARTIFACT-INFERENCE companion has no recorded run. Static validation (`tools/validate_release_assets.py`), nbformat validation, a `compile()` sweep over every code
+**Generated tutorial pair: Candidate.** The E2E notebook's current blob `2748c0a2e7f8` has one recorded execution, the 2026-10-08 Colab CLI T4 run above (default path only); browser Run all, BYOD, the fine-tuning gate and the activity remain unexercised, and promotion is an integrator's decision. The 2026-09-14 Kaggle T4 row is evidence for the previous E2E blob (`9599d5c4832c`) only: an nbclient execution of the default sample path with a `google.colab` shim, not a browser Colab `Run all`. On 2026-10-08 both notebooks were regenerated (generator /2.2 isolated uv environment, DIMER Notebook Specification 2.2, Notebook Review Framework v1 fixes MCC-M1..M3 / MCC-m1..m6), so under NOTEBOOK_SPEC REL14 they return to Candidate until a run of the exact new blobs is recorded; the earlier row stays as history. The ARTIFACT-INFERENCE companion's default path now downloads the trusted sample bundle (release `sample-bundle-v1`, asset `mitra_classifier_predictor.zip`, SHA-256 `d2a330457fe8dbda2e7ad016e2ac0a0e8a461a738b1864ff5861654acb3cca01`, produced by the 2026-10-08 E2E run recorded above; the repository's immutable-releases setting was enabled before it was published) and checks the digest before extraction (NOTEBOOK_SPEC SART6–SART8); its current blob `54e9966c16bd` passed the 2026-10-08 Colab CLI T4 run above (default path only). Static validation (`tools/validate_release_assets.py`), nbformat validation, a `compile()` sweep over every code
 cell, and the offline unit suite passed on the tutorial source at the candidate revision, which is necessary but not
 sufficient. The registry status remains **Candidate** until a reviewer confirms a recorded run against the notebook blobs
 under review and an integrator promotes it; promotion is not performed by the builder. Facts a reviewer should weigh:
