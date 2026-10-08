@@ -58,7 +58,8 @@ jobs:
           source_path = Path("tutorials/mitra_classifier_colab.ipynb")
           smoke_path = Path("/content/mitra_classifier_colab_ci_smoke.ipynb")
           notebook = json.loads(source_path.read_text(encoding="utf-8"))
-          marker = "pipe.fit(train_data, target_column=TARGET_COLUMN, eval_metric=EVAL_METRIC, path=PRETRAINED_PATH, fine_tune=False"
+          # The pretrained fit sits inside `with autogluon_log():` (MCC-m2), so the reduction goes before that block.
+          marker = "with autogluon_log():\n    pipe.fit(train_data, target_column=TARGET_COLUMN, eval_metric=EVAL_METRIC, path=PRETRAINED_PATH, fine_tune=False"
           injected = False
           for cell in notebook.get("cells", []):
               if cell.get("cell_type") != "code":
