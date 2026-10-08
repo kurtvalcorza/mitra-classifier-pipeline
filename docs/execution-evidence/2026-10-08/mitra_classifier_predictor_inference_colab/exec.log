@@ -1,0 +1,137 @@
+[colab] Parsing notebook '/home/kurt/colab-runs/mitra-classifier-pipeline-fb4e0eb-ce5bf4/mitra_classifier_predictor_inference_colab_fb4e0eb_colab-cli-t4.ipynb'...
+[colab] Executing cell 1/9 - Infrastructure: build (or reuse) the isolated environment and route later cells to it...
+{'isolated_environment': '/content/dimer_isolated_env_01caebfc22d9', 'reused': False, 'isolated_python': '3.12.12', 'kernel_python': '3.13.15', 'locked_packages': 74, 'setup_seconds': 81}
+{'routed_to': '/content/dimer_isolated_env_01caebfc22d9/bin/python', 'worker_pid': 2013, 'worker_reused': False}
+[colab] Executing cell 2/9 - Infrastructure: record the runtime...
+{'notebook_source': {'repository': 'mitra-classifier-pipeline', 'repository_revision': 'ecd6b4c1b237db6f5a610d4fd002d7564249f97b', 'embedded_module': 'mitra_pipeline/tutorial_api.py', 'embedded_modules': ['mitra_pipeline/tutorial_api.py'], 'module_sha256': 'c346eedf2aa40d2aea9225dbfd38730b276b75329ab0ccdcd1538ddb03c69e37', 'generator': 'build_notebook.py/2.2', 'notebook_spec': '2.2'}, 'python': '3.12.12', 'executable': '/content/dimer_isolated_env_01caebfc22d9/bin/python', 'torch': '2.9.1+cu128', 'numpy': '2.3.5', 'pandas': '2.3.3', 'sklearn': '1.7.2', 'cuda': True}
+[colab] Executing cell 3/9 - mitra_classifier_predictor_inference-08...
+[colab] Executing cell 4/9 - Infrastructure: stage and digest-verify the pinned snapshot, then load the model...
+{'model_id': 'autogluon/mitra-classifier', 'revision': 'c425e9fa0910a6be1c494321792e7ba2a1367b1a', 'license': 'apache-2.0', 'files': 2, 'total_bytes': 302717990}
+{'weights_dir': '/content/weights/mitra-classifier', 'fetched': ['model.safetensors', 'config.json']}
+{'verified_files': 2, 'revision': 'c425e9fa0910a6be1c494321792e7ba2a1367b1a'}
+{'device': 'cuda', 'source': 'local-snapshot'}
+[colab] Executing cell 5/9 - mitra_classifier_predictor_inference-12...
+{'sample_artifact': 'https://github.com/kurtvalcorza/mitra-classifier-pipeline/releases/download/sample-bundle-v1/mitra_classifier_predictor.zip', 'pinned_sha256': 'd2a330457fe8dbda2e7ad016e2ac0a0e8a461a738b1864ff5861654acb3cca01', 'producer': {'notebook': 'tutorials/mitra_classifier_colab.ipynb', 'notebook_blob': '2748c0a2e7f84c4c2799a7ce0673f984686e33f0', 'commit': '83b4d0c738ef1d207e4900921e954e688fb64c31', 'run': '2026-10-08 Colab CLI 0.7.4 sequential execution, fresh Colab Tesla T4, default path', 'evidence': 'docs/execution-evidence/2026-10-08/mitra_classifier_colab/', 'release': 'sample-bundle-v1', 'asset_id': 620969480, 'bytes': 280280389}}
+Whole-archive SHA-256 matches the trusted expected digest.
+{'artifact_source': 'sample artifact: https://github.com/kurtvalcorza/mitra-classifier-pipeline/releases/download/sample-bundle-v1/mitra_classifier_predictor.zip', 'digest_verified': True, 'zip': 'sample-mitra_classifier_predictor.zip', 'zip_sha256': 'd2a330457fe8dbda2e7ad016e2ac0a0e8a461a738b1864ff5861654acb3cca01', 'format': 'dimer-autogluon-predictor', 'format_version': 1, 'base_model': 'autogluon/mitra-classifier', 'base_revision': 'c425e9fa0910', 'problem_type': 'binary', 'mode': 'pretrained', 'selection_basis': 'default:pretrained'}
+{'target': 'target', 'required_features': ['mean radius', 'mean texture', 'mean perimeter', 'mean area', 'mean smoothness', 'mean compactness', 'mean concavity', 'mean concave points', 'mean symmetry', 'mean fractal dimension', 'radius error', 'texture error', 'perimeter error', 'area error', 'smoothness error', 'compactness error', 'concavity error', 'concave points error', 'symmetry error', 'fractal dimension error', 'worst radius', 'worst texture', 'worst perimeter', 'worst area', 'worst smoothness', 'worst compactness', 'worst concavity', 'worst concave points', 'worst symmetry', 'worst fractal dimension'], 'producer_autogluon': '1.5.0', 'producer_python': '3.12.12', 'data_source': 'Sample: Breast Cancer'}
+[colab] Executing cell 6/9 - mitra_classifier_predictor_inference-15...
+{'reconstructed_from': 'external-artifact/bundle', 'models': ['Mitra'], 'features': 30, 'classes': ['benign', 'malignant'], 'problem_type': 'binary', 'device': 'cuda', 'source': 'artifact'}
+[colab] Executing cell 7/9 - mitra_classifier_predictor_inference-17...
+{'inference_limits': {'required_features': 30, 'reserved_output_columns': ['prediction', 'probability_benign', 'probability_malignant'], 'extra_columns': 'kept in the output, not passed to the model', 'row_ceiling': None}}
+{'sample_input': 'sample-independent-test-rows.csv', 'rows': 114, 'derived_from': 'sklearn load_breast_cancer, the producer split (60/20/20, seed 42), independent test partition', 'label_removed': 'target'}
+{
+  "schema": {
+    "input": "pandas.DataFrame, one row per example; feature columns of any dtype plus a categorical target",
+    "columns": "unique names; `drop_columns` are removed before validation",
+    "target": "any label type; rows with a missing target are dropped and counted; MIN_CLASSES..MAX_CLASSES classes; every class needs MIN_CLASS_COUNT rows in the support split; holdout/test classes must match the support classes",
+    "train_rows": [
+      50,
+      10000
+    ],
+    "eval_rows": [
+      2,
+      null
+    ],
+    "features": [
+      1,
+      500
+    ],
+    "classes": [
+      2,
+      10
+    ],
+    "inference_input": "every fitted feature column present; no `prediction`/`probability_*` column; extras pass through",
+    "decision_rule": "argmax",
+    "preprocessing": "none by the package (AutoGluon's Mitra handles raw columns); training rows above MAX_TRAIN_ROWS are capped by seeded class-preserving sampling and the cap is reported"
+  },
+  "inputs": [
+    {
+      "id": "sample-independent-test-rows.csv",
+      "mode": "inference",
+      "rows": 114,
+      "feature_columns": [
+        "mean radius",
+        "mean texture",
+        "mean perimeter",
+        "mean area",
+        "mean smoothness",
+        "mean compactness",
+        "mean concavity",
+        "mean concave points",
+        "mean symmetry",
+        "mean fractal dimension",
+        "radius error",
+        "texture error",
+        "perimeter error",
+        "area error",
+        "smoothness error",
+        "compactness error",
+        "concavity error",
+        "concave points error",
+        "symmetry error",
+        "fractal dimension error",
+        "worst radius",
+        "worst texture",
+        "worst perimeter",
+        "worst area",
+        "worst smoothness",
+        "worst compactness",
+        "worst concavity",
+        "worst concave points",
+        "worst symmetry",
+        "worst fractal dimension"
+      ],
+      "extra_columns": [],
+      "missing_value_columns": {}
+    }
+  ],
+  "target_column": null,
+  "drop_columns": [],
+  "min_rows": null,
+  "verdict": "accepted",
+  "findings": [
+    {
+      "input": "missing-column-probe",
+      "verdict": "rejected",
+      "message": "Inference CSV is missing required feature columns: ['mean radius']"
+    }
+  ],
+  "model_id": "autogluon/mitra-classifier",
+  "model_revision": "c425e9fa0910a6be1c494321792e7ba2a1367b1a"
+}
+[colab] Executing cell 8/9 - mitra_classifier_predictor_inference-20...
+   mean radius  mean texture  ...  probability_benign  probability_malignant
+0        12.00         15.65  ...            0.999894               0.000106
+1        14.50         10.89  ...            0.975577               0.024423
+2        12.36         18.54  ...            0.999842               0.000158
+3        11.41         14.92  ...            0.999970               0.000030
+4        13.08         15.71  ...            0.999747               0.000253
+
+[5 rows x 33 columns]
+{
+  "task": "tabular classification by in-context conditioning on labelled support rows (AutoGluon Mitra)",
+  "decision_rule": "argmax",
+  "score_semantics": "class probabilities in class_labels order, uncalibrated; no threshold shipped",
+  "sample_kind": "sample",
+  "n_holdout": 0,
+  "n_test": null,
+  "class_labels": [
+    "benign",
+    "malignant"
+  ],
+  "target_column": "target",
+  "selection": null,
+  "baselines": [],
+  "model_id": "autogluon/mitra-classifier",
+  "model_revision": "c425e9fa0910a6be1c494321792e7ba2a1367b1a",
+  "metrics": [],
+  "independent_test": [],
+  "verdict": "not-measurable",
+  "reason": "no labelled holdout rows were supplied for the scored table",
+  "needs": "a labelled holdout table whose classes all appear in the support rows, scored with `classification_metrics` (accuracy, balanced_accuracy, log_loss, roc_auc, f1_macro, mcc) against `majority_class_baseline`; an independent test partition from the deployment domain for any generalisable claim"
+}
+['mitra_classifier_predictor_inference_evaluation_report.json', 'mitra_classifier_predictor_inference_input_manifest.json', 'mitra_classifier_predictor_inference_predictions.csv', 'mitra_classifier_predictor_inference_result.json']
+[colab] Executing cell 9/9 - mitra_classifier_predictor_inference-23...
+{'feature': 'worst area', 'scale': 2.0, 'rows': 114, 'labels_flipped': 3, 'flips_to': {'malignant': 3}, 'mean_probability_shift': {'probability_benign': -0.0899, 'probability_malignant': 0.0899}}
+[colab] Saving notebook with outputs to '/home/kurt/colab-runs/mitra-classifier-pipeline-fb4e0eb-ce5bf4/mitra_classifier_predictor_inference_colab_fb4e0eb_colab-cli-t4_output.ipynb'...
