@@ -52,6 +52,11 @@ REFLECTANCE_MAX = 2.0  # larger values are reflectance x 10 000 and are refused,
 SPLIT_SALT = "rice-capstone-split"  # the capstone's rule, so both notebooks score identical chips
 DEV_FRACTION = 0.25
 MIN_DEV_RICE_CHIPS = 2
+BYOD_SPLIT_RULE = (
+    "whole sites (HDF5 attribute group / group_id, else the file name without its _YYYY year), ordered by "
+    "SHA-256('rice-tables-byod:<k>:<site>'): about 20% development, 20% test, the rest fit; the first k giving rice in "
+    "development and test and both classes in fit is used"
+)
 SPLIT_RULE = (
     "whole regions, ordered by SHA-256('rice-capstone-split:<k>:<region>'), go to development while it holds at most "
     "round(0.25 x training chips); the first k with >= target - 2 development chips, >= 2 rice development chips and "
@@ -1094,7 +1099,8 @@ def prepare_byod(ledger: Ledger, chips: Mapping[str, Mapping[str, Any]], plan: M
                             feature_sets=plan["feature_sets"])
     data_manifest = {"dataset": "user-supplied chips (BYOD); processed inside this runtime only",
                      "chips_sha256": dict(digests), "roles": roles, "sites": dict(plan["groups"]),
-                     "prediction_only_chips": plan["prediction_only"], "feature_sets": plan["feature_sets"]}
+                     "prediction_only_chips": plan["prediction_only"], "feature_sets": plan["feature_sets"],
+                     "split_rule": BYOD_SPLIT_RULE}
     return _finish_prepare(ledger, data_manifest, manifest, table, started)
 
 
@@ -1304,8 +1310,9 @@ def freeze_stage(ledger: Ledger, **declared: Any) -> dict[str, Any]:
     ledger.start("freeze")
     baseline = read_json(ledger.root / "baseline" / "records.json")
     foundation = read_json(ledger.root / "foundation" / "records.json")
+    split_rule = read_json(ledger.root / "data_manifest.json").get("split_rule")  # BYOD records its own
     selection = {
-        "protocol": PROTOCOL,
+        "protocol": {**PROTOCOL, "roles": split_rule} if split_rule else PROTOCOL,
         "data_manifest_sha256": sha256_file(ledger.root / "data_manifest.json"),
         "features_sha256": sha256_file(ledger.root / "features.json"),
         "tables_sha256": sha256_file(ledger.root / "tables" / "tables.json"),

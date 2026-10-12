@@ -221,6 +221,31 @@ def test_codex_round1_mitra_keeps_a_two_class_tuning_set_on_small_development(tm
     assert "stop after staging" in result["errors"]["C3"]
 
 
+def test_codex_round2_findings(tmp_path: Path) -> None:
+    # Codex on 4c66d02. (b) out-of-range probabilities are rejected, float noise is clipped.
+    with pytest.raises(ValueError, match="outside"):
+        runner_module.positive_column(np.array([[-0.5, 1.5]]), [0, 1])
+    assert runner_module.positive_column(np.array([[0.0, 1.0 + 1e-9]]), [0, 1])[0] == 1.0
+    # (a) the run summary lists the systems that ran, not the ones selected.
+    assert "FOUNDATION['records'].values()})]," in build.CELL_EXPORT
+    # (c) a BYOD freeze records the BYOD split rule.
+    ledger = rt.Ledger(tmp_path / "run")
+    for name in ("baseline", "foundation", "activity"):
+        (ledger.root / name).mkdir(parents=True, exist_ok=True)
+        ledger.finish(name)
+    (ledger.root / "tables").mkdir()
+    rt.write_json(ledger.root / "tables" / "tables.json", {"feature_sets": {}})
+    rt.write_json(ledger.root / "features.json", {})
+    rt.write_json(ledger.root / "baseline" / "records.json", {})
+    rt.write_json(ledger.root / "foundation" / "records.json", {})
+    rt.write_json(ledger.root / "activity" / "activity.json", {"ran": False})
+    rt.write_json(ledger.root / "data_manifest.json", {"split_rule": rt.BYOD_SPLIT_RULE})
+    assert rt.freeze_stage(ledger)["protocol"]["roles"] == rt.BYOD_SPLIT_RULE
+    rt.write_json(ledger.root / "data_manifest.json", {})
+    (ledger.root / "receipts" / "freeze.json").unlink()
+    assert rt.freeze_stage(ledger)["protocol"]["roles"] == rt.SPLIT_RULE
+
+
 def test_codex_round1_activity_and_chip_labels_in_cells() -> None:
     assert "available=sorted({r['system'] for r in FOUNDATION['records'].values()})" in build.CELL_ACTIVITY
     assert "(sample)" in build.CELL_RESULTS and "declared sample" in build.CELL_RESULTS

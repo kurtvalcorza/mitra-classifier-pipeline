@@ -53,6 +53,9 @@ def file_inventory(root):
     return inventory
 
 
+PROBABILITY_EPSILON = 1e-6
+
+
 def positive_column(raw, classes):
     """Rice (class 1) probability column, whatever order the model reports its classes in."""
     labels = [str(c) for c in classes]
@@ -61,7 +64,11 @@ def positive_column(raw, classes):
         raise ValueError(f"unexpected probability shape {p.shape} for classes {labels}")
     if not np.isfinite(p).all():
         raise ValueError("non-finite probabilities")
-    return np.clip(p[:, labels.index("1")], 0.0, 1.0)
+    column = p[:, labels.index("1")]
+    if (column < -PROBABILITY_EPSILON).any() or (column > 1 + PROBABILITY_EPSILON).any():
+        raise ValueError(f"rice probabilities outside [0, 1] (min {column.min():.6g}, max {column.max():.6g}); the "
+                         "model or adapter did not return probabilities")
+    return np.clip(column, 0.0, 1.0)  # floating-point noise within PROBABILITY_EPSILON only
 
 
 def predict_chunks(predict, x, names, chunk):
