@@ -163,6 +163,31 @@ def test_collect_byod_refuses_unsafe_archives_and_duplicates(tmp_path: Path) -> 
         rt.collect_byod([one, two], target)
 
 
+def test_collect_byod_opens_zip_archives_inside_a_folder(tmp_path: Path) -> None:
+    # Kurt's browser run of 373aaf5: the upload dialog hands collect_byod a folder holding the uploaded .zip, which
+    # was never opened ("no .h5 chips found").
+    upload = tmp_path / "byod_upload"
+    upload.mkdir()
+    with zipfile.ZipFile(upload / "chips.zip", "w") as archive:
+        archive.writestr("site_a_2019.h5", b"a")
+        archive.writestr("nested/site_b_2020.h5", b"b")
+    (upload / "site_c_2021.h5").write_bytes(b"c")
+    paths = rt.collect_byod([upload], tmp_path / "input")
+    assert [p.name for p in paths] == ["site_a_2019.h5", "site_b_2020.h5", "site_c_2021.h5"]
+    assert (tmp_path / "input" / "site_b_2020.h5").read_bytes() == b"b"
+    with zipfile.ZipFile(upload / "bad.zip", "w") as archive:
+        archive.writestr("../escape.h5", b"x")
+    with pytest.raises(rt.ChipError, match="unsafe member"):
+        rt.collect_byod([upload], tmp_path / "input")
+    assert not list((tmp_path / "input").iterdir())
+
+
+def test_byod_upload_folder_is_cleared_per_attempt() -> None:
+    source = build.CELL_BYOD
+    assert "shutil.rmtree(upload_dir)" in source
+    assert source.index("shutil.rmtree(upload_dir)") < source.index("files.upload()")
+
+
 def test_byod_plan_needs_six_labelled_chips_from_three_sites() -> None:
     small = {f"s{i}_2020": rt.validate_chip(_chip(i)) for i in range(5)}
     with pytest.raises(rt.ChipError, match="at least 6 labelled chips"):

@@ -33,7 +33,7 @@ HDF5 chips, re-adapted under the same protocol. TabPFN-3 weights are non-commerc
 
 | Notebook | Profile | Mode | Status | Default runtime | Qualification |
 |---|---|---|---|---|---|
-| `DIMER_Philippines_Rice_Pixel_Tables_Workshop.ipynb` | `E2E` | `WORKSHOP` | Candidate | Fresh Colab T4, Linux x86_64, isolated Python 3.12.12 per model | No hosted run of this notebook yet; CPU tests and a synthetic dry run only (`../docs/release-verification.md`) |
+| `DIMER_Philippines_Rice_Pixel_Tables_Workshop.ipynb` | `E2E` | `WORKSHOP` | Candidate | Fresh Colab T4, Linux x86_64, isolated Python 3.12.12 per model | Default path passed on a fresh Colab T4 for blob `95d0ad11` (Colab CLI and browser Run all, 2026-10-12); the BYOD upload-dialog defect found there is fixed in the current blob, which awaits its own hosted run; Mitra not yet assessed (`../docs/release-verification.md`) |
 
 [![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat&logo=github&logoColor=white)](https://github.com/kurtvalcorza/mitra-classifier-pipeline)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kurtvalcorza/mitra-classifier-pipeline/blob/main/tutorials/mitra_classifier_colab.ipynb)

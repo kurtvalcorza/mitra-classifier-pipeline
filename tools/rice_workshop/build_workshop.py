@@ -700,7 +700,9 @@ if USE_BYOD:
     if not sources:
         from google.colab import files  # only on Colab, only after the sample path has completed
         upload_dir = SESSION_ROOT / 'byod_upload'
-        upload_dir.mkdir(parents=True, exist_ok=True)
+        if upload_dir.exists():  # a retry never mixes in files from an earlier upload
+            shutil.rmtree(upload_dir)
+        upload_dir.mkdir(parents=True)
         for name, payload in files.upload().items():
             (upload_dir / Path(name).name).write_bytes(payload)
         sources = [upload_dir]

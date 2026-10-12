@@ -882,9 +882,10 @@ def byod_split(ids: Sequence[str], groups: Mapping[str, str], rice: Mapping[str,
 
 
 def collect_byod(sources: Sequence[Path], target: Path) -> list[Path]:
-    """Copy the .h5 chips named by `sources` (folders, .zip archives or .h5 files) into an emptied `target`. The folder
-    is emptied first, so even a rejected retry keeps nothing from an earlier upload; unsafe or oversized archives and
-    two chips with the same file name are refused before anything is copied."""
+    """Copy the .h5 chips named by `sources` (folders, .zip archives or .h5 files; a folder's .zip archives are opened
+    too, as the upload dialog hands over a folder) into an emptied `target`. The folder is emptied first, so even a
+    rejected retry keeps nothing from an earlier upload; unsafe or oversized archives and two chips with the same file
+    name are refused before anything is copied."""
     if target.exists():
         shutil.rmtree(target)
     target.mkdir(parents=True)
@@ -901,29 +902,35 @@ def collect_byod(sources: Sequence[Path], target: Path) -> list[Path]:
         plan[name] = (origin, member)
         total += size
 
+    def add_zip(source: Path) -> None:
+        unreadable = ChipError(f"{source.name}: not a readable .zip archive (truncated, corrupted or misnamed); "
+                               "re-create it or send the .h5 files directly")
+        if not zipfile.is_zipfile(source):
+            raise unreadable
+        try:
+            with zipfile.ZipFile(source) as archive:
+                members = archive.infolist()
+        except (zipfile.BadZipFile, EOFError, OSError, ValueError) as exc:
+            raise unreadable from exc
+        for info in members:
+            if info.filename.startswith("/") or "\\" in info.filename or ".." in Path(info.filename).parts:
+                raise ChipError(f"{source.name}: unsafe member name {info.filename!r} (absolute, backslash or '..'); refused")
+            if (info.external_attr >> 16) & 0o170000 == 0o120000:
+                raise ChipError(f"{source.name}: member {info.filename!r} is a symbolic link; refused")
+            if info.filename.endswith(".h5"):
+                add(Path(info.filename).name, source, info.filename, info.file_size)
+
     for source in sources:
         if source.is_dir():
-            for path in sorted(source.rglob("*.h5")):
+            for path in sorted(p for p in source.rglob("*") if p.suffix in (".h5", ".zip")):
                 if path.is_symlink():
                     raise ChipError(f"{path}: symbolic links are refused; copy the file instead")
-                add(path.name, path, None, path.stat().st_size)
+                if path.suffix == ".zip":
+                    add_zip(path)
+                else:
+                    add(path.name, path, None, path.stat().st_size)
         elif source.suffix == ".zip":
-            unreadable = ChipError(f"{source.name}: not a readable .zip archive (truncated, corrupted or misnamed); "
-                                   "re-create it or send the .h5 files directly")
-            if not zipfile.is_zipfile(source):
-                raise unreadable
-            try:
-                with zipfile.ZipFile(source) as archive:
-                    members = archive.infolist()
-            except (zipfile.BadZipFile, EOFError, OSError, ValueError) as exc:
-                raise unreadable from exc
-            for info in members:
-                if info.filename.startswith("/") or "\\" in info.filename or ".." in Path(info.filename).parts:
-                    raise ChipError(f"{source.name}: unsafe member name {info.filename!r} (absolute, backslash or '..'); refused")
-                if (info.external_attr >> 16) & 0o170000 == 0o120000:
-                    raise ChipError(f"{source.name}: member {info.filename!r} is a symbolic link; refused")
-                if info.filename.endswith(".h5"):
-                    add(Path(info.filename).name, source, info.filename, info.file_size)
+            add_zip(source)
         elif source.suffix == ".h5":
             add(source.name, source, None, source.stat().st_size)
         else:
