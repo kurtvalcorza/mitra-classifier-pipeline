@@ -182,6 +182,50 @@ def test_collect_byod_opens_zip_archives_inside_a_folder(tmp_path: Path) -> None
     assert not list((tmp_path / "input").iterdir())
 
 
+def test_codex_round1_freeze_covers_tables_and_decisions(tmp_path: Path) -> None:
+    # Codex on 455c357: staged tables were not re-verified at scoring, and a reload that flipped decisions passed.
+    ledger = rt.Ledger(tmp_path / "run")
+    (ledger.root / "tables").mkdir(parents=True)
+    (ledger.root / "tables" / "s2m1_eval_X.npy").write_bytes(b"frozen")
+    selection = {"conditions": {}, "tables_inventory": rt.table_inventory(ledger.root / "tables")}
+    rt.freeze(ledger, selection)
+    assert rt.verify_frozen(ledger) == selection
+    (ledger.root / "tables" / "s2m1_eval_X.npy").write_bytes(b"edited")
+    with pytest.raises(RuntimeError, match="staged table"):
+        rt.verify_frozen(ledger)
+    source = Path(rt.__file__).read_text(encoding="utf-8")
+    assert source.count('decisions_identical_at_frozen_threshold") is False') == 2
+
+
+def test_codex_round1_mitra_keeps_a_two_class_tuning_set_on_small_development(tmp_path: Path) -> None:
+    # Codex on 455c357: with <= MITRA_DEV_PIXELS development rows, the threshold sample took every row and the tuning
+    # set came out empty.
+    ledger = rt.Ledger(tmp_path / "run")
+    data = ledger.root / "tables"
+    data.mkdir(parents=True)
+    rt.write_json(data / "tables.json", {"feature_sets": {"s2m1": {}}})
+    ledger.finish("prepare")
+    dev_y = np.array([0] * 300 + [1] * 100, dtype=np.int64)
+    np.save(data / "s2m1_dev_y.npy", dev_y)
+    np.save(data / "s2m1_dev_X.npy", np.zeros((len(dev_y), 70), np.float32))
+    seen = {}
+
+    def runner(system, mode, feature_sets, extra, out_dir):
+        seen.update(extra["indices"]["s2m1"])
+        raise RuntimeError("stop after staging")
+
+    result = rt.foundation_stage(ledger, ["C3"], runner, {}, mitra_dev_pixels=10_000, require_all=False)
+    dev, tune = np.load(seen["dev"]), np.load(seen["tune"])
+    assert len(tune) == 80 and len(dev) == 320 and not set(dev) & set(tune)
+    assert set(dev_y[tune].tolist()) == {0, 1}
+    assert "stop after staging" in result["errors"]["C3"]
+
+
+def test_codex_round1_activity_and_chip_labels_in_cells() -> None:
+    assert "available=sorted({r['system'] for r in FOUNDATION['records'].values()})" in build.CELL_ACTIVITY
+    assert "(sample)" in build.CELL_RESULTS and "declared sample" in build.CELL_RESULTS
+
+
 def test_grid_name_marks_declared_samples() -> None:
     # Kurt's Mitra run of 98e7725: Mitra's sample F1 sat unlabelled beside all-pixel F1 in the grids.
     assert rt.grid_name("Mitra", "declared seeded sample of 10000 validation pixels (seed 20261016)") == \

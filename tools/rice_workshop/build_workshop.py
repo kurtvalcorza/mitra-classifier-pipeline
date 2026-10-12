@@ -341,7 +341,7 @@ SEC2 = r"""# 2. Predict, then run the baselines [Evaluation practice]
 2. Every choice is made on the development subset: each condition's **threshold** (0.10 to 0.90 in steps of 0.05, highest pooled development rice F1, ties nearest 0.5) and LightGBM's number of trees (early stopping on development F1).
 3. Every choice and every condition's identity is written to `selection.json` and hashed (the **freeze**). Only then is validation scored, once, and the result is kept whichever system wins.
 
-**Baselines.** A calls every pixel non-rice: its accuracy equals the non-rice share, and its recall and F1 are 0. B is LightGBM [6] with the capstone's settings (31 leaves, learning rate 0.05, at most 200 trees, patience 50) on 65,536 fit rows. B10k is the same model on the 10,000 rows the foundation models get, so you can see how much sample size matters for B."""
+**Baselines.** A calls every pixel non-rice: its accuracy equals the non-rice share, and its recall and F1 are 0. B is LightGBM [6] with the capstone's settings (31 leaves, learning rate 0.05, at most 200 trees, patience 50) on 65,536 fit rows. B10k is the same model on the 10,000 rows the foundation models get, so it compares LightGBM with them on identical data. The two LightGBM tables are drawn separately, so B versus B10k differs in which rows as well as how many: read it as a rough sense of how much more data helps, not as a pure sample-size effect."""
 
 CELL_BASELINE = r"""# @title 2.1 Baselines A, B and B10k on both feature sets (development only)
 BASELINE = rt.baseline_stage(LEDGER)
@@ -350,7 +350,7 @@ display(pd.DataFrame([{'condition': k, 'fit rows': v.get('fit_rows', '-'), 'tree
                        'dev F1 at chosen': v['dev_f1_selected'], 'seconds': v['seconds']}
                       for k, v in BASELINE.items()]).round(4))"""
 
-AFTER_BASELINE = r"""**What to notice:** A's F1 is 0 on both feature sets. B on AlphaEarth is usually well above B on M1; the chosen threshold is often near 0.5 but need not be. B10k usually trails B slightly: fewer rows give the trees less to learn from. These are development numbers, used for choosing, not for claiming."""
+AFTER_BASELINE = r"""**What to notice:** A's F1 is 0 on both feature sets. B on AlphaEarth is usually well above B on M1; the chosen threshold is often near 0.5 but need not be. B10k usually trails B slightly: fewer rows give the trees less to learn from (the rows also differ, so part of the gap can be the particular sample). These are development numbers, used for choosing, not for claiming."""
 
 # --------------------------------------------------------------------------------------------------
 # section 3: foundation models
@@ -530,7 +530,7 @@ try:
 except ValueError as exc:
     raise ValueError('ACTIVITY_CONTEXT_ROWS must be whole numbers separated by commas, e.g. "1000, 3000, 10000"') from exc
 ACTIVITY = rt.activity_stage(LEDGER, run_fm, enabled=RUN_ACTIVITY, system='C1', feature_set=ACTIVITY_FEATURE_SET,
-                             sizes=sizes, available=SELECTED_SYSTEMS)
+                             sizes=sizes, available=sorted({r['system'] for r in FOUNDATION['records'].values()}))
 if ACTIVITY['ran']:
     table = pd.DataFrame(ACTIVITY['rows'])[['context_rows', 'context_rice', 'fit_s', 'predict_dev_s', 'dev_f1_at_0p5',
                                             'dev_selected_threshold', 'dev_f1_selected']]
@@ -596,9 +596,12 @@ first = main.iloc[0]
 print(f"Validation class balance (now that scoring is done): {int(first.tp + first.fn)} rice of "
       f"{int(first.tp + first.fp + first.fn + first.tn)} labelled pixels")
 CHIP_TABLE = pd.read_csv(LEDGER.root / 'scores' / 'per_chip_metrics.csv')
+sampled = set(main.loc[main['pixels'].str.startswith('declared'), 'condition'])
+CHIP_TABLE['condition'] = [f'{c} (sample)' if c in sampled else c for c in CHIP_TABLE['condition']]
 display(CHIP_TABLE.pivot(index='chip', columns='condition', values='f1').round(3))
 ax = GRID.plot.bar(figsize=(7, 3.2), rot=20)
-ax.set_ylabel('validation rice F1'); ax.set_title('Frozen conditions, all labelled validation pixels')
+ax.set_ylabel('validation rice F1')
+ax.set_title('Frozen conditions, all labelled validation pixels' + (' (Mitra: its declared sample)' if sampled else ''))
 plt.tight_layout(); plt.show()"""
 
 AFTER_RESULTS = r"""**What to notice:** blank F1 or recall in the per-chip table means it is undefined (a chip with no reference rice), not zero. Compare validation with development: a condition whose validation F1 drops far below its development F1 relied on something specific to the development regions. A's precision is undefined because it never predicts rice.

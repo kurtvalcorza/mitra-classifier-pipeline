@@ -782,8 +782,14 @@ def freeze(ledger: Ledger, selection: Mapping[str, Any]) -> dict[str, Any]:
     return record
 
 
+def table_inventory(data: Path) -> dict[str, str]:
+    """SHA-256 of every staged table file (features, labels, ids, fills and tables.json), frozen with the selection."""
+    return {p.name: sha256_file(p) for p in sorted(data.iterdir()) if p.is_file()}
+
+
 def verify_frozen(ledger: Ledger) -> dict[str, Any]:
-    """Re-read the frozen selection and confirm it is byte-identical and every condition identity is unchanged."""
+    """Re-read the frozen selection and confirm it is byte-identical, every condition identity is unchanged, and the
+    staged tables and manifests it names still have their frozen hashes (the data scored is the data frozen)."""
     frozen = read_json(ledger.root / "frozen.json")
     if sha256_file(ledger.root / "selection.json") != frozen["selection_sha256"]:
         raise RuntimeError("selection.json changed after the freeze; start a fresh runtime")
@@ -791,6 +797,12 @@ def verify_frozen(ledger: Ledger) -> dict[str, Any]:
     for key, value in selection["conditions"].items():
         if fingerprint(value) != frozen["conditions"].get(key):
             raise RuntimeError(f"condition {key} changed after the freeze; start a fresh runtime")
+    for name, field in (("data_manifest.json", "data_manifest_sha256"), ("features.json", "features_sha256"),
+                        ("tables/tables.json", "tables_sha256")):
+        if field in selection and sha256_file(ledger.root / name) != selection[field]:
+            raise RuntimeError(f"{name} changed after the freeze; start a fresh runtime")
+    if "tables_inventory" in selection and table_inventory(ledger.root / "tables") != selection["tables_inventory"]:
+        raise RuntimeError("a staged table file changed, appeared or disappeared after the freeze; start a fresh runtime")
     return selection
 
 
@@ -1184,11 +1196,20 @@ def foundation_stage(ledger: Ledger, systems: Sequence[str], runner, identities:
             extra["indices"] = {}
             for fs in feature_sets:
                 _x, dev_y = load_split(data, fs, "dev")
-                dev_path = _declared_indices(sdir / "indices" / f"{fs}_dev.npy", dev_y, mitra_dev_pixels,
-                                             MITRA_SAMPLE_SEED)
-                tune_path = _declared_indices(sdir / "indices" / f"{fs}_tune.npy", dev_y, MITRA_TUNING_ROWS,
+                labelled = int((dev_y != IGNORE).sum())
+                tune_rows = min(MITRA_TUNING_ROWS, labelled // 5)  # small BYOD sets keep a fifth for tuning
+                dev_path = _declared_indices(sdir / "indices" / f"{fs}_dev.npy", dev_y,
+                                             min(mitra_dev_pixels, labelled - tune_rows), MITRA_SAMPLE_SEED)
+                tune_path = _declared_indices(sdir / "indices" / f"{fs}_tune.npy", dev_y, max(tune_rows, 1),
                                               MITRA_SAMPLE_SEED + 1, exclude=np.load(dev_path))
+                tune_classes = set(np.unique(dev_y[np.load(tune_path)]).tolist())
+                if tune_rows < 1 or tune_classes != {0, 1}:
+                    errors[system] = (f"{fs}: {labelled} labelled development pixels leave no Mitra tuning set with "
+                                      "both classes; add development chips or run without Mitra")
+                    break
                 extra["indices"][fs] = {"dev": str(dev_path), "tune": str(tune_path)}
+            if system in errors:
+                continue
         groups = [[fs] for fs in feature_sets] if spec["process_per_feature_set"] else [feature_sets]
         results: dict[str, Any] = {}
         try:
@@ -1288,6 +1309,7 @@ def freeze_stage(ledger: Ledger, **declared: Any) -> dict[str, Any]:
         "data_manifest_sha256": sha256_file(ledger.root / "data_manifest.json"),
         "features_sha256": sha256_file(ledger.root / "features.json"),
         "tables_sha256": sha256_file(ledger.root / "tables" / "tables.json"),
+        "tables_inventory": table_inventory(ledger.root / "tables"),
         "conditions": {**baseline, **foundation},
         "activity": read_json(ledger.root / "activity" / "activity.json"),
         **declared,
@@ -1392,12 +1414,14 @@ def score_stage(ledger: Ledger, runner, *, split_label: str = "validation") -> d
     write_csv(out / "per_chip_metrics.csv", chip_rows)
     write_json(out / "verification.json", {"reload_parity": parity, "tolerance": RELOAD_TOLERANCE})
     _write_predictions(out / f"{split_label}_predictions.csv.gz", data, order, conditions, probabilities, samples)
-    failures = [k for k, v in parity.items() if not v["within_tolerance"]]
+    failures = [k for k, v in parity.items()
+                if not v["within_tolerance"] or v.get("decisions_identical_at_frozen_threshold") is False]
     mark_scored(ledger, status="complete", conditions=sorted(conditions), parity_failures=failures)
     ledger.finish("score", conditions=sorted(conditions), parity_failures=failures)
     if failures:
         raise RuntimeError(f"reload parity failed for {failures}: the reloaded artifact did not reproduce its "
-                           f"development probabilities within {RELOAD_TOLERANCE}. The scores are recorded; preserve "
+                           f"development probabilities within {RELOAD_TOLERANCE} or its decisions at the frozen "
+                           "threshold. The scores are recorded; preserve "
                            "verification.json and the logs and report it.")
     return {"rows": rows, "per_chip": chip_rows, "parity": parity}
 
@@ -1425,9 +1449,12 @@ def probe_reload(ledger: Ledger, runner, preferred: Sequence[str] = ("C1/alphaea
         result = runner(condition["system"], "probe", [fs], extra, ledger.root / "foundation" / condition["system"])
         record = {"ran": True, "condition": key, **result["feature_sets"][fs]}
     write_json(ledger.root / "scores" / "probe.json", record)
-    if record.get("ran") and not record["within_tolerance"]:
+    if record.get("ran") and (not record["within_tolerance"]
+                              or record.get("decisions_identical_at_frozen_threshold") is False):
         raise RuntimeError(f"validation reload parity failed for {record['condition']}: max difference "
-                           f"{record['max_abs_difference']:.2e} > {record['tolerance']}; preserve scores/probe.json")
+                           f"{record['max_abs_difference']:.2e} (tolerance {record['tolerance']}), decisions identical "
+                           f"at the frozen threshold: {record.get('decisions_identical_at_frozen_threshold')}; "
+                           "preserve scores/probe.json")
     return record
 
 
