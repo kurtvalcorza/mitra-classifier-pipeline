@@ -182,6 +182,16 @@ def test_collect_byod_opens_zip_archives_inside_a_folder(tmp_path: Path) -> None
     assert not list((tmp_path / "input").iterdir())
 
 
+def test_grid_name_marks_declared_samples() -> None:
+    # Kurt's Mitra run of 98e7725: Mitra's sample F1 sat unlabelled beside all-pixel F1 in the grids.
+    assert rt.grid_name("Mitra", "declared seeded sample of 10000 validation pixels (seed 20261016)") == \
+        "Mitra (10,000-pixel sample)"
+    assert rt.grid_name("TabDPT v1.2", "all 113821 labelled validation pixels") == "TabDPT v1.2"
+    assert rt.grid_name("All non-rice", "") == "All non-rice"
+    for cell in (build.CELL_DEV_GRID, build.CELL_RESULTS, build.CELL_BYOD):
+        assert "rt.grid_name(" in cell
+
+
 def test_byod_upload_folder_is_cleared_per_attempt() -> None:
     source = build.CELL_BYOD
     assert "shutil.rmtree(upload_dir)" in source

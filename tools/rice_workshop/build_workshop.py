@@ -475,7 +475,8 @@ The next cell lays out development F1 at each condition's chosen threshold as a 
 
 CELL_DEV_GRID = r"""# @title 4.1 Development grid, feature effect, model spread and threshold curves
 records = {**BASELINE, **FOUNDATION['records']}
-grid = pd.DataFrame([{'system': v['name'], 'feature_set': v['feature_set'], 'dev F1': v['dev_f1_selected']}
+grid = pd.DataFrame([{'system': rt.grid_name(v['name'], v.get('dev_pixels_rule', '')), 'feature_set': v['feature_set'],
+                      'dev F1': v['dev_f1_selected']}
                      for v in records.values()]).pivot(index='system', columns='feature_set', values='dev F1')
 display(grid.round(4))
 learned = grid.drop(index=rt.BASELINE_SYSTEMS['A'], errors='ignore')
@@ -581,6 +582,7 @@ The grid below is validation rice F1 at each condition's frozen threshold. Then 
 
 CELL_RESULTS = r"""# @title 7.2 Validation grid, effects, full table and per-chip diagnosis
 main = METRICS[(METRICS['split'] == 'validation') & (METRICS['threshold_rule'] == 'development-selected')]
+main = main.assign(system=[rt.grid_name(s, p) for s, p in zip(main['system'], main['pixels'])])
 GRID = main.pivot(index='system', columns='feature_set', values='f1')
 display(GRID.round(4))
 learned = GRID.drop(index=rt.BASELINE_SYSTEMS['A'], errors='ignore')
@@ -733,8 +735,9 @@ if USE_BYOD:
     rt.freeze_stage(BYOD, **({'mitra_validation_pixels': MITRA_VALIDATION_PIXELS} if 'C3' in SELECTED_SYSTEMS else {}))
     rt.score_stage(BYOD, run_fm, split_label='test')
     byod_metrics = pd.read_csv(BYOD_ROOT / 'scores' / 'metrics.csv')
-    display(byod_metrics[(byod_metrics['split'] == 'test') & (byod_metrics['threshold_rule'] == 'development-selected')]
-            .pivot(index='system', columns='feature_set', values='f1').round(4))
+    byod_main = byod_metrics[(byod_metrics['split'] == 'test') & (byod_metrics['threshold_rule'] == 'development-selected')]
+    byod_main = byod_main.assign(system=[rt.grid_name(s, p) for s, p in zip(byod_main['system'], byod_main['pixels'])])
+    display(byod_main.pivot(index='system', columns='feature_set', values='f1').round(4))
     byod_export = rt.export_stage(BYOD, {'byod': True, 'plan': {k: plan[k] for k in ('split', 'feature_sets', 'prediction_only')},
                                          'model_identities': MODEL_IDENTITIES, 'host': HOST}, CONCLUSION_TEMPLATE)
     byod_zip = BYOD_ROOT / 'byod_results.zip'

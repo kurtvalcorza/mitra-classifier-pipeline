@@ -669,6 +669,13 @@ METRIC_COLUMNS = ["condition", "system", "feature_set", "split", "pixels", "thre
                   "iou", "precision", "recall", "accuracy", "tp", "fp", "fn", "tn", "undefined"]
 
 
+def grid_name(name: str, pixels: str) -> str:
+    """Row label for a results grid: a system scored on a declared sample says so, so that its F1 is not read as a
+    score on the same pixels as the systems scored on all of them."""
+    match = re.match(r"declared seeded sample of (\d+) ", pixels or "")
+    return f"{name} ({int(match.group(1)):,}-pixel sample)" if match else name
+
+
 def metric_rows(condition: str, system: str, fs: str, split: str, probability: np.ndarray, label: np.ndarray,
                 selected: float, pixels: str) -> list[dict[str, Any]]:
     """Pooled scores at 0.5 and at the development-selected threshold (both always reported)."""
