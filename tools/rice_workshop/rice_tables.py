@@ -383,6 +383,12 @@ def proportional_sample(labels: Sequence[np.ndarray], cap: int, seed: int) -> li
     quotas = np.floor(exact).astype(int)
     for j in np.argsort(-(exact - quotas), kind="stable")[: cap - int(quotas.sum())]:
         quotas[j] += 1
+    for c in (0, 1):  # a class present in the source keeps at least one row, so F1 stays defined on sparse rice
+        own = [j for j, s in enumerate(strata) if s[1] == c]
+        if own and not quotas[own].sum():
+            donor = max((j for j, s in enumerate(strata) if s[1] != c), key=lambda j: quotas[j])
+            quotas[donor] -= 1
+            quotas[max(own, key=lambda j: len(strata[j][2]))] += 1
     selected: list[list[int]] = [[] for _ in labels]
     rng = np.random.default_rng(seed)
     for (i, _c, pixels), n in zip(strata, quotas, strict=True):
@@ -1487,7 +1493,7 @@ def _write_predictions(path: Path, data: Path, order: Sequence[str], conditions:
         writer.writerow(["chip", "pixel", "label", *columns])
         for i in range(len(label)):
             writer.writerow([order[ids[i, 0]], int(ids[i, 1]), int(label[i]),
-                             *("" if np.isnan(v[i]) else f"{v[i]:.6f}" for v in columns.values())])
+                             *("" if np.isnan(v[i]) else repr(float(v[i])) for v in columns.values())])
 
 
 EXPORT_MEMBERS = ("data_manifest.json", "features.json", "chips.csv", "selection.json", "frozen.json", "scored.json",

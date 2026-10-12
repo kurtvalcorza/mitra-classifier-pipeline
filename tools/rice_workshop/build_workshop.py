@@ -408,6 +408,8 @@ for environment_key in SELECTED_ENVIRONMENTS:
         print(f"ERROR preparing {environment_key}: {ENVIRONMENT_ERRORS[environment_key]}")
 if ENVIRONMENT_ERRORS and REQUIRE_ALL_SELECTED_MODELS:
     raise RuntimeError(f"Model environment(s) failed: {sorted(ENVIRONMENT_ERRORS)}; see Troubleshooting.")
+ENVIRONMENT_FAILED_SYSTEMS = {s: ENVIRONMENT_ERRORS[rt.FOUNDATION_SYSTEMS[s]['family']] for s in SELECTED_SYSTEMS
+                              if rt.FOUNDATION_SYSTEMS[s]['family'] in ENVIRONMENT_ERRORS}
 SELECTED_SYSTEMS = [s for s in SELECTED_SYSTEMS if rt.FOUNDATION_SYSTEMS[s]['family'] in MODEL_ENVIRONMENT_PYTHONS]
 MODEL_IDENTITIES = {
     key: {'model_id': CARRIED_MODEL_MANIFESTS[key]['modelId'], 'revision': CARRIED_MODEL_MANIFESTS[key]['revision'],
@@ -640,7 +642,8 @@ RUN_SUMMARY = {
     'repository': 'kurtvalcorza/mitra-classifier-pipeline', 'notebook_spec': '2.4', 'profile': 'E2E', 'mode': 'WORKSHOP',
     'carried_sha256': CARRIED_HASHES, 'adapter_sha256': CARRIED_SOURCE_SHA256, 'environment_lock_sha256': ENVIRONMENT_LOCK_SHA256,
     'host': HOST, 'model_identities': MODEL_IDENTITIES, 'systems': ['A', 'B', 'B10k', *sorted({r['system'] for r in FOUNDATION['records'].values()})],
-    'failed_systems': sorted(FOUNDATION['errors']),
+    'failed_systems': sorted({*FOUNDATION['errors'], *ENVIRONMENT_FAILED_SYSTEMS}),
+    'environment_errors': ENVIRONMENT_ERRORS,
     'selection_sha256': receipts['freeze']['selection_sha256'], 'stage_receipts': receipts, 'reload_probe': PROBE,
     'wall_seconds': round(time.perf_counter() - SESSION_STARTED, 1),
     'evidence_level': 'tutorial evidence on 8 validation chips from 2 regions; not a benchmark or model ranking',

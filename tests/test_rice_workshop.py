@@ -246,6 +246,21 @@ def test_codex_round2_findings(tmp_path: Path) -> None:
     assert rt.freeze_stage(ledger)["protocol"]["roles"] == rt.SPLIT_RULE
 
 
+def test_codex_round3_findings() -> None:
+    # Codex on 820a780. (1) four development chips with one rice pixel each: the rice class keeps a row.
+    labels = [np.array([1] + [0] * 16_383) for _ in range(4)]
+    picked = rt.proportional_sample(labels, 30_000, 7)
+    assert sum(int(y[p].sum()) for y, p in zip(labels, picked, strict=True)) >= 1
+    assert sum(len(p) for p in picked) == 30_000
+    # an abundant-rice source is unchanged by the guard (same rows as plain largest-remainder allocation)
+    rich = [np.array([1] * 4_000 + [0] * 12_384), np.array([1] * 2_000 + [0] * 14_384)]
+    assert sum(len(p) for p in rt.proportional_sample(rich, 10_000, 7)) == 10_000
+    # (2) environment failures reach the exported failures; (3) exact probability serialisation.
+    assert "ENVIRONMENT_FAILED_SYSTEMS" in build.CELL_ENV_TAIL and "ENVIRONMENT_FAILED_SYSTEMS}" in build.CELL_EXPORT
+    assert "repr(float(v[i]))" in Path(rt.__file__).read_text(encoding="utf-8")
+    assert float(repr(float(np.float32(0.4999996)))) == float(np.float32(0.4999996))
+
+
 def test_codex_round1_activity_and_chip_labels_in_cells() -> None:
     assert "available=sorted({r['system'] for r in FOUNDATION['records'].values()})" in build.CELL_ACTIVITY
     assert "(sample)" in build.CELL_RESULTS and "declared sample" in build.CELL_RESULTS
