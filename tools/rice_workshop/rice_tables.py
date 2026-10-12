@@ -721,7 +721,7 @@ PREREQUISITES: dict[str, tuple[str, ...]] = {
 }
 STAGE_OUTPUTS: dict[str, tuple[str, ...]] = {
     "prepare": ("tables", "data_manifest.json", "features.json", "chips.csv"), "baseline": ("baseline",), "foundation": ("foundation",), "activity": ("activity",),
-    "freeze": ("selection.json", "frozen.json"), "score": ("scores", "scored.json"),
+    "freeze": ("selection.json", "frozen.json", "frozen_indices"), "score": ("scores", "scored.json"),
     "export": ("export", "results.zip"),
 }
 SCORE_ONCE = {"prepare", "baseline", "foundation", "activity", "freeze", "score"}
@@ -812,6 +812,9 @@ def verify_frozen(ledger: Ledger) -> dict[str, Any]:
                         ("tables/tables.json", "tables_sha256")):
         if field in selection and sha256_file(ledger.root / name) != selection[field]:
             raise RuntimeError(f"{name} changed after the freeze; start a fresh runtime")
+    for key, item in selection.get("frozen_eval_indices", {}).items():
+        if sha256_file(ledger.root / item["path"]) != item["sha256"]:
+            raise RuntimeError(f"the frozen evaluation sample of {key} changed after the freeze; start a fresh runtime")
     if "tables_inventory" in selection and table_inventory(ledger.root / "tables") != selection["tables_inventory"]:
         raise RuntimeError("a staged table file changed, appeared or disappeared after the freeze; start a fresh runtime")
     return selection
@@ -1317,6 +1320,15 @@ def freeze_stage(ledger: Ledger, **declared: Any) -> dict[str, Any]:
     baseline = read_json(ledger.root / "baseline" / "records.json")
     foundation = read_json(ledger.root / "foundation" / "records.json")
     split_rule = read_json(ledger.root / "data_manifest.json").get("split_rule")  # BYOD records its own
+    frozen_eval: dict[str, Any] = {}
+    if "mitra_validation_pixels" in declared:  # the declared evaluation sample is drawn and hashed now, not at scoring
+        for key, record in foundation.items():
+            if FOUNDATION_SYSTEMS[record["system"]]["declared_sample"]:
+                fs = record["feature_set"]
+                _x, eval_y = load_split(ledger.root / "tables", fs, "eval")
+                path = _declared_indices(ledger.root / "frozen_indices" / f"{record['system']}_{fs}_eval.npy", eval_y,
+                                         int(declared["mitra_validation_pixels"]), MITRA_SAMPLE_SEED + 2)
+                frozen_eval[key] = {"path": path.relative_to(ledger.root).as_posix(), "sha256": sha256_file(path)}
     selection = {
         "protocol": {**PROTOCOL, "roles": split_rule} if split_rule else PROTOCOL,
         "data_manifest_sha256": sha256_file(ledger.root / "data_manifest.json"),
@@ -1325,6 +1337,7 @@ def freeze_stage(ledger: Ledger, **declared: Any) -> dict[str, Any]:
         "tables_inventory": table_inventory(ledger.root / "tables"),
         "conditions": {**baseline, **foundation},
         "activity": read_json(ledger.root / "activity" / "activity.json"),
+        "frozen_eval_indices": frozen_eval,
         **declared,
     }
     frozen = freeze(ledger, selection)
@@ -1380,11 +1393,14 @@ def score_stage(ledger: Ledger, runner, *, split_label: str = "validation") -> d
             extra["thresholds"][fs] = conditions[key]["threshold"]
             extra["indices"][fs] = dict(conditions[key]["indices"])
             if spec["declared_sample"]:
-                _x, eval_y = load_split(data, fs, "eval")
-                path = _declared_indices(out / "indices" / f"{system}_{fs}_eval.npy", eval_y,
-                                         int(selection["mitra_validation_pixels"]), MITRA_SAMPLE_SEED + 2)
+                frozen_sample = selection.get("frozen_eval_indices", {}).get(key)
+                if frozen_sample is None:
+                    raise RuntimeError(f"{key} has no frozen evaluation sample; re-run the freeze in a fresh runtime")
+                samples[key] = np.load(ledger.root / frozen_sample["path"])
+                path = out / "indices" / f"{system}_{fs}_eval.npy"  # the probe and the export read this copy
+                path.parent.mkdir(parents=True, exist_ok=True)
+                np.save(path, samples[key])
                 extra["indices"][fs]["eval"] = str(path)
-                samples[key] = np.load(path)
         groups = [[fs] for fs in fss] if spec["process_per_feature_set"] else [fss]
         for group in groups:
             result = runner(system, "score", group, extra, ledger.root / "foundation" / system)

@@ -261,6 +261,33 @@ def test_codex_round3_findings() -> None:
     assert float(repr(float(np.float32(0.4999996)))) == float(np.float32(0.4999996))
 
 
+def test_codex_round4_mitra_evaluation_sample_is_frozen(tmp_path: Path) -> None:
+    # Codex on 44c75ed: the Mitra evaluation sample was drawn after verify_frozen, from mutable constants.
+    ledger = rt.Ledger(tmp_path / "run")
+    for name in ("baseline", "foundation", "activity"):
+        (ledger.root / name).mkdir(parents=True, exist_ok=True)
+        ledger.finish(name)
+    data = ledger.root / "tables"
+    data.mkdir()
+    rt.write_json(data / "tables.json", {"feature_sets": {"s2m1": {}}})
+    eval_y = np.array([0] * 900 + [1] * 300, dtype=np.int64)
+    np.save(data / "s2m1_eval_y.npy", eval_y)
+    np.save(data / "s2m1_eval_X.npy", np.zeros((len(eval_y), 70), np.float32))
+    for name in ("features.json", "data_manifest.json"):
+        rt.write_json(ledger.root / name, {})
+    rt.write_json(ledger.root / "baseline" / "records.json", {})
+    rt.write_json(ledger.root / "foundation" / "records.json",
+                  {"C3/s2m1": {"kind": "foundation", "system": "C3", "feature_set": "s2m1"}})
+    rt.write_json(ledger.root / "activity" / "activity.json", {"ran": False})
+    selection = rt.freeze_stage(ledger, mitra_validation_pixels=1000)
+    item = selection["frozen_eval_indices"]["C3/s2m1"]
+    assert len(np.load(ledger.root / item["path"])) == 1000
+    assert rt.verify_frozen(ledger)["frozen_eval_indices"] == selection["frozen_eval_indices"]
+    np.save(ledger.root / item["path"], np.arange(1000))
+    with pytest.raises(RuntimeError, match="frozen evaluation sample"):
+        rt.verify_frozen(ledger)
+
+
 def test_codex_round1_activity_and_chip_labels_in_cells() -> None:
     assert "available=sorted({r['system'] for r in FOUNDATION['records'].values()})" in build.CELL_ACTIVITY
     assert "(sample)" in build.CELL_RESULTS and "declared sample" in build.CELL_RESULTS
@@ -401,6 +428,8 @@ def test_the_protocol_freezes_scores_once_and_exports(tmp_path: Path, monkeypatc
     assert len(validation) == 2 * len(selection["conditions"])
     mitra = [r for r in validation if r["condition"] == "C3/s2m1"]
     assert "declared seeded sample of 700" in mitra[0]["pixels"]
+    frozen_sample = ledger.root / selection["frozen_eval_indices"]["C3/s2m1"]["path"]
+    assert np.array_equal(np.load(frozen_sample), np.load(ledger.root / "scores" / "indices" / "C3_s2m1_eval.npy"))
     assert any(r["split"] == "validation (Mitra sample)" for r in result["rows"])
     a_rows = [r for r in validation if r["condition"] == "A/alphaearth"]
     assert a_rows[0]["recall"] == 0.0 and a_rows[0]["precision"] is None
