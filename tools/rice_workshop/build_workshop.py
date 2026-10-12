@@ -136,7 +136,7 @@ DATA_CONTEXT = r"""## Data context [Concept]
 
 **Who produced it and how.** The rice labels are a published 20 m rice map of Monsoon Asia [9], reprojected and binarised; the optical inputs are modified Copernicus Sentinel data; the embeddings come from Google's public AlphaEarth product; the compilation is by Kurt Valcorza. Full attribution is at the end.
 
-**How it relates to the problem.** The chips sample rice and non-rice landscapes, not the country evenly. All 8 validation chips are in two regions (PH-07, PH-08), two of them contain no rice, and neighbouring pixels are strongly alike, so pixel counts overstate how much independent evidence there is [11]. AlphaEarth was pretrained on global imagery that may include these places and years, so its advantage may partly reflect having seen them (DAT9). The labels are themselves a model's output, not field surveys.
+**How it relates to the problem.** The chips sample rice and non-rice landscapes, not the country evenly. All 8 validation chips are in two regions (PH-07, PH-08), two of them contain no rice, and neighbouring pixels are strongly alike, so pixel counts overstate how much independent evidence there is [11]. AlphaEarth was pretrained on global imagery that may include these places and years, so its advantage may partly reflect having seen them. The labels are themselves a model's output, not field surveys.
 
 **Roles.** The capstone's rule splits the 32 training chips by **whole region** into 24 fit and 8 development chips (salted SHA-256 order, about 25% development, at least two rice chips in development), so this notebook and the Prithvi rice capstone score identical chips. The `development-example` chip is a training sample and is never read. Validation pixels are scored once, after every choice is frozen.
 
@@ -367,7 +367,7 @@ A **tabular foundation model** is a neural network pretrained on millions of syn
 | C3 | Mitra [5] (opt-in, off) | `autogluon/mitra-classifier` @ `c425e9fa0910` | Apache-2.0 | AutoGluon 1.5.0, in-context |
 | C4 | TabDPT v1.2 [4] | `Layer6/TabDPT` @ `4462ffbd1d8d` | Apache-2.0 | 4 ensembles, 4,096-row retrieved context |
 
-Every model gets the same 10,000 fit rows (owner decision D3). TabDPT retrieves the 4,096 most similar of them for each prediction. Each model runs in its own process of its own environment, one at a time, so GPU memory is released between models.
+Every model gets the same 10,000 fit rows. TabDPT retrieves the 4,096 most similar of them for each prediction. Each model runs in its own process of its own environment, one at a time, so GPU memory is released between models.
 
 **Mitra is off by default.** On a T4 it predicts about 50 rows per second, so one full validation pass would take about 36 minutes, and AutoGluon's memory pre-check refuses it unless its limit is raised. If you switch it on, it runs in its own process per feature set with `max_memory_usage_ratio = 8`, uses `predict_proba` with the development-chosen threshold (never AutoGluon's own tuned threshold), and scores a **declared, seeded sample** of development and validation pixels, stated beside its results. Expect about 20 extra minutes."""
 
@@ -519,7 +519,7 @@ SEC5 = r"""# 5. Activity: change one thing — the context size [Evaluation prac
 3. **Run** the next cell (about 1–2 minutes per size on a T4). You may change `ACTIVITY_CONTEXT_ROWS` (at most 10,000) or `ACTIVITY_FEATURE_SET` and re-run it before Section 6.
 4. **Observe and explain** below.
 
-The activity is development-only and changes nothing canonical: every model keeps the 10,000-row context in the frozen comparison (owner decision D8). Its result is recorded in `selection.json` for interpretation."""
+The activity is development-only and changes nothing canonical: every model keeps the 10,000-row context in the frozen comparison. Its result is recorded in `selection.json` for interpretation."""
 
 CELL_ACTIVITY = r"""# @title 5.1 TabPFN-3 context-size sweep on development
 RUN_ACTIVITY = True  # @param {type:"boolean"}
@@ -666,7 +666,7 @@ These design choices were tried in development runs on fresh Colab T4 runtimes (
 | Mitra through AutoGluon 1.5.0 with the v2 notebook's `max_memory_usage_ratio = 1.10` | AutoGluon refused Mitra before loading it: its pre-check estimated about 45 GB for 10,000 × 65 rows against about 10 GB free; the real peak was under 3.2 GB of RAM | Mitra runs only on request, in its own process, with the ratio raised to 8 |
 | Mitra scoring every development and validation pixel | About 50 rows per second on a T4 at both 4,096 and 10,000 context rows: about 2.6 hours for full scoring | Opt-in, on a declared seeded sample of 10,000 pixels |
 | AutoGluon's own `predict()` threshold for Mitra | AutoGluon tuned it to about 0.06–0.33 on its tuning rows, a different rule from every other system | `predict_proba` with the notebook's development-chosen threshold |
-| Choosing thresholds on all 119,885 development pixels | Roughly doubled foundation-model prediction time for a threshold that moves little | A seeded 30,000-pixel subset that keeps the development rice share (D4) |"""
+| Choosing thresholds on all 119,885 development pixels | Roughly doubled foundation-model prediction time for a threshold that moves little | A seeded 30,000-pixel subset that keeps the development rice share |"""
 
 # --------------------------------------------------------------------------------------------------
 # section 10: BYOD

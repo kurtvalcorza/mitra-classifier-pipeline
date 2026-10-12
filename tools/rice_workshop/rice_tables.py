@@ -8,8 +8,8 @@ Carried from the rice capstone (kurtvalcorza/prithvi-eo-feature-extraction-pipel
 tools/rice_capstone/capstone.py), unchanged in behaviour: split_fit_dev, check_roles, confusion, scores, pooled,
 select_threshold, m1_features, fit_fill, fill_features, pixel_sample, validate_chip (S2 part), collect_byod,
 build_zip, verify_zip, write_csv and the receipt / STAGE_OUTPUTS invalidation design. ae_features is the study L3/L3B
-bundle's preprocessing.ae_features. New here: the AlphaEarth checks for BYOD chips, the seeded development subset (D4),
-nested context subsets for the activity (D8), the score-once ledger, and the table staging shared by sample and BYOD.
+bundle's preprocessing.ae_features. New here: the AlphaEarth checks for BYOD chips, the seeded development subset,
+nested context subsets for the activity, the score-once ledger, and the table staging shared by sample and BYOD.
 """
 
 # ruff: noqa: E501
@@ -61,8 +61,8 @@ THRESHOLDS = tuple(i / 100 for i in range(10, 91, 5))
 
 PIXEL_SEED = 20261003  # capstone pixel_sample seed
 LGBM_FIT_ROWS = 65_536  # capstone PIXEL_CAP: LightGBM's canonical fit table
-FM_FIT_ROWS = 10_000  # D3: every foundation model gets the same 10,000 class-stratified fit rows
-DEV_SUBSET_ROWS = 30_000  # D4: thresholds are chosen on a seeded 30,000-pixel development subset
+FM_FIT_ROWS = 10_000  # every foundation model gets the same 10,000 class-stratified fit rows
+DEV_SUBSET_ROWS = 30_000  # thresholds are chosen on a seeded 30,000-pixel development subset
 DEV_SUBSET_SEED = 20261012
 ACTIVITY_SEED = 20261013
 RELOAD_TOLERANCE = 1e-4
@@ -366,7 +366,7 @@ def pixel_sample(labels: Sequence[np.ndarray], cap: int, seed: int) -> list[np.n
 def proportional_sample(labels: Sequence[np.ndarray], cap: int, seed: int) -> list[np.ndarray]:
     """Seeded sample of labelled pixels stratified by (chip, class) in proportion to each stratum's size (largest
     remainder), so the subset keeps the source's rice share and each chip's share. Used for the development subset
-    (D4) and for Mitra's declared validation sample: a threshold chosen for F1 must see the true class mix."""
+    and for Mitra's declared validation sample: a threshold chosen for F1 must see the true class mix."""
     if cap < 1:
         raise ValueError("cap must be positive")
     strata = [(i, c, np.flatnonzero(np.asarray(y).reshape(-1) == c)) for i, y in enumerate(labels) for c in (0, 1)]
@@ -968,7 +968,7 @@ def collect_byod(sources: Sequence[Path], target: Path) -> list[Path]:
 
 def byod_plan(chips: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
     """Which chips can adapt, which feature sets every adapting chip supports, and the site split. Raises ChipError
-    with the failed rule (DAT19) before any model runs."""
+    with the failed rule before any model runs."""
     labelled = sorted(c for c, chip in chips.items()
                       if chip["label"] is not None and bool((np.asarray(chip["label"]) != IGNORE).any()))
     if len(labelled) < BYOD_MIN_ADAPT_CHIPS:
@@ -1237,7 +1237,7 @@ def foundation_stage(ledger: Ledger, systems: Sequence[str], runner, identities:
 
 def activity_stage(ledger: Ledger, runner, *, enabled: bool, system: str, feature_set: str,
                    sizes: Sequence[int], available: Sequence[str]) -> dict[str, Any]:
-    """The context-size activity (D8) on development only. It changes nothing canonical: every model keeps the
+    """The context-size activity on development only. It changes nothing canonical: every model keeps the
     10,000-row context for the frozen comparison."""
     ledger.start("activity")
     out = ledger.root / "activity"
