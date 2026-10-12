@@ -5,6 +5,8 @@ is a standalone, guided customer-analytics capstone using audited UCI Online Ret
 It compares six fixed systems, tests future repeat-purchase ranking, and exports reconstructable numeric scorers.
 See [scope and validation](docs/customer-capstone.md). Fresh Colab T4 and BYOD qualification remain pending.
 
+New candidate workshop: [Rice Pixels as a Table: Better Features or Better Models?](tutorials/DIMER_Philippines_Rice_Pixel_Tables_Workshop.ipynb) — tabular foundation models vs LightGBM on Philippine rice pixels, two feature sets, frozen protocol (Candidate; see [`tutorials/README.md`](tutorials/README.md)).
+
 [![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat&logo=github&logoColor=white)](https://github.com/kurtvalcorza/mitra-classifier-pipeline)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kurtvalcorza/mitra-classifier-pipeline/blob/main/tutorials/mitra_classifier_colab.ipynb)
 [![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-autogluon%2Fmitra--classifier-ffcc4d?style=flat)](https://huggingface.co/autogluon/mitra-classifier)
