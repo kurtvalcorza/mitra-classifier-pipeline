@@ -8,6 +8,7 @@ import importlib.metadata
 import json
 import os
 import shutil
+import sys
 import time
 import zipfile
 from pathlib import Path
@@ -622,6 +623,33 @@ def report(root: Path) -> None:
             raise ValueError("Export ZIP integrity failed")
 
 
+def explore_budget(root: Path, budget: float) -> pd.DataFrame:
+    """Display-only learner activity: re-tabulate the saved development predictions at another review
+    budget. It reads dev_predictions.csv, writes nothing and leaves the frozen 20% test budget unchanged."""
+    if isinstance(budget, bool) or not 0 < budget <= 1:
+        raise ValueError("Budget must be a fraction in (0, 1]")
+    budget = round(budget, 4)  # a slider's 0.30000000000000004 must not move ceil(budget * n) by one
+    report = metrics.evaluate(prediction_rows(root, "dev"), budget=budget)
+    cells = {(r["system"], r["cutoff"]): r for r in report["per_cutoff"]}
+    rows = []
+    for model in ("logistic", "mitra"):
+        for cutoff in sorted({c for _, c in cells}):
+            r, f = cells[(model + "_R", cutoff)], cells[(model + "_RFM", cutoff)]
+            rows.append(
+                {
+                    "model": model,
+                    "cutoff": cutoff,
+                    "k": r["k"],
+                    "P@budget R": r["precision_at_budget"],
+                    "P@budget RFM": f["precision_at_budget"],
+                    "RFM-R P@budget": f["precision_at_budget"] - r["precision_at_budget"],
+                    "recall R": r["recall_at_budget"],
+                    "recall RFM": f["recall_at_budget"],
+                }
+            )
+    return pd.DataFrame(rows)
+
+
 def run_stage(root: Path, stage: str) -> None:
     output(root).mkdir(parents=True, exist_ok=True)
     run_id = identity(root)
@@ -689,9 +717,25 @@ def run_stage(root: Path, stage: str) -> None:
     print(stage + ": PASS", flush=True)
 
 
+# Exit code for an input refused with one printed message; customer_byod.py and the notebook treat it as a
+# refusal, not a crash. On the pinned sample data a refusal is still a failure: the default cell raises.
+REFUSED_EXIT = 3
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, required=True)
-    parser.add_argument("--stage", choices=STAGES, required=True)
+    action = parser.add_mutually_exclusive_group(required=True)
+    action.add_argument("--stage", choices=STAGES)
+    action.add_argument("--explore-budget", type=float, help="display-only development re-tabulation")
     args = parser.parse_args()
-    run_stage(args.root.resolve(), args.stage)
+    if args.explore_budget is not None:
+        budget = args.explore_budget
+        table = explore_budget(args.root.resolve(), budget)
+        print(f"Development only, saved predictions re-ranked at a {budget:.0%} budget (display only):")
+        print(table.to_string(index=False, float_format=lambda v: f"{v:.3f}"))
+        sys.exit(0)
+    try:
+        run_stage(args.root.resolve(), args.stage)
+    except data.InputRefused as exc:
+        print(f"Refused: {str(exc).rstrip('.')}.", flush=True)
+        sys.exit(REFUSED_EXIT)

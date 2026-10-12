@@ -313,6 +313,16 @@ def notebook_display_helpers(target):
     text = "\n".join(shown)
     assert "logistic_RFM" in text and "RFM-R P@budget" in text and "ci95_low" in text
     assert "<details><summary>Full test_metrics.json" in text and "..." not in text.split("<details>")[0]
+    # This run's answers are computed from the same real stage outputs the tables show (SBC-M1).
+    answers = {}
+    exec(builder.ANSWERS, answers)
+    load = namespace["load"]
+    development = answers["development_answer"](load("development_activity.json"))
+    test = answers["test_answer"](load("test_metrics.json"), load("paired_intervals.json"))
+    final = answers["conclusion"](load("test_metrics.json"), load("paired_intervals.json"))
+    assert development[0].startswith("This run's answer (20% budget") and len(development) == 3
+    assert test[0].startswith("This run's answer (test") and test[3].startswith("Primary contrast")
+    assert final[0] == "This run's answer to the opening question:" and len(final) == 5
 
 
 def test_byod_evaluation_full_cpu_lifecycle_and_private_bundle(tmp_path, monkeypatch):
@@ -396,3 +406,88 @@ def test_byod_evaluation_full_cpu_lifecycle_and_private_bundle(tmp_path, monkeyp
         for name in archive.namelist():
             if name.endswith((".csv", ".json", ".md")):
                 assert b"SECRET-" not in archive.read(name)
+
+
+HEADER = "invoice_id,stock_code,quantity,invoice_time,unit_price,customer_id"
+ROWS = "\n".join(f"{1000 + i},A{i},2,2010-02-01 10:00:00,1.5,{500 + i}" for i in range(3))
+DESIGN = dict(
+    rights_confirmed=True,
+    complete_observation_coverage=True,
+    source_clock="timezone-naive",
+    currency="GBP",
+    coverage_start="2010-01-01",
+    coverage_end="2010-12-31",
+    train_cutoffs=["2010-05-01"],
+    development_cutoffs=["2010-07-01"],
+    test_cutoffs=["2010-09-01"],
+    inference_cutoff="2010-12-01",
+)
+
+
+def run_cli(root, csv_text, cfg, mode="evaluate", config_text=None):
+    """Run customer_byod.py exactly as the notebook's BYOD cell does: a child process from the run root."""
+    csv_path, cfg_path = root.parent / "my_transactions.csv", root.parent / "my_configuration.json"
+    csv_path.write_bytes(csv_text.encode())
+    if config_text is not None:
+        cfg_path.write_bytes(config_text.encode())
+    elif cfg is not None:
+        cfg_path.write_bytes(json.dumps(cfg).encode())
+    process = subprocess.run(
+        [sys.executable, str(root / "customer_byod.py"), "--root", str(root), "--csv", str(csv_path),
+         "--config", str(cfg_path), "--mode", mode, "--artifact", str(root.parent / "my_prior_results")],
+        cwd=root, capture_output=True, text=True, timeout=300,
+    )
+    return process, process.stdout + process.stderr
+
+
+@pytest.mark.parametrize(
+    "csv_text, change, config_text, expected",
+    [
+        ("invoice_id,stock_code,quantity,invoice_time,customer_id\n1,A,2,2010-02-01,7\n", {}, None,
+         ["my_transactions.csv", "missing required column(s): unit_price"]),
+        (HEADER + ",email\n" + "1,A,2,2010-02-01,1.5,7,a@b.c\n", {}, None,
+         ["my_transactions.csv", "unexpected column(s): email"]),
+        (HEADER + "\n1,A,2,02/04/2010,1.5,7\n", {}, None,
+         ["my_transactions.csv", "invoice_time", "'02/04/2010'"]),
+        (HEADER + "\n" + ROWS + "\n", {"currency": "PHP"}, None,
+         ["my_configuration.json", "currency is 'PHP'"]),
+        (HEADER + "\n" + ROWS + "\n", {"coverage_start": "2010-03-01"}, None,
+         ["my_configuration.json", "too short", "on or before 2010-01-31"]),
+        (HEADER + "\n" + ROWS + "\n", {"customer_email": "x"}, None, ["unexpected field(s) customer_email"]),
+        (HEADER + "\n" + ROWS + "\n", {"test_cutoffs": None}, None, ["test_cutoffs"]),
+        (HEADER + "\n" + ROWS + "\n", {}, "{not json", ["my_configuration.json: not valid JSON"]),
+        # Passes every file-level rule, then the prepare stage refuses: too few customers per class.
+        (HEADER + "\n" + ROWS + "\n", {}, None, ["Refused: development cutoff 2010-07-01", "at least 20"]),
+    ],
+)
+def test_cli_refusal_is_one_line_with_no_traceback_and_leaves_nothing(tmp_path, csv_text, change, config_text,
+                                                                         expected):
+    root, _, _, _ = setup(tmp_path)
+    cfg = {k: v for k, v in dict(DESIGN, **change).items() if v is not None}
+    process, out = run_cli(root, csv_text, cfg, config_text=config_text)
+    lines = [line for line in out.splitlines() if line.strip()]
+    assert process.returncode == byod.REFUSED_EXIT, out
+    assert len(lines) == 1 and lines[0].startswith("Refused: ") and "Traceback" not in out, out
+    for text in expected:
+        assert text in lines[0], (text, lines[0])
+    assert not list(root.glob("byod_*"))  # no partial results from the refused attempt
+
+
+def test_cli_refuses_a_missing_configuration_and_artifact(tmp_path):
+    root, _, _, _ = setup(tmp_path)
+    process, out = run_cli(root, HEADER + "\n" + ROWS + "\n", None)
+    assert process.returncode == byod.REFUSED_EXIT and "configuration file not found" in out
+    process, out = run_cli(root, HEADER + "\n" + ROWS + "\n", DESIGN, mode="artifact-inference")
+    assert process.returncode == byod.REFUSED_EXIT and "no checksums.json found" in out
+    assert "Traceback" not in out
+    assert not list(root.glob("byod_*"))
+
+
+def test_cli_integrity_failure_still_raises(tmp_path):
+    root, _, _, manifest = setup(tmp_path)
+    saved = artifact(root, manifest)
+    (saved / "feature_schema.json").write_bytes((saved / "feature_schema.json").read_bytes() + b" ")
+    shutil.move(saved, tmp_path / "my_prior_results")
+    process, out = run_cli(root, HEADER + "\n" + ROWS + "\n", DESIGN, mode="artifact-inference")
+    assert process.returncode not in (0, byod.REFUSED_EXIT)
+    assert "Traceback" in out and "Artifact checksum/path/size mismatch" in out and "Refused" not in out

@@ -65,6 +65,13 @@ above executed blob `5db77406b629`; the new blob was re-run on 2026-10-03 (below
 | Equivalence | Every printed stage result equals the 2026-09-28 run of blob `5db77406b629`; only the dependency-resolve time and wall time differ. The carrier split changed no runtime behaviour |
 | Boundary | Saved outputs were inspected; BYOD was not exercised. Status remains **Candidate** |
 
+### Review-fix revision (2026-10-12): blob change
+
+The SBC review fixes ([finding table](customer-capstone.md#notebook-review-framework-v1-findings-and-fixes-2026-10-12-sbc))
+change the notebook blob from `0eade880` to `0c497aceb100`. The 2026-09-28 and 2026-10-03 runs above are history
+for earlier blobs (REL14). The new blob has source checks and CPU tests only. It needs a Colab CLI T4 default
+run, a BYOD variant run, and a browser run of the BYOD journeys (a valid file, then a malformed file).
+
 `tutorials/mitra_classifier_colab.ipynb` (`E2E`) and `tutorials/mitra_classifier_predictor_inference_colab.ipynb`
 (`ARTIFACT-INFERENCE`) are **release candidates** until the exact notebook revisions have executed top-to-bottom in a
 clean supported runtime. Unit tests, JSON validation, code-cell compilation, and `tools/validate_release_assets.py` are

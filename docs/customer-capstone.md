@@ -1,7 +1,8 @@
 # Customer analytics capstone — Candidate
 
-Status: default Colab T4 Run all passed at `c81db75` on 2026-09-28 ([record](release-verification.md)); BYOD
-qualification and maintainer review pending.
+Status: default Colab T4 runs passed at `c81db75` (2026-09-28) and `9698515` (2026-10-03)
+([record](release-verification.md)). The 2026-10-12 review-fix revision (blob `0c497aceb100`) needs its own hosted
+run; BYOD qualification and maintainer review pending.
 
 The standalone notebook asks whether purchase history predicts a recorded positive purchase in
 the next 30 days. It is an optional small-business workflow capstone, using a historical UK online
@@ -102,6 +103,32 @@ The default workbook path does not change prepared data: see the parity record i
 
 After the fixes, the full suite under CI's pins (Python 3.12, pandas 2.3.3, SciPy 1.18.1,
 scikit-learn 1.7.2) gives **123 passed, 1 skipped**; the reviewed head gave 1 failed, 109 passed, 1 skipped.
+
+## Notebook Review Framework v1 findings and fixes (2026-10-12, SBC)
+
+The review of `main` `0e408ea9` (notebook blob `0eade880`) against NOTEBOOK_SPEC 2.5 found one Major and nine
+Minor findings. All ten are fixed in the generator and carried modules; the notebook is regenerated, never
+hand-edited. The new blob is `0c497aceb100`. The two suggestions (SBC-S1 collapsed JSON weight, SBC-S2 T4-only
+assertion) are not addressed.
+
+| Finding | Change | Regression evidence |
+|---|---|---|
+| SBC-M1: results never interpreted; no stated answer | Kernel helpers (`ANSWERS` in the generator) print **This run's answer** after the development table, after the test intervals and after the report, computed from the run's own JSON: RFM vs R per model and date, logistic R vs recency rank equivalence, the primary contrast as a tie / win from its interval, and a four-part conclusion (signal, model choice, evidence level, limits). Worked answers follow the two Predict prompts and the optional reflection; no run number is hard-coded. | `test_this_runs_answer_follows_the_results_not_fixed_text` (tie, win, loss, no interval, mixed development); the BYOD lifecycle test runs the helpers on real stage outputs. |
+| SBC-m1: Mitra never identified or cited | Section 3 names `autogluon/mitra-classifier` at revision `c425e9fa…`, its licence and what it is; the fit cell prints model ID and revision; a References section in IEEE style cites Mitra, the model card, the UCI dataset and scikit-learn. | `test_write_up_layer_kind_identity_and_references` (in-text citations and entries one to one). |
+| SBC-m2: write-up layer and kind absent | `notebook_kind: CAPSTONE`, `notebook_spec: 2.5`, the canonical use notice (with the BYOD clause) before the first code cell, a **Problem statement** heading with outcome and scope boundary, and References. | Same test. |
+| SBC-m3: stale "await hosted validation" text | The opening states the measured runtime and GPU memory with their environment and revision, labelled as measured on earlier revisions; the Candidate sentence names the gate that remains. | Same test. |
+| SBC-m4: "fair" comparison scope unstated | Section 3 says neither learned model is tuned, gives Mitra's recipe (`n_estimators=1`, no fine-tuning, no ensembling), what each contrast isolates, the claim type, and why logistic R ranks like recency. | Same test (`fair` absent; `monotone` present). |
+| SBC-m5: scored population wider in prose than in code | Problem statement, section 2 and the conclusion state the rule: at least one qualifying order in the 90 days before the cutoff. | Same test. |
+| SBC-m6: "Change one thing" had no learner change | Section 4 says the notebook already ran both conditions and adds an optional `EXPLORE_BUDGET` slider that re-ranks the saved development predictions (`customer_runtime.py --explore-budget`). It writes nothing and never touches the frozen 20% test budget. | `test_explore_budget_is_display_only_and_reproduces_the_frozen_rows` (0.2 equals the frozen rows; no file changes; lock still verifies; slider float guard). |
+| SBC-m7: BYOD settings were code edits | The five BYOD values and `DOWNLOAD_RESULTS` are Colab form fields; paths default to `/content`, where the file browser uploads; section 8 shows a configuration example and says `BYOD_ARTIFACT` is an extracted `results.zip` of an earlier evaluation run. | `test_byod_cell_uses_form_fields_and_routes_refusals_without_a_traceback`. |
+| SBC-m8: refusals crashed with tracebacks | `customer_data.InputRefused` (a `ValueError`) names the file, column or field and the rule. `customer_byod.py` validates everything before creating a `byod_*` folder, prints one `Refused:` line and exits 3; a stage-level refusal (class gate) also exits 3 and its folder is removed. The notebook's `command(..., refusal_ok=True)` returns 3 for the BYOD cell, which prints the recovery step; any other failure, including a checksum mismatch, still raises. | `test_cli_refusal_is_one_line_with_no_traceback_and_leaves_nothing` (9 cases), `test_cli_refuses_a_missing_configuration_and_artifact`, `test_cli_integrity_failure_still_raises`. |
+| SBC-m9: float noise in the timeline | The timeline display rounds money to 2 decimal places; the private CSV keeps full precision. | `test_learner_change_is_a_form_field_and_timeline_rounds_money`. |
+
+User-visible changes: BYOD settings are form fields and the default paths moved from
+`/content/dimer_customer_analytics/my_*` to `/content/my_*`; refused BYOD inputs print one `Refused:` line
+instead of a traceback and leave no `byod_*` folder; a failing stage's message now says to fix the cause and
+rerun the cell; `customer_runtime.py` gained the display-only `--explore-budget` option; the notebook gained
+five cells (worked answers, the budget control, the reflection). Default-path stage outputs are unchanged.
 
 ## Required hosted evidence
 

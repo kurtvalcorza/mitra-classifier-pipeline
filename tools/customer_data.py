@@ -56,6 +56,34 @@ DEV_CUTOFFS = ["2011-04-01", "2011-07-01"]
 TEST_CUTOFFS = ["2011-09-01", "2011-11-01"]
 
 
+class InputRefused(ValueError):
+    """A supplied input broke a stated contract; the message names the column, field or rule (VAL4, DAT19).
+
+    A ValueError subclass so existing callers keep working; the BYOD entry point reports it as one message
+    instead of a traceback. Integrity or verification failures are never raised as this type.
+    """
+
+
+def check_columns(columns, source: str = "CSV") -> None:
+    """Refuse a transaction header that is missing a required column or carries any unexpected one."""
+    present = [str(c) for c in columns]
+    missing = [c for c in COLUMNS if c != "country" and c not in present]
+    unexpected = [c for c in present if c not in COLUMNS]
+    problems = []
+    if missing:
+        problems.append("missing required column(s): " + ", ".join(missing))
+    if unexpected:
+        problems.append(
+            "unexpected column(s): " + ", ".join(unexpected) + " (remove them; identifying or unlisted "
+            "columns such as names, emails or phone numbers are refused)"
+        )
+    if problems:
+        raise InputRefused(
+            f"{source}: " + "; ".join(problems) + ". Expected exactly: " + ", ".join(COLUMNS[:-1])
+            + " and optionally country."
+        )
+
+
 def sha256(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as f:
@@ -84,7 +112,7 @@ def parse_source_times(values: pd.Series) -> pd.Series:
         examples = "; ".join(
             f"row {position + 1}: {values.iloc[position]!r}" for position in np.flatnonzero(rejected)[:5]
         )
-        raise ValueError(
+        raise InputRefused(
             f"{int(rejected.sum())} invoice_time value(s) are missing or not timezone-naive ISO "
             f"'YYYY-MM-DD[ HH:MM[:SS]]' on the declared source clock ({examples}). "
             "Correct them before snapshots; unknown-time events cannot be assigned to a window."
@@ -96,7 +124,19 @@ def canonicalize(raw: pd.DataFrame) -> pd.DataFrame:
     data = raw.rename(columns=ALIASES).copy()
     required = set(COLUMNS) - {"country"}
     if not required.issubset(data.columns) or data.columns.duplicated().any():
-        raise ValueError("Missing or ambiguous transaction schema")
+        missing = sorted(required - set(data.columns))
+        duplicated = sorted(set(data.columns[data.columns.duplicated()]))
+        raise InputRefused(
+            "Missing or ambiguous transaction schema: "
+            + "; ".join(
+                part
+                for part in (
+                    "missing " + ", ".join(missing) if missing else "",
+                    "more than one column maps to " + ", ".join(duplicated) if duplicated else "",
+                )
+                if part
+            )
+        )
     if "country" not in data:
         data["country"] = ""
     data = data[COLUMNS].copy()
@@ -178,13 +218,19 @@ def snapshots(
 ) -> pd.DataFrame:
     t, start, end = map(pd.Timestamp, (cutoff, coverage_start, coverage_end))
     if any(pd.isna(x) for x in (t, start, end)) or start >= end:
-        raise ValueError("Invalid observation coverage or cutoff")
+        raise InputRefused("Invalid observation coverage or cutoff")
     if t != t.normalize() or any(x.tzinfo is not None for x in (t, start, end)):
-        raise ValueError("Cutoffs must be midnight on the timezone-naive source clock")
+        raise InputRefused("Cutoffs must be midnight on the timezone-naive source clock")
     if start > t - pd.Timedelta(days=90) or end < t:
-        raise ValueError("Incomplete 90-day history coverage")
+        raise InputRefused(
+            f"Incomplete 90-day history coverage for cutoff {t.date()}: coverage_start must be on or "
+            f"before {(t - pd.Timedelta(days=90)).date()} and coverage_end on or after {t.date()}"
+        )
     if require_labels and end < t + pd.Timedelta(days=30):
-        raise ValueError("Incomplete outcome window: evaluation not measurable")
+        raise InputRefused(
+            f"Incomplete outcome window for cutoff {t.date()}: coverage_end must be on or after "
+            f"{(t + pd.Timedelta(days=30)).date()}; evaluation is not measurable"
+        )
     history, _ = clean_transactions(raw, asof=t, deduplicate=deduplicate)
     history = history.loc[history.invoice_time >= t - pd.Timedelta(days=90)]
     frame = (
@@ -335,7 +381,11 @@ def audit_snapshots(raw: pd.DataFrame, config: dict) -> dict:
             if role == "train":
                 support_classes.update(selected.y_true.unique().tolist())
             elif min(positive, negative) < 20:
-                raise ValueError("Scored cutoff has fewer than 20 examples of each class")
+                raise InputRefused(
+                    f"{role} cutoff {cutoff}: the selected customers include {positive} repeat buyers and "
+                    f"{negative} non-buyers; every scored cutoff needs at least 20 of each. Choose cutoffs "
+                    "with more active customers"
+                )
             _, cleaning = clean_transactions(raw, asof=cutoff)
             result["cutoffs"].append(
                 {
@@ -356,7 +406,9 @@ def audit_snapshots(raw: pd.DataFrame, config: dict) -> dict:
                 }
             )
     if support_classes != {0, 1}:
-        raise ValueError("Training support needs both classes")
+        names = {frozenset({1}): "repeat buyers", frozenset({0}): "non-buyers"}
+        only = names.get(frozenset(support_classes), "no rows")
+        raise InputRefused(f"Training support needs both classes: the train_cutoffs produce only {only}")
     return result
 
 
@@ -365,32 +417,115 @@ def read_transactions_csv(path: Path) -> pd.DataFrame:
     return pd.read_csv(path, dtype=str, keep_default_na=False)
 
 
-def validate_byod(csv_path: Path, config: dict) -> pd.DataFrame:
-    if config.get("rights_confirmed") is not True:
-        raise ValueError("Explicit processing-rights acknowledgement required")
-    if config.get("source_clock") != "timezone-naive" or config.get("currency") != "GBP":
-        raise ValueError("Compatible GBP currency and timezone-naive source clock required")
-    if config.get("complete_observation_coverage") is not True:
-        raise ValueError("Complete observation coverage acknowledgement required")
-    if csv_path.stat().st_size > 200_000_000:
-        raise ValueError("CSV exceeds 200 MB")
-    raw = read_transactions_csv(csv_path)
-    if not set(raw.columns).issubset(COLUMNS) or not (set(COLUMNS) - {"country"}).issubset(raw.columns):
-        raise ValueError("Unexpected/identifying columns or missing schema fields")
-    data = canonicalize(raw)
-    start, end = pd.Timestamp(config["coverage_start"]), pd.Timestamp(config["coverage_end"])
-    train, dev, test = [
-        list(map(pd.Timestamp, config[k])) for k in ("train_cutoffs", "development_cutoffs", "test_cutoffs")
-    ]
-    if not all((train, dev, test)) or max(train) + pd.Timedelta(days=30) > min(dev) or max(dev) >= min(test):
-        raise ValueError("Support labels must mature before ordered development/test cutoffs")
+CONFIG_FIELDS = (
+    "rights_confirmed",
+    "complete_observation_coverage",
+    "source_clock",
+    "currency",
+    "coverage_start",
+    "coverage_end",
+    "train_cutoffs",
+    "development_cutoffs",
+    "test_cutoffs",
+    "inference_cutoff",
+)
+INFERENCE_FIELDS = tuple(f for f in CONFIG_FIELDS if not f.endswith("_cutoffs"))
+DESIGN_FIELDS = tuple(f for f in CONFIG_FIELDS if f != "inference_cutoff")
+
+
+def check_config(
+    config: object, source: str = "configuration", required: tuple = CONFIG_FIELDS, strict_fields: bool = True
+) -> None:
+    """Refuse a BYOD configuration with one message that names the field and the rule it breaks."""
+    if not isinstance(config, dict):
+        raise InputRefused(f"{source}: must be a JSON object with the fields listed in the BYOD section")
+    if strict_fields:
+        unexpected = sorted(set(config) - set(CONFIG_FIELDS))
+        if unexpected:
+            raise InputRefused(
+                f"{source}: unexpected field(s) {', '.join(unexpected)}; "
+                f"allowed fields: {', '.join(CONFIG_FIELDS)}"
+            )
+    missing = [f for f in required if f not in config]
+    if missing:
+        raise InputRefused(f"{source}: missing field(s) {', '.join(missing)}")
+    for field, meaning in (
+        ("rights_confirmed", "you confirm you are authorized to process these records"),
+        ("complete_observation_coverage", "the file holds every transaction in the declared coverage"),
+    ):
+        if config[field] is not True:
+            raise InputRefused(f"{source}: {field} is {config[field]!r}; it must be true ({meaning})")
+    if config["source_clock"] != "timezone-naive":
+        raise InputRefused(
+            f"{source}: source_clock is {config['source_clock']!r}; V1 accepts only \"timezone-naive\" "
+            "(times without an offset, on the business's own clock)"
+        )
+    if config["currency"] != "GBP":
+        raise InputRefused(
+            f"{source}: currency is {config['currency']!r}; V1 accepts only \"GBP\" and refuses other "
+            "currencies rather than silently transferring a model"
+        )
+
+
+def _config_time(value: object, field: str, source: str) -> pd.Timestamp:
+    try:
+        stamp = pd.Timestamp(value) if isinstance(value, str) and value.strip() else pd.NaT
+    except (TypeError, ValueError):
+        stamp = pd.NaT
+    if pd.isna(stamp) or stamp.tzinfo is not None:
+        raise InputRefused(
+            f"{source}: {field} {value!r} is not a timezone-naive ISO date such as \"2011-04-01\""
+        )
+    return stamp
+
+
+def check_design(config: dict, source: str = "configuration") -> None:
+    """Refuse cutoffs and coverage that cannot give mature support, ordered roles and complete windows."""
+    start = _config_time(config["coverage_start"], "coverage_start", source)
+    end = _config_time(config["coverage_end"], "coverage_end", source)
+    roles = []
+    for field in ("train_cutoffs", "development_cutoffs", "test_cutoffs"):
+        values = config[field]
+        if not isinstance(values, list) or not values:
+            raise InputRefused(f"{source}: {field} must be a non-empty list of dates")
+        roles.append([_config_time(v, field, source) for v in values])
+    train, dev, test = roles
+    if start >= end:
+        raise InputRefused(
+            f"{source}: coverage_start {start.date()} must be earlier than coverage_end {end.date()}"
+        )
     ordered = train + dev + test
-    if any(pd.isna(x) or x.tzinfo is not None for x in [start, end, *ordered]) or start >= end:
-        raise ValueError("Invalid source-clock coverage or cutoffs")
-    if any(x != x.normalize() for x in ordered):
-        raise ValueError("Cutoffs must occur at midnight")
+    timed = [str(x) for x in ordered if x != x.normalize()]
+    if timed:
+        raise InputRefused(
+            f"{source}: cutoffs must be at midnight (a date with no time of day): {', '.join(timed)}"
+        )
     if ordered != sorted(set(ordered)):
-        raise ValueError("Cutoffs must be unique and ordered")
+        raise InputRefused(
+            f"{source}: cutoffs must be unique and increasing across train_cutoffs, development_cutoffs "
+            "and test_cutoffs"
+        )
+    if max(train) + pd.Timedelta(days=30) > min(dev):
+        raise InputRefused(
+            f"{source}: support labels must mature before development: the last train_cutoff "
+            f"{max(train).date()} plus 30 days is after the first development_cutoff {min(dev).date()}"
+        )
     if start > min(ordered) - pd.Timedelta(days=90) or end < max(ordered) + pd.Timedelta(days=30):
-        raise ValueError("Incomplete history/outcome coverage; use explicit artifact-inference path")
+        raise InputRefused(
+            f"{source}: coverage {start.date()} to {end.date()} is too short. Each cutoff needs a full "
+            f"90-day history and 30-day outcome window, so coverage_start must be on or before "
+            f"{(min(ordered) - pd.Timedelta(days=90)).date()} and coverage_end on or after "
+            f"{(max(ordered) + pd.Timedelta(days=30)).date()}. With shorter coverage, use "
+            "artifact-inference mode"
+        )
+
+
+def validate_byod(csv_path: Path, config: dict, source: str = "configuration") -> pd.DataFrame:
+    check_config(config, source, DESIGN_FIELDS, strict_fields=False)
+    if csv_path.stat().st_size > 200_000_000:
+        raise InputRefused(f"{csv_path.name}: file exceeds the 200 MB BYOD limit")
+    raw = read_transactions_csv(csv_path)
+    check_columns(raw.columns, csv_path.name)
+    data = canonicalize(raw)
+    check_design(config, source)
     return data
