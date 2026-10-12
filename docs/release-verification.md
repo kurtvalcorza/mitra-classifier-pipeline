@@ -78,12 +78,15 @@ release-gate record for both generated standalone notebooks. The separate FreshR
 
 The current blob is `1374c3b4`. It differs from the hosted-run blob `95d0ad11` (commit `373aaf5`) only in the BYOD
 input path: `collect_byod` now opens `.zip` archives found inside a folder (the Colab upload dialog hands over a
-folder), and the upload folder is emptied before each attempt. The default path is unchanged and has no hosted run at
-`1374c3b4` yet. The feasibility smoke of 2026-10-11 (two Colab T4 runs of a scratch notebook) informed the design; it
+folder), and the upload folder is emptied before each attempt. The maintainer's browser runs of `1374c3b4` (first three
+rows below) cover Run all with Mitra on, a BYOD upload through the dialog, and a refused upload. The feasibility smoke of 2026-10-11 (two Colab T4 runs of a scratch notebook) informed the design; it
 is not evidence for this notebook.
 
 | Date | Commit / blob | Executor | Scope | Outcome | Evidence |
 |---|---|---|---|---|---|
+| 2026-10-12 | `98e7725` / `1374c3b4` + `RUN_MITRA = True` | Google Colab in the browser, Tesla T4 (maintainer-run) | Run all with the Mitra opt-in; only that field edited | **PASSED**: 15/15 code cells, 0 errors, wall 49.1 min, 14 conditions scored. Every non-Mitra metric equals the `373aaf5` runs. Mitra (10,000 fit rows; development and validation on declared 10,000-pixel samples): development F1 0.8890 / 0.8374, validation 0.9301 / 0.7373 (AlphaEarth / Sentinel-2 M1), fit 130 s / 114 s, peak GPU 11.9 / 4.4 GiB, reload difference 0.0 | `docs/execution-evidence/2026-10-12/rice_pixel_tables_workshop/` `..._98e7725_colab-browser-t4-mitra.ipynb` (SHA-256 `3dfbde8047f402e3abbef0d95519b718c1deb23b36fee1a05f0857bd6937ab64`) |
+| 2026-10-12 | `98e7725` / `1374c3b4` + `RUN_MITRA`, `USE_BYOD` | Same browser session, BYOD cell run after Run all | Upload dialog with `rice_byod_valid_8chips.zip` (the 8 validation chips; not independent of the sample validation) | **PASSED**: 8 chips valid, 8 labelled; split by site 4 fit / 2 development / 2 test; all six systems re-adapted, frozen and scored once on 30,938 test pixels (Mitra: declared sample); `byod_results.zip` 29 members verified. Test F1 (AlphaEarth / M1): TabDPT 0.8825 / 0.5283, TabPFN-3 0.8792 / 0.5224, TabICLv2 0.8571 / 0.4886, LightGBM 65,536 0.8560 / 0.5272, Mitra 0.8557 / 0.5098, LightGBM 10,000 0.8220 / 0.5172 | `docs/execution-evidence/2026-10-12/rice_pixel_tables_workshop/` `..._98e7725_colab-browser-t4-byod.ipynb` (SHA-256 `1eb384add52b18dfadc8637daf719ea9c21af4e85781f4b9d4b477747ca43dd7`) |
+| 2026-10-12 | `98e7725` / `1374c3b4` + `RUN_MITRA`, `USE_BYOD` | Same browser session, BYOD cell re-run | Upload dialog with `rice_byod_MALFORMED_reflectance_x10000_2019.h5` | **REFUSED AS DESIGNED**: `ChipError` naming the file and the rule ("S2 maximum 8608.5 exceeds 2.0; the file looks like reflectance x 10 000 - multiply by 0.0001 before uploading") before any model ran | `docs/execution-evidence/2026-10-12/rice_pixel_tables_workshop/` `..._98e7725_colab-browser-t4-byod-refused.ipynb` (SHA-256 `e8ccb73a1d191de8e40c23626862d65663613ab6f61d7deebc00b6027ddc6662`) |
 | 2026-10-12 | `373aaf5` / `95d0ad11` | Colab CLI 0.7.4 sequential execution (`colab exec -f`), fresh Colab Tesla T4 (session `suite-mitra-373aaf5-8547`); not a browser Run all | Default path, no field edited; blob verified against GitHub before execution; dataset version 1 served from Colab's Kaggle cache and verified against the pinned INDEX digest and every chip hash | **PASSED**: one pass, 0 errors, 15/15 code cells in order, 2,002.7 s | `docs/execution-evidence/2026-10-12/rice_pixel_tables_workshop/` `..._colab-cli-t4.ipynb` (SHA-256 `23799e093dad6d6350b8fcb46ce023530bf5dd1b64fe2cfa4806253e3280463c`), `exec.log`, `run_summary.json` |
 | 2026-10-12 | `373aaf5` / `95d0ad11` | Google Colab in the browser, Tesla T4 (maintainer-run) | Run all of the default path; source identical to the blob (no field edited) | **PASSED**: 15/15 code cells, 0 errors, wall 32.4 min. Compared with the CLI run above: every metric, threshold, row count, peak GPU figure and reload check is equal; timings, session paths and a `gc.collect()` count differ; the SHA-256 of the serialised TabPFN-3 and TabICLv2 fitted artifacts differ while TabDPT's are identical (open observation, probably non-deterministic serialisation, as predictions are identical) | `docs/execution-evidence/2026-10-12/rice_pixel_tables_workshop/` `..._colab-browser-t4.ipynb` (SHA-256 `c2fb3f93408c7979152c020bab271b6bef31fa287bd1c7af73a96a40ef50ba23`) |
 | 2026-10-12 | `373aaf5` / `95d0ad11` + `USE_BYOD = True` | Same browser session, BYOD cell re-run after Run all | Upload dialog with `rice_byod_valid_8chips.zip` (the 8 validation chips as flat `.h5` members, schema-valid) | **FAILED (notebook defect)**: `ChipError: no .h5 chips found`; the dialog's upload folder was searched for loose `.h5` files only, so the zip was never opened. Fixed in `1374c3b4` (regression test `test_collect_byod_opens_zip_archives_inside_a_folder`) | `docs/execution-evidence/2026-10-12/rice_pixel_tables_workshop/` `..._colab-browser-t4-byod-upload-refused.ipynb` (SHA-256 `1e89f6cf59aabe29aa0052f00bb59f545d487f8bc6229710054022379ddd42d8`) |
@@ -98,9 +101,11 @@ Required before promotion, for the exact notebook blob:
 
 - a fresh Colab T4 Run all of the default path (A, B, B10k, TabPFN-3, TabICLv2, TabDPT on both feature sets,
   activity, freeze, one validation scoring, reload probe, `results.zip`), with wall time and per-model peak GPU memory
-  (done for `95d0ad11`; to repeat for the current blob);
-- a run with `RUN_MITRA = True` (own process per feature set, `max_memory_usage_ratio` 8, declared samples);
-- a BYOD run on real schema-matched chips (and one refused upload) through the Colab upload dialog;
+  (done: `95d0ad11` with Mitra off; `1374c3b4` with Mitra on, a superset of the default path);
+- a run with `RUN_MITRA = True` (own process per feature set, `max_memory_usage_ratio` 8, declared samples) (done,
+  `1374c3b4`);
+- a BYOD run on real schema-matched chips (and one refused upload) through the Colab upload dialog (done, `1374c3b4`;
+  the chips were the sample's validation chips, so independent BYOD data remains untested);
 - maintainer review of the learner text and of the reload-parity results for every foundation model.
 
 ## Automatic coverage (static, every pull request)
