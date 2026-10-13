@@ -69,8 +69,21 @@ above executed blob `5db77406b629`; the new blob was re-run on 2026-10-03 (below
 
 The SBC review fixes ([finding table](customer-capstone.md#notebook-review-framework-v1-findings-and-fixes-2026-10-12-sbc))
 change the notebook blob from `0eade880` to `0c497aceb100`. The 2026-09-28 and 2026-10-03 runs above are history
-for earlier blobs (REL14). The new blob has source checks and CPU tests only. It needs a Colab CLI T4 default
-run, a BYOD variant run, and a browser run of the BYOD journeys (a valid file, then a malformed file).
+for earlier blobs (REL14). The new blob passed a maintainer browser session on a Colab T4 on 2026-10-13 (below): Run all, BYOD with a valid
+file, and a malformed file refused cleanly. Artifact-inference mode has not been exercised.
+
+### Maintainer browser execution of revision `afa94d4` (blob `0c497ace`) — 2026-10-13
+
+| Item | Record |
+| --- | --- |
+| Files | One Colab browser session saved three times, archived byte for byte: [`DIMER_Small_Business_Customer_Analytics_Capstone_afa94d4_colab-browser-t4_1-run-all.ipynb`](execution-evidence/2026-10-13/DIMER_Small_Business_Customer_Analytics_Capstone_afa94d4_colab-browser-t4_1-run-all.ipynb) (SHA-256 `b48052431b5440d8525da4beefc30fe0e4c08727d5a22dd638dffbc17b57f643`), [`…_2-byod-valid.ipynb`](execution-evidence/2026-10-13/DIMER_Small_Business_Customer_Analytics_Capstone_afa94d4_colab-browser-t4_2-byod-valid.ipynb) (`f1f0ca403ccbebfc80dcf0a6e5bea493017d22989a937ebb0d14c6b1a10578c8`), [`…_3-byod-refused.ipynb`](execution-evidence/2026-10-13/DIMER_Small_Business_Customer_Analytics_Capstone_afa94d4_colab-browser-t4_3-byod-refused.ipynb) (`23685bccbd11a12e6b9b0047fa46285a02d92269aeb74d5bbe3343c1f83a6da3`) |
+| Executor | Google Colab in the browser (maintainer-run), Tesla T4, `Run all`, then the BYOD cell run twice. The Colab CLI runner could not get a T4 on 2026-10-12 (HTTP 503 twice, no cell ran) |
+| Source match | Same 21 cell ids and order as the PR head; the only source differences are the `# @title` lines Colab adds to collapsed cells (cells 3 and 4) and, in saves 2 and 3, the `@param` values `RUN_BYOD`, `BYOD_CSV` and `BYOD_CONFIG` |
+| Run all | **PASSED**: execution counts 1–11 in order, 0 error outputs; the three computed "This run's answer" blocks printed. Every printed metric equals the 2026-10-03 run of blob `0eade880` (127 of 127 metric values compared): the review fixes changed text and BYOD handling, not the default computation |
+| BYOD (valid) | **PASSED**: `customer_byod_valid.csv`, a fixed 20% customer subsample of the notebook's own pinned UCI Online Retail II data (1,206 customers, 159,409 rows; SHA-256 `603417d0…`), with the default configuration; stages prepare / fit / develop / freeze / evaluate / infer / verify / report all PASS; `results.zip` written |
+| BYOD (malformed) | **REFUSED as designed** (DAT20, VAL4): the same file without `unit_price` printed one `Refused: customer_byod_MALFORMED_missing_unit_price.csv: missing required column(s): unit_price. …` line and the recovery instruction; no traceback, no error output, no results |
+| Boundary | The BYOD file is a subsample of the tutorial's own data, so it exercises the BYOD path, not new-data skill. Artifact-inference mode was not exercised. Status remains **Candidate** |
+
 
 `tutorials/mitra_classifier_colab.ipynb` (`E2E`) and `tutorials/mitra_classifier_predictor_inference_colab.ipynb`
 (`ARTIFACT-INFERENCE`) are **release candidates** until the exact notebook revisions have executed top-to-bottom in a
@@ -252,6 +265,7 @@ they are measurements for the stated runtime, not general estimates.
 | 2026-10-08 | `83b4d0c` / `2748c0a2e7f8` | Colab CLI 0.7.4 sequential execution, fresh Colab Tesla T4 | Standalone E2E default sample path (no field edited; optional journeys not exercised) | 170.4 s | **PASSED** — one pass, no restart, 0 errors: 10/10 code cells in order (`exec.log`), isolated environment built in 83 s; evidence in `docs/execution-evidence/2026-10-08/mitra_classifier_colab/` |
 | 2026-09-28 | `c81db75` / `5db77406b629` | Colab Tesla T4 (maintainer-supplied) | Customer analytics capstone, default Run all | 10.4 min | **PASSED**: 10/10 code cells, 8/8 stages, fresh-process verification passed; BYOD not exercised |
 | 2026-10-03 | `9698515` / `0eade8804f02` | Colab CLI 0.7.4, fresh Colab Tesla T4 | Customer analytics capstone, all code cells in order | 638 s | **PASSED**: 10/10 code cells, 8/8 stages; results equal the 2026-09-28 run |
+| 2026-10-13 | `afa94d4` / `0c497aceb100` | Colab Tesla T4 in the browser (maintainer-run), one session | Customer analytics capstone: Run all, then BYOD with a valid file, then a malformed file | — | **PASSED**: 11/11 code cells, 0 errors, metrics equal the 2026-10-03 run; valid BYOD 8/8 stages PASS; malformed BYOD refused with one `Refused:` line, no traceback |
 | 2026-10-11 | `373aaf5` / `95d0ad114f2d` | Colab CLI 0.7.4, fresh Colab Tesla T4 | Rice pixel-tables workshop, default path | 2,002.7 s | **PASSED**: 15/15 code cells, 0 errors (see the rice workshop section) |
 | 2026-10-12 | `373aaf5` / `95d0ad114f2d` | Colab Tesla T4 in the browser (maintainer-run) | Rice workshop default Run all; then BYOD zip via the upload dialog | 32.4 min | **PASSED** Run all; BYOD upload **FAILED** on a notebook defect fixed in `1374c3b4` |
 | 2026-10-12 | `98e7725` / `1374c3b456c1` | Colab Tesla T4 in the browser (maintainer-run) | Rice workshop Run all with Mitra; BYOD zip via the upload dialog; refused upload | 49.1 min | **PASSED**: 15/15, BYOD scored once, malformed chip refused (see the rice workshop section) |

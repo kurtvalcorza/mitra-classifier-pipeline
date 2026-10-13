@@ -14,7 +14,7 @@ performance, campaign response or causal uplift. See [implementation/evidence](.
 
 | Notebook | Profile | Mode | Status | Default runtime | Qualification |
 |---|---|---|---|---|---|
-| `DIMER_Small_Business_Customer_Analytics_Capstone.ipynb` | `E2E` | `GUIDED` | Candidate | Fresh Colab T4, isolated Python 3.12 | Default Colab T4 runs passed at `c81db75` (2026-09-28) and `9698515` (2026-10-03); the 2026-10-12 review-fix revision (blob `0c497aceb100`) has no hosted run yet; representative BYOD runs and maintainer review pending |
+| `DIMER_Small_Business_Customer_Analytics_Capstone.ipynb` | `E2E` | `GUIDED` | Candidate | Fresh Colab T4, isolated Python 3.12 | Default Colab T4 runs passed at `c81db75` (2026-09-28) and `9698515` (2026-10-03); the 2026-10-12 review-fix revision (blob `0c497aceb100`) passed a maintainer browser session on a T4 on 2026-10-13 (Run all, valid BYOD, malformed BYOD refused cleanly); artifact-inference mode and maintainer review pending |
 
 ## Rice pixel tables workshop: features or models?
 
