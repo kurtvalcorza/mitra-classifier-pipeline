@@ -19,19 +19,32 @@ import customer_runtime as runtime
 import numpy as np
 import pandas as pd
 
+# Exit code for an input refused with one printed message (argparse already uses 2 for usage errors).
+# The notebook's BYOD cell treats it as a refusal, not a crash; every other nonzero exit is a failure.
+REFUSED_EXIT = 3
+Refused = data.InputRefused
 
-def initialize(root: Path, csv_path: Path, cfg: dict, inference_only: bool) -> tuple[Path, dict]:
-    """Keep raw identifiers and their mapping outside the shareable results directory."""
-    if cfg.get("rights_confirmed") is not True or cfg.get("complete_observation_coverage") is not True:
-        raise ValueError("Confirm processing rights and complete observation coverage")
-    if cfg.get("source_clock") != "timezone-naive" or cfg.get("currency") != "GBP":
-        raise ValueError("V1 requires GBP and timezone-naive source-clock compatibility")
+
+def initialize(
+    root: Path, csv_path: Path, cfg: dict, inference_only: bool, config_name: str = "configuration"
+) -> tuple[Path, dict]:
+    """Validate the whole input first, then keep raw identifiers and their mapping outside the shareable
+    results directory. A refusal raises before any BYOD folder exists, so nothing is left on disk."""
+    data.check_config(cfg, config_name, data.INFERENCE_FIELDS if inference_only else data.CONFIG_FIELDS)
+    if not csv_path.is_file():
+        raise Refused(f"{csv_path}: transaction CSV not found; upload it to /content or correct BYOD_CSV")
     if csv_path.stat().st_size > 200_000_000:
-        raise ValueError("BYOD CSV exceeds200MB")
+        raise Refused(f"{csv_path.name}: file exceeds the 200 MB BYOD limit")
     raw = data.read_transactions_csv(csv_path)
-    if not set(raw.columns).issubset(data.COLUMNS) or not (set(data.COLUMNS) - {"country"}).issubset(raw):
-        raise ValueError("Refuse unexpected identifying columns or missing transaction fields")
-    raw = data.canonicalize(raw)
+    data.check_columns(raw.columns, csv_path.name)
+    try:
+        raw = data.canonicalize(raw)
+    except Refused as exc:
+        raise Refused(f"{csv_path.name}: {exc}") from None
+    adjusted = dict(cfg, byod=True)
+    if not inference_only:
+        adjusted.update(train=cfg["train_cutoffs"], dev=cfg["development_cutoffs"], test=cfg["test_cutoffs"])
+        data.check_design(adjusted, config_name)
     intake = {
         "rows": len(raw),
         "empty_identifier_fields": {
@@ -65,24 +78,6 @@ def initialize(root: Path, csv_path: Path, cfg: dict, inference_only: bool) -> t
         shutil.copyfile(root / name, target / name)
     runtime.write(target / "private/original_id_mappings.json", mappings)
     runtime.save_csv(target / "private/input.csv", raw)
-    allowed = {
-        "rights_confirmed",
-        "complete_observation_coverage",
-        "source_clock",
-        "currency",
-        "coverage_start",
-        "coverage_end",
-        "train_cutoffs",
-        "development_cutoffs",
-        "test_cutoffs",
-        "inference_cutoff",
-    }
-    if set(cfg) - allowed:
-        raise ValueError("Unexpected BYOD configuration fields")
-    adjusted = dict(cfg, byod=True)
-    if not inference_only:
-        adjusted.update(train=cfg["train_cutoffs"], dev=cfg["development_cutoffs"], test=cfg["test_cutoffs"])
-        data.validate_byod(target / "private/input.csv", adjusted)
     runtime.write(target / "configuration.json", adjusted)
     runtime.write(
         target / "data_manifest.json",
@@ -111,7 +106,15 @@ def initialize(root: Path, csv_path: Path, cfg: dict, inference_only: bool) -> t
 
 
 def check_artifact(root: Path, artifact: Path) -> None:
-    """Validate the supplied extracted evidence bundle; never unpickle user state."""
+    """Validate the supplied extracted evidence bundle; never unpickle user state.
+
+    A missing or incompatible bundle is refused with a message; a checksum or identity mismatch inside a
+    bundle that claims to be intact is an integrity failure and still raises."""
+    if not (artifact / "checksums.json").is_file():
+        raise Refused(
+            f"{artifact}: no checksums.json found. BYOD_ARTIFACT must be the folder made by extracting "
+            "results.zip from an earlier evaluation run of this notebook"
+        )
     inventory = runtime.read(artifact / "checksums.json")
     required = {
         "feature_schema.json",
@@ -125,7 +128,11 @@ def check_artifact(root: Path, artifact: Path) -> None:
         "scorer/mitra_RFM/support_y.npy",
     }
     if not required.issubset(inventory):
-        raise ValueError("Artifact inventory omits required scorer files")
+        raise Refused(
+            f"{artifact.name}: the bundle's checksums.json omits required scorer file(s) "
+            + ", ".join(sorted(required - set(inventory)))
+            + "; extract the complete results.zip of an evaluation run"
+        )
     for name, item in inventory.items():
         path = (artifact / name).resolve()
         if (
@@ -141,18 +148,21 @@ def check_artifact(root: Path, artifact: Path) -> None:
         or schema["lookback_days"] != 90
         or schema["horizon_days"] != 30
     ):
-        raise ValueError("Incompatible artifact feature policy/currency")
+        raise Refused(
+            f"{artifact.name}: incompatible feature policy; this notebook needs the five RFM features, GBP, "
+            "a 90-day history and a 30-day horizon"
+        )
     if runtime.read(artifact / "model_manifest.json") != runtime.read(root / "model_manifest.json"):
-        raise ValueError("Incompatible pinned model identity")
+        raise Refused(f"{artifact.name}: made with a different pinned Mitra model than this notebook")
     source = runtime.read(artifact / "source.json")
     for module in ("customer_data.py", "customer_models.py"):
         if source["files"][module] != runtime.sha(root / module):
-            raise ValueError("Incompatible cleaning/model implementation")
+            raise Refused(f"{artifact.name}: made with a different version of {module} than this notebook")
         if runtime.sha(artifact / module) != source["files"][module]:
             raise ValueError("Artifact source implementation differs from declared identity")
     state = models.reload(artifact / "scorer/mitra_RFM")
     if state["kind"] != "mitra" or state["feature_set"] != "RFM":
-        raise ValueError("Explicit Mitra-RFM scoring artifact required")
+        raise Refused(f"{artifact.name}: scorer/mitra_RFM does not hold a Mitra-RFM scorer")
     if state["model_manifest"] != runtime.read(root / "model_manifest.json"):
         raise ValueError("Scorer model identity differs from supplied pinned snapshot")
 
@@ -225,7 +235,78 @@ def inference(root: Path, artifact: Path, verify_only: bool = False) -> None:
         )
 
 
-def main() -> None:
+def read_config(path: Path | None) -> dict:
+    if path is None or not path.is_file():
+        raise Refused(f"{path}: configuration file not found; upload it to /content or correct BYOD_CONFIG")
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise Refused(f"{path.name}: not valid JSON ({exc})") from None
+
+
+def run(args: argparse.Namespace) -> int:
+    if args.verify_inference:
+        inference(args.root, args.artifact, verify_only=True)
+        return 0
+    cfg = read_config(args.config)
+    inference_only = args.mode == "artifact-inference"
+    if inference_only:
+        if args.artifact is None:
+            raise Refused("artifact-inference mode needs BYOD_ARTIFACT; there is no tutorial-model fallback")
+        check_artifact(args.root, args.artifact.resolve())
+    if args.csv is None:
+        raise Refused("no transaction CSV given; set BYOD_CSV")
+    target, _ = initialize(args.root, args.csv, cfg, inference_only, args.config.name)
+    try:
+        if not inference_only:
+            for stage in runtime.STAGES:
+                code = subprocess.run(
+                    [
+                        sys.executable,
+                        str(target / "customer_runtime.py"),
+                        "--root",
+                        str(target),
+                        "--stage",
+                        stage,
+                    ],
+                ).returncode
+                if code == REFUSED_EXIT:  # the stage printed its one-line refusal
+                    shutil.rmtree(target, ignore_errors=True)
+                    return REFUSED_EXIT
+                if code:
+                    raise subprocess.CalledProcessError(code, f"customer_runtime.py --stage {stage}")
+        else:
+            inference(target, args.artifact.resolve())
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(target / "customer_byod.py"),
+                    "--root",
+                    str(target),
+                    "--artifact",
+                    str(args.artifact.resolve()),
+                    "--verify-inference",
+                ],
+                check=True,
+            )
+            results = runtime.output(target)
+            files = {
+                p.name: {"sha256": hashlib.sha256(p.read_bytes()).hexdigest(), "bytes": p.stat().st_size}
+                for p in results.iterdir()
+                if p.is_file() and p.name not in ("results.zip", "checksums.json")
+            }
+            runtime.write(results / "checksums.json", files)
+            with zipfile.ZipFile(results / "results.zip", "w", zipfile.ZIP_DEFLATED) as archive:
+                for name in [*files, "checksums.json"]:
+                    archive.write(results / name, name)
+    except Refused:
+        shutil.rmtree(target, ignore_errors=True)  # a refused attempt leaves no partial results behind
+        raise
+    print("BYOD evidence:", runtime.output(target) / "results.zip")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--csv", type=Path)
@@ -233,53 +314,15 @@ def main() -> None:
     parser.add_argument("--artifact", type=Path)
     parser.add_argument("--mode", choices=("evaluate", "artifact-inference"), default="evaluate")
     parser.add_argument("--verify-inference", action="store_true")
-    args = parser.parse_args()
-    if args.verify_inference:
-        inference(args.root, args.artifact, verify_only=True)
-        return
-    cfg = json.loads(args.config.read_text(encoding="utf-8"))
-    target, _ = initialize(args.root, args.csv, cfg, args.mode == "artifact-inference")
-    if args.mode == "evaluate":
-        for stage in runtime.STAGES:
-            subprocess.run(
-                [
-                    sys.executable,
-                    str(target / "customer_runtime.py"),
-                    "--root",
-                    str(target),
-                    "--stage",
-                    stage,
-                ],
-                check=True,
-            )
-    else:
-        if args.artifact is None:
-            raise ValueError("Explicit compatible artifact required; no tutorial fallback")
-        inference(target, args.artifact.resolve())
-        subprocess.run(
-            [
-                sys.executable,
-                str(target / "customer_byod.py"),
-                "--root",
-                str(target),
-                "--artifact",
-                str(args.artifact.resolve()),
-                "--verify-inference",
-            ],
-            check=True,
-        )
-        results = runtime.output(target)
-        files = {
-            p.name: {"sha256": hashlib.sha256(p.read_bytes()).hexdigest(), "bytes": p.stat().st_size}
-            for p in results.iterdir()
-            if p.is_file() and p.name not in ("results.zip", "checksums.json")
-        }
-        runtime.write(results / "checksums.json", files)
-        with zipfile.ZipFile(results / "results.zip", "w", zipfile.ZIP_DEFLATED) as archive:
-            for name in [*files, "checksums.json"]:
-                archive.write(results / name, name)
-    print("BYOD evidence:", runtime.output(target) / "results.zip")
+    args = parser.parse_args(argv)
+    try:
+        return run(args)
+    except Refused as exc:
+        # One learner-facing line, no traceback (DAT20). Genuine failures are not caught here.
+        reason = str(exc).rstrip(".")
+        print(f"Refused: {reason}. Nothing was scored; fix it and run the BYOD cell again.", flush=True)
+        return REFUSED_EXIT
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

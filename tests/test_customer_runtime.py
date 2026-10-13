@@ -220,3 +220,23 @@ np.save(sys.argv[4],m.predict(state,np.load(sys.argv[3],allow_pickle=False)),all
     )
     assert process.returncode == 0, process.stderr
     np.testing.assert_array_equal(expected, np.load(target, allow_pickle=False))
+
+
+def test_explore_budget_is_display_only_and_reproduces_the_frozen_rows(experiment, monkeypatch):
+    through(experiment, "freeze", monkeypatch)
+    out = runtime.output(experiment)
+    before = {p: runtime.sha(p) for p in out.rglob("*") if p.is_file()}
+    table = runtime.explore_budget(experiment, 0.2)
+    canonical = runtime.read(out / "development_activity.json")["canonical_budget_20"]["per_cutoff"]
+    cells = {(r["system"], r["cutoff"]): r for r in canonical}
+    assert len(table) == 2 * len(runtime.DEFAULT["dev"])
+    for row in table.to_dict("records"):
+        assert row["P@budget R"] == cells[(row["model"] + "_R", row["cutoff"])]["precision_at_budget"]
+        assert row["P@budget RFM"] == cells[(row["model"] + "_RFM", row["cutoff"])]["precision_at_budget"]
+    # A slider float such as 0.30000000000000004 must not add a customer to ceil(budget * n).
+    slider = runtime.explore_budget(experiment, 0.30000000000000004)
+    assert slider.equals(runtime.explore_budget(experiment, 0.3))
+    assert {p: runtime.sha(p) for p in out.rglob("*") if p.is_file()} == before
+    runtime.check_lock(experiment)
+    with pytest.raises(ValueError, match="Budget"):
+        runtime.explore_budget(experiment, 0)
