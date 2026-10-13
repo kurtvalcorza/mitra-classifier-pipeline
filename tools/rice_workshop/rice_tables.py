@@ -1445,13 +1445,16 @@ def score_stage(ledger: Ledger, runner, *, split_label: str = "validation") -> d
     _write_predictions(out / f"{split_label}_predictions.csv.gz", data, order, conditions, probabilities, samples)
     failures = [k for k, v in parity.items()
                 if not v["within_tolerance"] or v.get("decisions_identical_at_frozen_threshold") is False]
-    mark_scored(ledger, status="complete", conditions=sorted(conditions), parity_failures=failures)
-    ledger.finish("score", conditions=sorted(conditions), parity_failures=failures)
     if failures:
+        # The scored-once lock stays (scored.json), but no score receipt is written: the reload probe and the export
+        # need that receipt, so a run whose parity failed cannot be reported as complete (RPT2-m1).
+        mark_scored(ledger, status="parity_failed", conditions=sorted(conditions), parity_failures=failures)
         raise RuntimeError(f"reload parity failed for {failures}: the reloaded artifact did not reproduce its "
                            f"development probabilities within {RELOAD_TOLERANCE} or its decisions at the frozen "
-                           "threshold. The scores are recorded; preserve "
-                           "verification.json and the logs and report it.")
+                           "threshold. The scores are recorded but the stage is not finished, so the reload check "
+                           "and the export will not run; preserve verification.json and the logs and report it.")
+    mark_scored(ledger, status="complete", conditions=sorted(conditions), parity_failures=failures)
+    ledger.finish("score", conditions=sorted(conditions), parity_failures=failures)
     return {"rows": rows, "per_chip": chip_rows, "parity": parity}
 
 
@@ -1524,6 +1527,9 @@ def export_stage(ledger: Ledger, summary: Mapping[str, Any], conclusion_template
     artifacts stay in the runtime (their file inventories are in selection.json): the bundle carries no model weights
     and no source imagery."""
     ledger.start("export")
+    failures = ledger.receipt("score").get("parity_failures")
+    if failures:
+        raise RuntimeError(f"export refused: the score stage recorded reload parity failures for {failures}")
     export = ledger.root / "export"
     export.mkdir(parents=True)
     members = [*EXPORT_MEMBERS]

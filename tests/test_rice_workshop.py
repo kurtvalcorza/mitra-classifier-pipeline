@@ -447,6 +447,41 @@ def test_the_protocol_freezes_scores_once_and_exports(tmp_path: Path, monkeypatc
     assert rt.verify_zip(exported["path"])["verified"]
 
 
+def test_a_scoring_parity_failure_is_not_recorded_as_a_finished_stage(tmp_path: Path, monkeypatch) -> None:
+    # RPT2-m1: a reload-parity failure in scoring must not write the score receipt, so the probe and the export
+    # refuse to run on it, while the scored-once lock still holds and the failure record is kept.
+    _fake_model(monkeypatch)
+    honest = _runner([])
+
+    def runner(system, mode, feature_sets, extra, out_dir):
+        result = honest(system, mode, feature_sets, extra, out_dir)
+        if mode == "score":
+            for record in result["feature_sets"].values():
+                record["reload_parity"] = {**record["reload_parity"], "within_tolerance": False}
+        return result
+
+    ledger = _synthetic_run(tmp_path / "run")
+    rt.baseline_stage(ledger, systems=("A",))
+    rt.foundation_stage(ledger, ["C1"], runner, {})
+    rt.activity_stage(ledger, runner, enabled=False, system="C1", feature_set="s2m1", sizes=[100], available=["C1"])
+    rt.freeze_stage(ledger)
+    with pytest.raises(RuntimeError, match="reload parity failed"):
+        rt.score_stage(ledger, runner)
+    assert not ledger.done("score")
+    scored = json.loads((ledger.root / "scored.json").read_text(encoding="utf-8"))
+    assert scored["status"] == "parity_failed" and scored["parity_failures"]
+    assert (ledger.root / "scores" / "verification.json").is_file()
+    with pytest.raises(RuntimeError, match="exactly once"):
+        ledger.start("baseline")
+    with pytest.raises(RuntimeError, match="needs the score stage"):
+        rt.probe_reload(ledger, runner)
+    with pytest.raises(RuntimeError, match="needs the score"):
+        rt.export_stage(ledger, {"run": "test"}, "# conclusion\n")
+    ledger.finish("score", parity_failures=scored["parity_failures"])  # a hand-written receipt is still refused
+    with pytest.raises(RuntimeError, match="parity"):
+        rt.export_stage(ledger, {"run": "test"}, "# conclusion\n")
+
+
 def test_a_changed_selection_is_refused(tmp_path: Path, monkeypatch) -> None:
     _fake_model(monkeypatch)
     runner = _runner([])
@@ -552,7 +587,9 @@ def test_carried_sources_match_the_repository() -> None:
         text = (TOOLS / name).read_bytes().decode("utf-8").replace("\r\n", "\n")
         assert hashlib.sha256(text.encode("utf-8")).hexdigest() in code
     head = build.v2_environment_head()
-    assert head in code, "the v2 environment cell must be carried verbatim"
+    assert head.startswith(build.V2_CELL_TITLE + "\n")
+    renumbered = head.replace(build.V2_CELL_TITLE, build.RICE_ENV_TITLE, 1)
+    assert renumbered in code, "the v2 environment cell must be carried verbatim apart from its title line"
     for stack in ("tabpfn", "tabicl", "tabdpt", "mitra"):
         lock = (REPO / "tutorials" / f"requirements-workshop-{stack}.lock.txt").read_text(encoding="utf-8")
         assert "".join(ast.literal_eval(_lock_literal(head, stack))) == lock.replace("\r\n", "\n")
@@ -592,3 +629,24 @@ def test_opening_carries_licence_notice_and_numbered_references() -> None:
     assert cited == entries, f"uncited {entries - cited}, unresolved {cited - entries}"
     assert "https://doi.org/" in references
     assert "AI" in text and "What did not work" in text and "Troubleshooting" in text
+
+
+def test_review_fixes_rpt2_titles_completion_and_byod_refusals() -> None:
+    code = _cells("code")
+    # RPT2-m6: Colab reads `# @title` only from line 1.
+    staging = next(c for c in code if "Stage carried adapters" in c)
+    assert staging.startswith("# @title 3.2 ")
+    export = next(c for c in code if "rt.probe_reload(" in c)
+    assert export.startswith("# @title 8.1 ") and "CONCLUSION_TEMPLATE = " in export
+    # RPT2-m1: the completion line refuses recorded parity failures and reports the probe as it ran.
+    summary = build.CELL_SUMMARY
+    assert "parity_failures" in summary and "PROBE.get('ran')" in summary
+    assert "reload probe not run" in summary
+    # RPT2-m2 / RPT2-S1: refusals print a fix-and-re-run message; a blank path off Colab is explained, not an ImportError.
+    byod = build.CELL_BYOD
+    assert "except (rt.ChipError, FileNotFoundError) as exc:" in byod and "except ImportError:" in byod
+    assert "raise rt.ChipError('BYOD validation refused" not in byod
+    assert "run this cell again" in byod
+    template = build.CONCLUSION_TEMPLATE
+    assert "Sentinel-1 SAR" in next(line for line in template.splitlines() if line.startswith("- Limits"))
+    assert "limits rice mapping here more than the classifier does" not in "\n".join(_cells("markdown"))

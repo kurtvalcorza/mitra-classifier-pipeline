@@ -25,6 +25,7 @@ NOTEBOOK_SPEC = "2.4"
 PIECE = 1000  # at most this many characters per carried string piece, so no cell line is unreadably long
 V2_CELL_TITLE = "# @title 5.2 Stage carried adapters and prepare isolated model environments"
 V2_CUT = "selected_environment_keys = sorted("
+RICE_ENV_TITLE = "# @title 3.2 Stage carried adapters and prepare isolated model environments"
 
 
 def _read(path: Path) -> str:
@@ -120,7 +121,7 @@ By the end of this notebook you will be able to:
 
 **Fast path.** If time is short, run everything and read sections 4, 5 and 7; the other sections explain how the evidence was produced.
 
-**Evidence boundary.** 40 chip-years: 32 for training (24 fit, 8 development), 8 for validation, all validation chips from two regions. This is a teaching comparison, not a model ranking and not a national accuracy estimate. Course results for orientation (lesson evidence, not this run): L3 Sentinel-2 LightGBM reached rice F1 0.760 and L3B AlphaEarth LightGBM 0.928 on the lessons' teaching split."""
+**Evidence boundary.** 40 chip-years: 32 for training (24 fit, 8 development), 8 for validation, all validation chips from two regions. This is a teaching comparison, not a model ranking and not a national accuracy estimate. Course results for orientation (quoted from the lessons, not re-run here): [Lesson 3, Sentinel-2 LightGBM](https://www.kaggle.com/code/kurtvalcorza/rice-from-space-lesson-3-lightgbm-baseline) (version 4) reached validation rice F1 0.760 and [Lesson 3B, AlphaEarth LightGBM](https://www.kaggle.com/code/kurtvalcorza/rice-from-space-lesson-3b-alphaearth-baseline) (version 3) reached 0.928, under the lessons' own models and settings."""
 
 DATA_CONTEXT = r"""## Data context [Concept]
 
@@ -130,13 +131,27 @@ DATA_CONTEXT = r"""## Data context [Concept]
 |---|---|---|
 | `S2` | 24 × 6 × 128 × 128 | Sentinel-2 [8] surface reflectance, 24 calendar bins (about half-monthly medians) × 6 bands (B2 blue, B3 green, B4 red, B8A narrow NIR, B11 and B12 short-wave infrared) |
 | `S2_valid` | 24 × 128 × 128 | 1 where a bin had a clear observation, 0 where clouds or gaps removed it |
-| `AlphaEarth` | 64 × 128 × 128 | AlphaEarth Foundations annual satellite embedding [7]: 64 learned values per pixel summarising a year of observations from several sensors |
+| `AlphaEarth` | 64 × 128 × 128 | AlphaEarth Foundations annual satellite embedding [7]: 64 learned values per pixel summarising a year of observations from several sensors, including Sentinel-1 radar (SAR) |
 | `AE_valid` | 128 × 128 | 1 where the embedding exists |
 | `label` | 128 × 128 | 0 non-rice, 1 rice, 255 ignored (edges and unmapped) |
 
-**Who produced it and how.** The rice labels are a published 20 m rice map of Monsoon Asia [9], reprojected and binarised; the optical inputs are modified Copernicus Sentinel data; the embeddings come from Google's public AlphaEarth product; the compilation is by Kurt Valcorza. Full attribution is at the end.
+**Who produced it and how.** The rice labels come from a published 20 m map of paddy-rice cropping intensity in Monsoon Asia [9]. That product finds rice mainly from **Sentinel-1 radar (SAR)** signals of flooding and transplanting, checked against optical and other satellite data [9]. AlphaEarth's inputs include Sentinel-1 SAR as well as Sentinel-2 and Landsat optical imagery [7] (its paper's Table S1), while M1 is built from Sentinel-2 optical bands only. So the reference labels share a sensor with one of the two feature sets, and only that one: keep this in mind whenever you read the feature effect (Sections 4 and 7). The optical inputs are modified Copernicus Sentinel data; the embeddings come from Google's public AlphaEarth product; the compilation is by Kurt Valcorza. Full attribution is at the end.
 
-**How it relates to the problem.** The chips sample rice and non-rice landscapes, not the country evenly. All 8 validation chips are in two regions (PH-07, PH-08), two of them contain no rice, and neighbouring pixels are strongly alike, so pixel counts overstate how much independent evidence there is [11]. AlphaEarth was pretrained on global imagery that may include these places and years, so its advantage may partly reflect having seen them. The labels are themselves a model's output, not field surveys.
+**Label lineage** (how `label` was derived from [9]):
+
+| Step | Rule |
+|---|---|
+| Source | Chen et al. [9], doi:10.5281/zenodo.15124936, CC BY 4.0: the annual `PADDYINTENSITY{year}` layer, about 20 m (1/5400 degree) in EPSG:4326 |
+| Year rule | each chip-year uses the annual layer of the same year (2019, 2020 or 2021); the four-year composite and the planting-date layers are not used |
+| Code mapping | cropping-intensity codes 1, 2 and 3 (single, double, triple paddy rice) become 1 (rice); code 0 becomes 0 (non-rice, which includes water); any other code stops the build. The number of seasons is discarded |
+| Nodata | the source declares no nodata; a pixel with no source coverage after reprojection becomes 255 |
+| Resampling | nearest-neighbour from the source grid onto each chip's 20 m EPSG:32651 grid, whose corners lie on multiples of 2,560 m |
+| Edge band | every pixel whose 3 × 3 neighbourhood holds both rice and non-rice becomes 255: an ignored edge band of 1 pixel (20 m) on each side of every rice/non-rice edge, about 40 m across, computed with a one-pixel halo beyond the chip |
+| Builder | label recipe SHA-256 `7adf68fe9d23622a1cf008f71cacd7c5006ed1377e34a5fc8c17c046953dc63e` (every chip's `recipe_sha256` attribute); the public rebuild kit `recipe-kit.zip` ships in the parent Kaggle dataset `kurtvalcorza/rice-philippines-s2-alphaearth-v1` (version 2) |
+
+The target is therefore annual paddy-rice occurrence according to the source map: not field-verified rice, not rice area, not the number of seasons.
+
+**How it relates to the problem.** The chips sample rice and non-rice landscapes, not the country evenly. All 8 validation chips are in two regions (PH-07, PH-08), two of them contain no rice, and neighbouring pixels are strongly alike, so pixel counts overstate how much independent evidence there is [11]. AlphaEarth was pretrained on global imagery that may include these places and years, so its advantage may partly reflect having seen them. The labels are themselves a model's output, not field surveys, and that model works mainly from Sentinel-1 SAR, which AlphaEarth includes and M1 does not.
 
 **Roles.** The capstone's rule splits the 32 training chips by **whole region** into 24 fit and 8 development chips (salted SHA-256 order, about 25% development, at least two rice chips in development), so this notebook and the Prithvi rice capstone score identical chips. The `development-example` chip is a training sample and is never read. Validation pixels are scored once, after every choice is frozen.
 
@@ -325,7 +340,7 @@ AFTER_LOOK = r"""**What to notice:** the rice curve usually differs from non-ric
 
 **Checkpoint.** Which feature set do you expect to separate rice better, and why might the answer differ between a gradient-boosted tree model and an in-context model?
 
-<details><summary>Check your reasoning</summary>AlphaEarth summarises many observations and sensors with a model trained on far more imagery, so it may separate classes better with any classifier. M1 is limited to six bands and four quarters but is grounded in physics. A tree model splits on individual columns; an in-context model compares whole rows with its support rows, so it may use correlated embedding axes differently. Section 4 tests this.</details>"""
+<details><summary>Check your reasoning</summary>AlphaEarth summarises many observations and sensors (radar as well as optical) with a model trained on far more imagery, so it may separate classes better with any classifier. M1 is limited to six bands and four quarters but is grounded in physics. A tree model splits on individual columns; an in-context model compares whole rows with its support rows, so it may use correlated embedding axes differently. Section 4 tests this.</details>"""
 
 # --------------------------------------------------------------------------------------------------
 # section 2: baselines
@@ -340,6 +355,7 @@ SEC2 = r"""# 2. Predict, then run the baselines [Evaluation practice]
 1. Roles come from whole regions; every fit sample and fill uses fit chips only.
 2. Every choice is made on the development subset: each condition's **threshold** (0.10 to 0.90 in steps of 0.05, highest pooled development rice F1, ties nearest 0.5) and LightGBM's number of trees (early stopping on development F1).
 3. Every choice and every condition's identity is written to `selection.json` and hashed (the **freeze**). Only then is validation scored, once, and the result is kept whichever system wins.
+4. Every system runs a **fixed recipe**: the foundation-model settings in Section 3 are fixed and not tuned, and only LightGBM's number of trees and each condition's threshold are chosen on development. The model spread is measured under these recipes, not after equal tuning of every model.
 
 **Baselines.** A calls every pixel non-rice: its accuracy equals the non-rice share, and its recall and F1 are 0. B is LightGBM [6] with the capstone's settings (31 leaves, learning rate 0.05, at most 200 trees, patience 50) on 65,536 fit rows. B10k is the same model on the 10,000 rows the foundation models get, so it compares LightGBM with them on identical data. The two LightGBM tables are drawn separately, so B versus B10k differs in which rows as well as how many: read it as a rough sense of how much more data helps, not as a pure sample-size effect."""
 
@@ -350,7 +366,7 @@ display(pd.DataFrame([{'condition': k, 'fit rows': v.get('fit_rows', '-'), 'tree
                        'dev F1 at chosen': v['dev_f1_selected'], 'seconds': v['seconds']}
                       for k, v in BASELINE.items()]).round(4))"""
 
-AFTER_BASELINE = r"""**What to notice:** A's F1 is 0 on both feature sets. B on AlphaEarth is usually well above B on M1; the chosen threshold is often near 0.5 but need not be. B10k usually trails B slightly: fewer rows give the trees less to learn from (the rows also differ, so part of the gap can be the particular sample). These are development numbers, used for choosing, not for claiming."""
+AFTER_BASELINE = r"""**What to notice:** A's F1 is 0 on both feature sets. B on AlphaEarth is usually well above B on M1; the chosen threshold is often near 0.5 but need not be. Compare B10k with B: fewer rows can give the trees less to learn from, but the rows also differ, so B10k may trail, match or beat B (in the [recorded Colab runs of revision 373aaf5](https://github.com/kurtvalcorza/mitra-classifier-pipeline/tree/main/docs/execution-evidence/2026-10-12/rice_pixel_tables_workshop), B10k scored 0.8164 and B 0.8083 on M1 development: recorded evidence, not this run). These are development numbers, used for choosing, not for claiming."""
 
 # --------------------------------------------------------------------------------------------------
 # section 3: foundation models
@@ -393,7 +409,7 @@ display(pd.DataFrame([{
 
 SEC3_ENV = r"""## 3.2 Isolated model environments
 
-**Infrastructure — run the cell; reading its implementation is optional.** This cell is carried byte for byte from the FreshRetailNet v2 notebook in this repository: the model adapters at their pinned commits, the checkpoint manifests (revision and SHA-256 of every file), and one hash lock per model stack. A pinned `uv` (checked by size and SHA-256) creates one CPython 3.12.12 environment per selected model and installs only the locked wheels (`--require-hashes --only-binary :all: --no-deps`), then checks them with `uv pip check`. Environments are reused when their identity matches. Checkpoints are downloaded at their pinned revisions and verified against the manifest before use."""
+**Infrastructure — run the cell; reading its implementation is optional.** This cell is carried byte for byte from the FreshRetailNet v2 notebook in this repository (only its title line is renumbered): the model adapters at their pinned commits, the checkpoint manifests (revision and SHA-256 of every file), and one hash lock per model stack. A pinned `uv` (checked by size and SHA-256) creates one CPython 3.12.12 environment per selected model and installs only the locked wheels (`--require-hashes --only-binary :all: --no-deps`), then checks them with `uv pip check`. Environments are reused when their identity matches. Checkpoints are downloaded at their pinned revisions and verified against the manifest before use."""
 
 CELL_ENV_TAIL = r"""
 # --- rice notebook tail: build only the environments the selected systems need ---
@@ -506,7 +522,7 @@ AFTER_DEV_GRID = r"""**What to notice:** compare the size of the feature effect 
 
 **Checkpoint.** Is the gap between feature sets larger or smaller than the gap between models? Does any model change rank between the two feature sets?
 
-<details><summary>Check your reasoning</summary>On these chips the feature-set gap is usually several times larger than the spread between learned models: every learned system gains a lot from AlphaEarth, and on a given feature set they land close together. That suggests the description of each pixel limits rice mapping here more than the classifier does. Small rank changes between models are within what different development subsets would shuffle; do not read them as a ranking. These are still development numbers.</details>"""
+<details><summary>Check your reasoning</summary>On these chips the feature-set gap is usually several times larger than the spread between learned models: every learned system gains a lot from AlphaEarth, and on a given feature set they land close together. That supports a narrow claim: against these reference labels, AlphaEarth tables beat M1 tables whichever classifier reads them. It does not show why. The two feature sets differ in sensors, temporal aggregation and pretraining, and the labels were derived mainly from Sentinel-1 SAR, which only AlphaEarth sees, so part of the gap may be agreement with the label source. Treat "the pixel description matters more than the model" as a hypothesis that independent labels would have to test. Small rank changes between models are within what different development subsets would shuffle; do not read them as a ranking. These are still development numbers.</details>"""
 
 # --------------------------------------------------------------------------------------------------
 # section 5: activity
@@ -514,7 +530,7 @@ AFTER_DEV_GRID = r"""**What to notice:** compare the size of the feature effect 
 
 SEC5 = r"""# 5. Activity: change one thing — the context size [Evaluation practice]
 
-**Question.** Is TabPFN-3's weaker result on M1 a data-volume problem (too few context rows) or a feature problem?
+**Question.** Is TabPFN-3's gap between M1 and AlphaEarth a data-volume problem (too few context rows) or a feature problem?
 
 1. **Predict.** If TabPFN-3 sees 1,000, then 3,000, then 10,000 M1 fit rows, how much will development F1 change? Will 10,000 M1 rows reach the AlphaEarth result?
 2. **Change one thing.** Only the number of context rows changes. The smaller contexts are nested inside the larger ones and keep the same rice share; everything else is fixed.
@@ -549,7 +565,7 @@ else:
 
 AFTER_ACTIVITY = r"""**Observe and explain.** How much did F1 change from 1,000 to 10,000 rows, compared with the gap to the AlphaEarth row? What did the larger context cost in seconds?
 
-<details><summary>Check your reasoning</summary>Typically F1 rises a little and then flattens as rows are added, while prediction time grows. If 10,000 M1 rows stay well below the AlphaEarth result, more rows of the same features do not close the gap: the limit is in what the features describe, not in how many examples the model sees. One caveat: development pixels come from a few regions, so a difference of a point or two between sizes is within noise. The 10,000-row setting should reproduce the canonical TabPFN-3 condition from Section 3.</details>"""
+<details><summary>Check your reasoning</summary>F1 may move by a point or two either way as rows are added, while prediction time grows (the [recorded Colab runs of revision 373aaf5](https://github.com/kurtvalcorza/mitra-classifier-pipeline/tree/main/docs/execution-evidence/2026-10-12/rice_pixel_tables_workshop) gave 0.8201, 0.8347 and 0.8194 at 1,000, 3,000 and 10,000 M1 rows: recorded evidence, not this run). If 10,000 M1 rows stay well below the AlphaEarth result, more rows of the same features do not close the gap: what remains is a difference between the two representations (sensors, aggregation, pretraining, and their agreement with the label source), not a shortage of examples. One caveat: development pixels come from a few regions, so a difference of a point or two between sizes is within noise. The 10,000-row setting should reproduce the canonical TabPFN-3 condition from Section 3.</details>"""
 
 # --------------------------------------------------------------------------------------------------
 # section 6-7: freeze, score
@@ -608,9 +624,9 @@ plt.tight_layout(); plt.show()"""
 
 AFTER_RESULTS = r"""**What to notice:** blank F1 or recall in the per-chip table means it is undefined (a chip with no reference rice), not zero. Compare validation with development: a condition whose validation F1 drops far below its development F1 relied on something specific to the development regions. A's precision is undefined because it never predicts rice.
 
-**Checkpoint.** (1) Does the validation grid tell the same story as the development grid? (2) Name one per-chip pattern that pooled F1 hides. (3) What would you need before claiming one foundation model is better than LightGBM for Philippine rice?
+**Checkpoint.** (1) Does the validation grid tell the same story as the development grid? (2) Name one per-chip pattern that pooled F1 hides. (3) What would you need before claiming one foundation model is better than LightGBM for Philippine rice? (4) The labels were derived mainly from Sentinel-1 SAR [9], which AlphaEarth includes and M1 does not [7]. How much of the validation feature effect could be agreement with the label source rather than a better description of rice?
 
-<details><summary>Check your reasoning</summary>(1) Usually yes: the feature effect stays much larger than the model spread. (2) For example, a chip where every system over-predicts rice (possibly label error or a crop that looks like rice), or the two rice-free chips where only false positives can occur. (3) More validation chips from more regions and years, scored by whole region, with spatially aware uncertainty [11]; a difference of a point or two of F1 on 8 chips from two regions does not establish a ranking.</details>"""
+<details><summary>Check your reasoning</summary>(1) Usually yes: the feature effect stays much larger than the model spread. (2) For example, a chip where every system over-predicts rice (possibly label error or a crop that looks like rice), or the two rice-free chips where only false positives can occur. (3) More validation chips from more regions and years, scored by whole region, with spatially aware uncertainty [11]; a difference of a point or two of F1 on 8 chips from two regions does not establish a ranking. (4) This run cannot separate the two: AlphaEarth embeddings are computed partly from Sentinel-1 SAR and the labels were built mainly from it, so the gap mixes better description with shared-sensor agreement (and with AlphaEarth's pretraining). Separating them needs labels independent of Sentinel-1 (for example field surveys) or a SAR-including feature set without AlphaEarth's pretraining. Report the result as "AlphaEarth tables beat M1 tables against SAR-derived reference labels", not as proof that AlphaEarth describes rice better.</details>"""
 
 # --------------------------------------------------------------------------------------------------
 # section 8: reload + export
@@ -630,7 +646,7 @@ CONCLUSION_TEMPLATE = r"""# Conclusion (fill in from your run)
 - Baseline: LightGBM (65,536 rows) F1 ... ; all-non-rice F1 0.
 - Activity: TabPFN-3 context 1,000 -> 10,000 rows changed development F1 by ... at a cost of ... s.
 - Largest per-chip failure and its likely cause: ...
-- Limits: 8 chips, 2 regions, spatially correlated pixels, labels from a published map, possible AlphaEarth pretraining overlap; tutorial evidence, not a model ranking.
+- Limits: 8 chips, 2 regions, spatially correlated pixels; labels from a published map derived mainly from Sentinel-1 SAR, a sensor AlphaEarth includes and M1 lacks, so the feature effect is measured against a label source one side shares; possible AlphaEarth pretraining overlap; tutorial evidence, not a model ranking.
 """
 
 CELL_EXPORT = r"""# @title 8.1 Reload one condition in a fresh process, then export results.zip
@@ -660,7 +676,7 @@ Write your conclusion in five sentences, using only numbers this run printed (th
 2. **Principal result:** the feature effect and the model spread on validation, with the numbers.
 3. **Baseline:** how the foundation models compare with LightGBM on the same feature set, and with B10k on the same rows.
 4. **Failure mode or uncertainty:** the largest per-chip failure and a plausible cause (model, label, cloud gaps, or region).
-5. **Limits:** what 8 clustered chips, published-map labels and possible AlphaEarth pretraining overlap prevent you from claiming.
+5. **Limits:** what 8 clustered chips, published-map labels derived mainly from Sentinel-1 SAR (a sensor AlphaEarth includes and M1 lacks) and possible AlphaEarth pretraining overlap prevent you from claiming. Word the feature effect as a comparison of whole representations against this reference, not as a cause.
 
 **Transfer.** The same protocol applies to any per-pixel mapping task with chip-level labels: change the label (for example, mangrove or sugarcane), keep the region-level roles and the freeze, and check whether the feature effect still dominates.
 
@@ -706,51 +722,66 @@ if USE_BYOD:
     if BYOD_ROOT.exists():  # a new attempt never inherits an earlier attempt's chips, freeze or scores
         shutil.rmtree(BYOD_ROOT)
     sources = [Path(p.strip()).expanduser() for p in BYOD_PATH.split(',') if p.strip()]
+    refusal = None  # a refused input prints one message and stops here; integrity and parity failures still raise
     if not sources:
-        from google.colab import files  # only on Colab, only after the sample path has completed
-        upload_dir = SESSION_ROOT / 'byod_upload'
-        if upload_dir.exists():  # a retry never mixes in files from an earlier upload
-            shutil.rmtree(upload_dir)
-        upload_dir.mkdir(parents=True)
-        for name, payload in files.upload().items():
-            (upload_dir / Path(name).name).write_bytes(payload)
-        sources = [upload_dir]
-    missing_sources = [str(s) for s in sources if not s.exists()]
-    if missing_sources:
-        raise FileNotFoundError(f'BYOD_PATH entries not found: {missing_sources}')
-    paths = rt.collect_byod(sources, BYOD_ROOT / 'input')
-    if not paths:
-        raise rt.ChipError('no .h5 chips found; see the schema above')
-    byod_chips, problems = {}, []
-    for path in paths:
         try:
-            byod_chips[path.stem] = rt.read_chip_h5(path, require_label=False)
-        except rt.ChipError as exc:
-            problems.append(str(exc))
-    if problems:
-        raise rt.ChipError('BYOD validation refused the upload:\n  ' + '\n  '.join(problems))
-    plan = rt.byod_plan(byod_chips)
-    print(f"{len(paths)} chips valid; adapting on {len(plan['labelled'])} labelled chips; feature sets: {plan['feature_sets']}")
-    BYOD = rt.Ledger(BYOD_ROOT)
-    byod_prepared = rt.prepare_byod(BYOD, byod_chips, plan, {p.stem: rt.sha256_file(p) for p in paths})
-    del byod_chips; gc.collect()
-    display(pd.DataFrame(byod_prepared['chips']))
-    rt.baseline_stage(BYOD)
-    rt.foundation_stage(BYOD, SELECTED_SYSTEMS, run_fm, MODEL_IDENTITIES, mitra_dev_pixels=MITRA_DEV_PIXELS,
-                        require_all=REQUIRE_ALL_SELECTED_MODELS)
-    rt.activity_stage(BYOD, run_fm, enabled=False, system='C1', feature_set='s2m1', sizes=[], available=[])
-    rt.freeze_stage(BYOD, **({'mitra_validation_pixels': MITRA_VALIDATION_PIXELS} if 'C3' in SELECTED_SYSTEMS else {}))
-    rt.score_stage(BYOD, run_fm, split_label='test')
-    byod_metrics = pd.read_csv(BYOD_ROOT / 'scores' / 'metrics.csv')
-    byod_main = byod_metrics[(byod_metrics['split'] == 'test') & (byod_metrics['threshold_rule'] == 'development-selected')]
-    byod_main = byod_main.assign(system=[rt.grid_name(s, p) for s, p in zip(byod_main['system'], byod_main['pixels'])])
-    display(byod_main.pivot(index='system', columns='feature_set', values='f1').round(4))
-    byod_export = rt.export_stage(BYOD, {'byod': True, 'plan': {k: plan[k] for k in ('split', 'feature_sets', 'prediction_only')},
-                                         'model_identities': MODEL_IDENTITIES, 'host': HOST}, CONCLUSION_TEMPLATE)
-    byod_zip = BYOD_ROOT / 'byod_results.zip'
-    shutil.copy2(byod_export['path'], byod_zip)
-    print(f"byod_results.zip: {byod_export['members']} files, verified; it stays in this runtime until you download it")
-    display(FileLink(str(byod_zip)))
+            from google.colab import files  # only on Colab, only after the sample path has completed
+        except ImportError:
+            refusal = ('BYOD_PATH: it is blank, and the upload dialog exists only on Google Colab. On Kaggle or another '
+                       'runtime, set BYOD_PATH to your chips (folders, .zip or .h5 paths, e.g. under /kaggle/input/)')
+        else:
+            upload_dir = SESSION_ROOT / 'byod_upload'
+            if upload_dir.exists():  # a retry never mixes in files from an earlier upload
+                shutil.rmtree(upload_dir)
+            upload_dir.mkdir(parents=True)
+            for name, payload in files.upload().items():
+                (upload_dir / Path(name).name).write_bytes(payload)
+            sources = [upload_dir]
+    if refusal is None:
+        try:
+            missing_sources = [str(s) for s in sources if not s.exists()]
+            if missing_sources:
+                raise FileNotFoundError(f'BYOD_PATH: entries not found: {missing_sources}')
+            paths = rt.collect_byod(sources, BYOD_ROOT / 'input')
+            if not paths:
+                raise rt.ChipError('no .h5 chips found; see the schema above')
+            byod_chips, problems = {}, []
+            for path in paths:
+                try:
+                    byod_chips[path.stem] = rt.read_chip_h5(path, require_label=False)
+                except rt.ChipError as exc:
+                    problems.append(str(exc))
+            if problems:
+                refusal = '\n'.join(problems)
+            else:
+                plan = rt.byod_plan(byod_chips)
+                print(f"{len(paths)} chips valid; adapting on {len(plan['labelled'])} labelled chips; feature sets: {plan['feature_sets']}")
+                BYOD = rt.Ledger(BYOD_ROOT)
+                byod_prepared = rt.prepare_byod(BYOD, byod_chips, plan, {p.stem: rt.sha256_file(p) for p in paths})
+        except (rt.ChipError, FileNotFoundError) as exc:
+            refusal = str(exc)
+    if refusal is not None:
+        print('Refused: ' + refusal.replace('\n', '\nRefused: '))
+        print('Nothing was adapted or scored. Fix the named file (or BYOD_PATH) and run this cell again.')
+    else:
+        del byod_chips; gc.collect()
+        display(pd.DataFrame(byod_prepared['chips']))
+        rt.baseline_stage(BYOD)
+        rt.foundation_stage(BYOD, SELECTED_SYSTEMS, run_fm, MODEL_IDENTITIES, mitra_dev_pixels=MITRA_DEV_PIXELS,
+                            require_all=REQUIRE_ALL_SELECTED_MODELS)
+        rt.activity_stage(BYOD, run_fm, enabled=False, system='C1', feature_set='s2m1', sizes=[], available=[])
+        rt.freeze_stage(BYOD, **({'mitra_validation_pixels': MITRA_VALIDATION_PIXELS} if 'C3' in SELECTED_SYSTEMS else {}))
+        rt.score_stage(BYOD, run_fm, split_label='test')
+        byod_metrics = pd.read_csv(BYOD_ROOT / 'scores' / 'metrics.csv')
+        byod_main = byod_metrics[(byod_metrics['split'] == 'test') & (byod_metrics['threshold_rule'] == 'development-selected')]
+        byod_main = byod_main.assign(system=[rt.grid_name(s, p) for s, p in zip(byod_main['system'], byod_main['pixels'])])
+        display(byod_main.pivot(index='system', columns='feature_set', values='f1').round(4))
+        byod_export = rt.export_stage(BYOD, {'byod': True, 'plan': {k: plan[k] for k in ('split', 'feature_sets', 'prediction_only')},
+                                             'model_identities': MODEL_IDENTITIES, 'host': HOST}, CONCLUSION_TEMPLATE)
+        byod_zip = BYOD_ROOT / 'byod_results.zip'
+        shutil.copy2(byod_export['path'], byod_zip)
+        print(f"byod_results.zip: {byod_export['members']} files, verified; it stays in this runtime until you download it")
+        display(FileLink(str(byod_zip)))
 else:
     print('BYOD not run (USE_BYOD = False).')"""
 
@@ -762,8 +793,12 @@ display(pd.Series(completion, name='value').to_frame())
 expected = {'prepare', 'baseline', 'foundation', 'activity', 'freeze', 'score', 'export'}
 if not expected <= set(completion['stages finished']):
     raise RuntimeError(f"Run all did not finish every stage: missing {sorted(expected - set(completion['stages finished']))}")
+score_receipt = LEDGER.receipt('score')
+if score_receipt.get('parity_failures'):
+    raise RuntimeError(f"scoring recorded reload parity failures {score_receipt['parity_failures']}; this run is not complete")
+reload_line = 'artifact reload checked' if PROBE.get('ran') else 'reload probe not run (no foundation model selected)'
 print('Run all complete: data verified, baselines and foundation models developed, choices frozen, validation scored once, '
-      'artifact reload checked, results exported.')"""
+      f'{reload_line}, results exported.')"""
 
 TROUBLE = r"""# Troubleshooting
 
@@ -839,6 +874,12 @@ The TabPFN-3 conditions this notebook fits, and their outputs, are for teaching 
 INFRA = {"cellView": "form", "jupyter": {"source_hidden": True}}
 
 
+def export_cell() -> str:
+    """Section 8.1: the Colab title stays on line 1 (Colab reads `# @title` only there), then the template."""
+    title, rest = CELL_EXPORT.split("\n", 1)
+    return title + "\nCONCLUSION_TEMPLATE = " + repr(CONCLUSION_TEMPLATE) + "\n" + rest
+
+
 def cells() -> list[tuple[str, str, dict]]:
     files = carried_files()
     return [
@@ -848,14 +889,14 @@ def cells() -> list[tuple[str, str, dict]]:
         ("markdown", SEC1_LOOK, {}), ("code", CELL_LOOK, {}), ("markdown", AFTER_LOOK, {}),
         ("markdown", SEC2, {}), ("code", CELL_BASELINE, {}), ("markdown", AFTER_BASELINE, {}),
         ("markdown", SEC3, {}), ("code", CELL_SELECT, {}),
-        ("markdown", SEC3_ENV, {}), ("code", v2_environment_head() + CELL_ENV_TAIL, INFRA),
+        ("markdown", SEC3_ENV, {}), ("code", v2_environment_head().replace(V2_CELL_TITLE, RICE_ENV_TITLE, 1) + CELL_ENV_TAIL, INFRA),
         ("markdown", SEC3_RUN, {}), ("code", CELL_RUNNER, {}), ("markdown", AFTER_RUNNER, {}),
         ("markdown", SEC4, {}), ("code", CELL_DEV_GRID, {}), ("markdown", AFTER_DEV_GRID, {}),
         ("markdown", SEC5, {}), ("code", CELL_ACTIVITY, {}), ("markdown", AFTER_ACTIVITY, {}),
         ("markdown", SEC6, {}), ("code", CELL_FREEZE, {}),
         ("markdown", SEC7, {}), ("code", CELL_SCORE, {}),
         ("markdown", SEC7_READ, {}), ("code", CELL_RESULTS, {}), ("markdown", AFTER_RESULTS, {}),
-        ("markdown", SEC8, {}), ("code", "CONCLUSION_TEMPLATE = " + repr(CONCLUSION_TEMPLATE) + "\n" + CELL_EXPORT, INFRA),
+        ("markdown", SEC8, {}), ("code", export_cell(), INFRA),
         ("markdown", SEC9, {}),
         ("markdown", SEC10, {}), ("code", CELL_BYOD, {}),
         ("code", CELL_SUMMARY, {}),
