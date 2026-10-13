@@ -155,7 +155,7 @@ CI runs `tools/validate_release_assets.py`, which preserves full generator/parit
 - notebook JSON parses; every code cell compiles as plain Python (no `%`/`!` magics); no persisted outputs or
   execution counts; no unresolved placeholder markers; every code cell is preceded by an explanatory markdown cell;
 - the tutorial directory contains exactly the two generated standalone notebooks plus explicitly allowlisted auxiliary notebooks; the generated pair remains named in `tutorials/README.md` with its profile, notebook-spec version and standalone carrier, while the comparative workshop is registered separately as `E2E` / `WORKSHOP`, Notebook Spec `2.1`, with a standalone embedded-adapter carrier; it does not inherit generated-notebook parity evidence;
-- the original auxiliary FreshRetailNet workshop requires no committed outputs or execution counts; the v2 executed-record exception retains outputs and counts and rejects saved errors. For both, every code cell and its embedded isolated runner parse as Python, `metadata.dimer` records `E2E` / `WORKSHOP`, spec `2.1`, `standalone: true`, and the pinned dataset SHA / balanced-accuracy / `uv`-managed Python-3.12 / identity-bound cache / frozen-artifact verification markers are present;
+- the original auxiliary FreshRetailNet workshop requires no committed outputs or execution counts; the v2 executed-record exception permits committed outputs and execution counts from a recorded run (the committed v2 notebook currently has none) and rejects saved errors. For both, every code cell and its embedded isolated runner parse as Python, `metadata.dimer` records `E2E` / `WORKSHOP`, spec `2.1`, `standalone: true`, and the pinned dataset SHA / balanced-accuracy / `uv`-managed Python-3.12 / identity-bound cache / frozen-artifact verification markers are present;
 - the standalone carrier (ST1–ST6, PAR1–PAR3): no clone, repository install or repository import on the primary path
   (the previous pair's `git clone` of this repository is gone); one cell tagged `embedded_module` equal to
   `mitra_pipeline/tutorial_api.py` after the generator's documented rewrite (the `DEFAULT_WEIGHTS_DIR` line); the inline
@@ -476,3 +476,42 @@ Both editions were run separately at commit `05d54cdd968f34b9168404968b9a294041a
 - **Evidence boundary:** the saved outputs were inspected. The journeys not exercised, listed above, remain open.
 
 This record satisfies the fresh default-path run of both revisions, including the v1 §3.2, §4.2, §5.1b, §5.6, §6.2 and §8.1b outputs. The other items listed for revision 2.1.1 of each edition above remain open. **Status: Candidate.**
+
+## FreshRetailNet Classification v2: NR2 review fixes — 2026-10-12
+
+A Notebook Review Framework v1 review (prefix NR2) of the guided edition at `6b10569` (blob `f00c9351`) found 1 Major,
+7 Minor and 1 Suggestion. The revision label stays **2.2.0**: `WORKSHOP_REVISION` is set in Section 0.1, which must stay
+byte-identical to the compact edition's. The change is logged in `metadata.dimer.review_fixes`.
+
+- **NR2-M1 (Major):** Section 8.0 now carries the compact edition's refreeze guard. Once the frozen models have been
+  scored on the test partition (`TEST_RESULTS`, or a saved `runs/test/*/result.json`), it refuses to replace the freeze
+  unless `REFREEZE_REASON` is entered; a replaced freeze is kept in `previous_freezes` in `freeze.json` and the export,
+  and stale test-stage results are cleared. Section 8's text says what is enforced instead of "prevents this by design".
+- **NR2-m4:** reproduced on a CPU harness of the notebook's own cells: 4.1 → 7.1 → 4.1 → 8.0 raised a bare
+  `FileNotFoundError` on a deleted ablation `result.json`. Section 8.0 now skips ablation runs whose folders are gone
+  and says to rerun 7.1. Cells 4.1 and 8.1 must stay identical to the compact edition's, so they were not changed; a
+  4.1 rerun after the freeze still stops 8.1 (with "frozen development result changed after freeze"), and
+  Troubleshooting now says how to recover from both.
+- **NR2-m1:** the four sample answers that quote numbers name the run they come from (revision 2.2.0, commit `05d54cd`,
+  blob `b3c33de9`, Colab CLI T4, 2026-10-03). The stale "revision 2.0.1" caveat is gone, and "Lower for every model"
+  now reads "every fitted model", since the training-prior majority stays at 0.333.
+- **NR2-m2 (owner ruling C):** the limitations and the multi-model and test answers state that the classical baselines
+  ran fixed default hyperparameters without validation tuning and the foundation models ran in context at their
+  defaults. A validation-tuned, early-stopped LightGBM baseline is a follow-up; no number changes here.
+- **NR2-m3:** no cell advises hiding saved outputs the committed notebook does not have; `metadata.dimer`, the tutorials
+  README and this record now name the same evidence for the same blob.
+- **NR2-m5:** the opening states the measured total (668.6 s on a fresh Colab T4, about 258 s of it `uv`) and the
+  download (about 13 GB of packages plus 0.9 GB of checkpoints, computed from PyPI and Hugging Face listings of the
+  pinned files, not measured).
+- **NR2-m6:** Section 5 states that fine-tuned TabICLv2 selects its checkpoint by validation accuracy (the shared runner
+  passes `eval_metric="accuracy"`), while fine-tuned Mitra uses balanced accuracy. The runner is a shared cell, so it
+  was not changed.
+- **NR2-m7:** References cite each model's paper and model card (arXiv identifiers checked on 2026-10-13).
+- **NR2-S1:** not addressed (Suggestion).
+
+`tests/test_workshop_v2_review_fixes.py` adds four checks: two run the notebook's own 4.1, 7.1 and 8.0 cells on a
+synthetic table with a logistic model standing in for LightGBM (logic checks, not model runs), and two check the text.
+All four fail on `6b10569`. **Evidence boundary:** no hosted run of this blob exists; nothing here is clean-runtime
+evidence. Still open: a Colab CLI fresh Run all of this blob (REL14), a browser BYOD session with one valid and one
+refused ZIP (REL12), the fast path, the optional fine-tuning and foundation-ablation toggles, and the §8.0 refusal and
+`REFREEZE_REASON` path in a hosted session. **Status: Candidate.**
