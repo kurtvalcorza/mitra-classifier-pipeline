@@ -509,6 +509,18 @@ byte-identical to the compact edition's. The change is logged in `metadata.dimer
 - **NR2-m7:** References cite each model's paper and model card (arXiv identifiers checked on 2026-10-13).
 - **NR2-S1:** not addressed (Suggestion).
 
+**Round 2 (2026-10-13), after an independent peer review of the PR.** Only v2-only cells changed (8.0, 8.1b, 9.1, and a new 5.5b pair); every code cell that equals the compact edition's stayed byte-identical.
+
+- **Refreeze bypass (reproduced, fixed):** freezing one baseline, scoring it, rerunning 8.1 with `EVALUATE_FROZEN_TEST` off (which resets `TEST_RESULTS`) and rerunning 8.0 was allowed without a reason. 8.0 now also treats as exposure the freeze that 8.1 read before scoring (kept when 8.1 is rerun disabled or fails part-way), saved foundation-model test results, and an append-only `test_exposure.json` that 8.0 and 8.1b write, bound to the freeze's SHA-256. It cannot detect test scores seen in an earlier runtime session; writing the record inside 8.1 itself would need a change to a cell shared with the compact edition.
+- **Exploratory status:** a refreeze after test exposure marks the new freeze `evaluation_status: exploratory (test-informed)`, and the status never returns to confirmatory in that session. It is exported and printed; the text says a reason records the contamination and does not undo it.
+- **Replaced freezes kept in full** under `freeze_history/` (exported); `previous_freezes` points at each copy.
+- **The freeze names the validation-selected model, the comparator, the tie-break rule, the planned contrasts and any omitted ablation (with its reason)**; stale 7.1 summary rows of deleted ablations are dropped. 8.2 is a shared cell, so it still ranks the live baseline table; 8.1b now refuses to continue if that ranking no longer gives the frozen comparator. 8.1b shows the validation-selected model's test result as the confirmatory one, with a test confusion matrix and per-band test recall.
+- **5.5b** lists each foundation condition's adaptation mode and checkpoint-selection criterion. Correction to round 1: fine-tuned Mitra does not select by balanced accuracy. The runner's balanced-accuracy choice is not passed to Mitra, whose metric setting accepts only accuracy or log loss.
+- **Export:** bootstrap settings (draws, seed, method), recomputability with and without row-level files, freeze history, exposure record, adaptation table, test confusion and the optional foundation ablation.
+- **Wording:** the 8.2 intervals are an illustrative IID row bootstrap, probably too narrow and not a lower bound, with no superiority claims and a multiplicity note. Metric ranges are 0–1 for balanced accuracy and −1 to 1 for MCC. Log loss suggests possible overconfidence rather than diagnosing it. The forecast is issued after day *t* closes, for sales on day *t* + 7. Pretraining is described by model, and the lag rule is called a relative-band persistence rule.
+
+Eight new behavioural and source checks in `tests/test_workshop_v2_review_fixes.py` cover the bypass, a part-way failure, exposure persistence, exploratory status, full retention, the selection record, the comparator check, omitted ablations and the adaptation table. Default-path numbers are unchanged; the freeze and export gain fields only.
+
 `tests/test_workshop_v2_review_fixes.py` adds four checks: two run the notebook's own 4.1, 7.1 and 8.0 cells on a
 synthetic table with a logistic model standing in for LightGBM (logic checks, not model runs), and two check the text.
 All four fail on `6b10569`. **Evidence boundary:** no hosted run of this blob exists; nothing here is clean-runtime

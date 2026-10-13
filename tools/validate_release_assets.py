@@ -291,6 +291,10 @@ AUXILIARY_NOTEBOOKS = {
             'REFREEZE_REASON = "" # @param',  # NR2-M1: no silent refreeze after the test
             '"previous_freezes": previous_freezes',  # NR2-M1: a replaced freeze stays on the record
             'missing_ablations = [key for key in registered_ablations if key not in ablation_keys]',  # NR2-m4
+            'TEST_EXPOSURE_PATH = SESSION_ROOT / "test_exposure.json"',  # exposure survives a disabled 8.1
+            '"evaluation_status": evaluation_status',  # a test-informed refreeze is exploratory
+            '"validation_selection": {"model_key": validation_selected',  # the confirmatory model
+            "# @title 5.5b Adaptation mode and checkpoint selection",  # modes and selection metric
         ),
         "markdown_markers": (
             "Mitra Classifier",
