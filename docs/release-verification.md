@@ -269,6 +269,7 @@ they are measurements for the stated runtime, not general estimates.
 | 2026-10-11 | `373aaf5` / `95d0ad114f2d` | Colab CLI 0.7.4, fresh Colab Tesla T4 | Rice pixel-tables workshop, default path | 2,002.7 s | **PASSED**: 15/15 code cells, 0 errors (see the rice workshop section) |
 | 2026-10-12 | `373aaf5` / `95d0ad114f2d` | Colab Tesla T4 in the browser (maintainer-run) | Rice workshop default Run all; then BYOD zip via the upload dialog | 32.4 min | **PASSED** Run all; BYOD upload **FAILED** on a notebook defect fixed in `1374c3b4` |
 | 2026-10-12 | `98e7725` / `1374c3b456c1` | Colab Tesla T4 in the browser (maintainer-run) | Rice workshop Run all with Mitra; BYOD zip via the upload dialog; refused upload | 49.1 min | **PASSED**: 15/15, BYOD scored once, malformed chip refused (see the rice workshop section) |
+| 2026-10-14 | `ac0998c` / `a25bfbfb310b` | Colab CLI 0.7.4 sequential execution, fresh Colab Tesla T4 | FreshRetailNet v2 guided workshop, default path (no field edited; forms, uploads and optional journeys not exercised) | 546.4 s | **PASSED**: 23/23 code cells, 0 errors; metrics equal the 2026-10-03 run; `evaluation_status` confirmatory, `previous_freezes` `[]` (see the NR2 section) |
 
 ### Colab CLI execution of the E2E notebook at `83b4d0c` (blob `2748c0a2e7f8`) — 2026-10-08
 
@@ -523,7 +524,47 @@ Eight new behavioural and source checks in `tests/test_workshop_v2_review_fixes.
 
 `tests/test_workshop_v2_review_fixes.py` adds four checks: two run the notebook's own 4.1, 7.1 and 8.0 cells on a
 synthetic table with a logistic model standing in for LightGBM (logic checks, not model runs), and two check the text.
-All four fail on `6b10569`. **Evidence boundary:** no hosted run of this blob exists; nothing here is clean-runtime
-evidence. Still open: a Colab CLI fresh Run all of this blob (REL14), a browser BYOD session with one valid and one
+All four fail on `6b10569`. **Evidence boundary:** when written, no hosted run of this blob existed; the Colab CLI fresh
+Run all of blob `a25bfbfb` (REL14) is now recorded below. Still open: a browser BYOD session with one valid and one
 refused ZIP (REL12), the fast path, the optional fine-tuning and foundation-ablation toggles, and the §8.0 refusal and
 `REFREEZE_REASON` path in a hosted session. **Status: Candidate.**
+
+### Colab CLI execution of the NR2 fixes at `ac0998c` (blob `a25bfbfb`) — 2026-10-14
+
+The guided edition was run at commit `ac0998ceb5cef6efcff8f2624d5c38e5c90bbca7` (notebook blob
+`a25bfbfb310be605a565f02dfc91a156ca02316d`, revision label 2.2.0). The executed notebook is preserved byte for byte as
+[`…Workshop_v2_ac0998c_colab-cli-t4.ipynb`](execution-evidence/2026-10-14/DIMER_FreshRetailNet_MultiModel_Classification_Workshop_v2_ac0998c_colab-cli-t4.ipynb)
+(SHA-256 `62af67b9e557c9502e73f9dbcc9a600a70d9eb141cbd67387e75dc140c0714d1`).
+
+- **Source:** downloaded from GitHub at the PR head; Git blob verified before the session. The executed copy has the
+  same 58 cells in the same order and the same source (no `# @param` edited).
+- **Executor:** Colab CLI 0.7.4, fresh Colab Tesla T4, through the workspace `colab-cli-serial-test-suite`
+  (`colab new --gpu T4`, `colab exec -f`, `colab stop`), 17:30–17:39 UTC, session wall 546.4 s. Code cells ran in order
+  in one kernel; this is CLI sequential execution, not a browser Run all, and order is evidenced by the `Executing cell
+  k/N` log. Forms and uploads were not exercised.
+- **Path exercised:** default controls only, as in the 2026-10-03 run. Not run: the §8.0 refusal and `REFREEZE_REASON`
+  path, the fine-tuned TabICLv2 and foundation ablations, the fast path, and BYOD.
+- **Outcome:** PASSED, 23/23 code cells with no error outputs (one more code cell than 2.2.0 at `05d54cd`: the new
+  5.5b). The completion summary reports 9 validation models, 11 frozen test models, no foundation failures, and
+  "Run-all complete". The AutoGluon memory warning seen in the earlier run recurs; it is a warning only.
+- **Isolated environments:** all four uv environments built from the hash-locked files and passed `uv pip check`; uv
+  reported 81 s (Mitra), 57 s (TabDPT), 77 s (TabICL) and 37 s (TabPFN) preparing packages.
+- **Freeze and exposure (default single Run all):** the session was fresh, so §8.0 found no earlier `freeze.json` and no
+  exposure signal: `previous_freezes` is written as `[]` and `evaluation_status` as `confirmatory`. This is read from
+  the cell's code path and its output: §8.0 printed no "Replaced an earlier freeze" line and §8.0, §8.1b and §9.1
+  printed no exploratory warning. The `freeze.json` file itself was not retrieved before the VM was released. §8.0
+  names `tabpfn3_icl` as the validation-selected model and `random_forest` as the comparator.
+- **Comparison with the 2026-10-03 run of blob `b3c33de9`:** every printed metric is equal — the data checks and EDA,
+  the baselines, the validation table (TabPFN-3 0.6021 … Random Forest 0.5733), the confusion matrix, the ablations,
+  the frozen-test results (TabPFN-3 0.5587 … LightGBM 0.5205), the bootstrap intervals and the §8.3 preview. The
+  differences are: (1) host memory and disk figures in the AutoGluon log and its throughput estimate (77.8 → 77.9
+  rows/s), runtime noise; (2) new display-only outputs from this PR — the §5.5b adaptation table (all four conditions
+  `in_context`, no checkpoint selection), the §8.0 selection line, and §8.1b's confirmatory TabPFN-3 test row (balanced
+  accuracy 0.5587, accuracy 0.5725, macro F1 0.5608, MCC 0.3512, log loss 0.9158; equal to the §8.1 row) with a test
+  confusion matrix and per-band test recall (low 0.4638, mid 0.5564, high 0.6558); (3) the export folder and report
+  ZIP digest (`1492c68e5152c9b6…`), which differ by construction in a new session and because the export now carries
+  the freeze history, exposure record and adaptation table; (4) uv download order and timings.
+- **Not updated:** `metadata.dimer.review_fixes[].execution_evidence` inside the notebook still says "pending"; changing
+  it would change the notebook blob this record binds to.
+
+This record satisfies REL14 for blob `a25bfbfb`. The other items listed above remain open. **Status: Candidate.**
