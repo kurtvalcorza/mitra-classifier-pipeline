@@ -431,3 +431,352 @@ def test_export_keeps_recomputable_evidence() -> None:
         "EXPORT_ROW_LEVEL_PREDICTIONS",
     ):
         assert needle in export
+
+
+# --- NR2 review (2026-10-12): freeze integrity and rerun safety -------------------------------------------
+
+
+def _section_state(tmp_path: Path) -> dict:
+    """Notebook state for Sections 4.1, 7.1, 8.0 and 8.1 on a tiny synthetic table. LightGBM is outside CI's
+    dependency budget, so a logistic model stands in for LGBMClassifier: these are logic checks, not model
+    runs."""
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.impute import SimpleImputer
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import (
+        accuracy_score,
+        balanced_accuracy_score,
+        f1_score,
+        log_loss,
+        matthews_corrcoef,
+        roc_auc_score,
+    )
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import StandardScaler, label_binarize
+
+    tree = ast.parse(CELLS["xUUykd5OFXEc"])
+    module = ast.Module(
+        body=[n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "classification_metrics"],
+        type_ignores=[],
+    )
+    namespace = _helpers()
+    namespace.update(
+        accuracy_score=accuracy_score,
+        balanced_accuracy_score=balanced_accuracy_score,
+        f1_score=f1_score,
+        log_loss=log_loss,
+        matthews_corrcoef=matthews_corrcoef,
+        roc_auc_score=roc_auc_score,
+        label_binarize=label_binarize,
+    )
+    exec(compile(module, "section-0.1-metrics", "exec"), namespace)
+
+    rng = np.random.default_rng(0)
+    features = ["lag_7", "stockout_hours", "roll_7_stockout", "month", "precpt"]
+    labels = ["low", "mid", "high"]
+
+    def frame(n: int, month: int) -> pd.DataFrame:
+        target = np.asarray(labels)[np.arange(n) % 3]
+        data = {name: rng.normal(size=n) for name in features}
+        data["lag_7"] = data["lag_7"] + np.arange(n) % 3
+        data["month"] = np.full(n, month, dtype=float)
+        return pd.DataFrame({**data, "target": target})
+
+    frames = {"train": frame(60, 4), "val": frame(30, 5), "test": frame(30, 6)}
+    session = tmp_path / "session"
+    (session / "runs").mkdir(parents=True)
+    namespace.update(
+        frames=frames,
+        X_train=frames["train"][features],
+        y_train=frames["train"]["target"].astype(str),
+        X_val=frames["val"][features],
+        y_val=frames["val"]["target"].astype(str),
+        FEATURE_COLUMNS=features,
+        CLASS_LABELS=labels,
+        RANDOM_SEED=42,
+        PRIMARY_METRIC="balanced_accuracy",
+        DATASET_FINGERPRINT="synthetic",
+        DATASET_IDENTITY={"synthetic": True},
+        WORKSHOP_REVISION="test",
+        SESSION_ROOT=session,
+        RUN_ROOT=session / "runs",
+        FOUNDATION_RUN_DIRS={},
+        CONDITION_SPECS={},
+        display=lambda *a, **k: None,
+        shutil=shutil,
+        pickle=pickle,
+        time=__import__("time"),
+        Pipeline=Pipeline,
+        SimpleImputer=SimpleImputer,
+        StandardScaler=StandardScaler,
+        LogisticRegression=LogisticRegression,
+        RandomForestClassifier=RandomForestClassifier,
+        LGBMClassifier=lambda n_estimators, random_state, verbosity: LogisticRegression(
+            max_iter=500, random_state=random_state
+        ),
+    )
+    return namespace
+
+
+def test_rerunning_the_baselines_after_the_ablations_does_not_break_the_freeze(
+    tmp_path: Path, capsys
+) -> None:
+    """NR2-m4: 4.1 -> 7.1 -> 4.1 -> 8.0 used to raise FileNotFoundError on a deleted ablation result.json."""
+    state = _section_state(tmp_path)
+    _run_cell("32NWYtJvFXEg", state)  # 4.1
+    _run_cell("UKzaZmJxFXEm", state)  # 7.1
+    assert state["ABLATION_BASELINE_KEYS"] == ["lightgbm_no_stockout", "lightgbm_no_period_proxies"]
+    _run_cell("32NWYtJvFXEg", state)  # 4.1 again: the ablation folders are deleted with the baselines
+    capsys.readouterr()
+    _run_cell("aNhMl_zxFXEn", state)  # 8.0
+    assert "Rerun 7.1" in capsys.readouterr().out
+    frozen = json.loads(state["FREEZE_PATH"].read_text())
+    assert not any(key.startswith("lightgbm_no_") for key in frozen["selected"])
+    assert "lightgbm" in frozen["selected"]
+
+
+def test_a_freeze_cannot_be_replaced_silently_after_test_scores(tmp_path: Path) -> None:
+    """NR2-M1: once the frozen models were scored on test, 8.0 refuses to refreeze without a reason."""
+    state = _section_state(tmp_path)
+    _run_cell("32NWYtJvFXEg", state)  # 4.1
+    _run_cell("aNhMl_zxFXEn", state)  # 8.0: the first freeze is always allowed
+    first = state["FREEZE_PATH"].read_bytes()
+    assert json.loads(first)["previous_freezes"] == []
+
+    state["TEST_RESULTS"] = pd.DataFrame({"model_key": ["lightgbm"]})  # as left by 8.1
+    with pytest.raises(RuntimeError, match="REFREEZE_REASON"):
+        _run_cell(
+            "aNhMl_zxFXEn",
+            state,
+            {'SELECTED_MODEL_KEYS = "" # @param': 'SELECTED_MODEL_KEYS = "lightgbm" # @param'},
+        )
+    assert state["FREEZE_PATH"].read_bytes() == first, "a refused refreeze must leave freeze.json unchanged"
+
+    # A saved test result counts too, even when the in-memory table is gone (e.g. after a kernel restart).
+    state["TEST_RESULTS"] = None
+    saved = state["RUN_ROOT"] / "test" / "lightgbm"
+    saved.mkdir(parents=True)
+    (saved / "result.json").write_text("{}")
+    with pytest.raises(RuntimeError, match="REFREEZE_REASON"):
+        _run_cell("aNhMl_zxFXEn", state)
+    assert state["FREEZE_PATH"].read_bytes() == first
+
+    _run_cell(
+        "aNhMl_zxFXEn",
+        state,
+        {'REFREEZE_REASON = "" # @param': 'REFREEZE_REASON = "instructor demo of a refreeze" # @param'},
+    )
+    replaced = json.loads(state["FREEZE_PATH"].read_text())
+    assert len(replaced["previous_freezes"]) == 1
+    record = replaced["previous_freezes"][0]
+    assert record["freeze_sha256"] == hashlib.sha256(first).hexdigest()
+    assert record["test_scores_seen"] is True
+    assert record["replaced_because"] == "instructor demo of a refreeze"
+    assert state["TEST_RESULTS"] is None
+
+
+def test_the_text_states_what_the_freeze_enforces_and_how_the_comparison_was_configured() -> None:
+    freeze_text = CELLS["kwt1IimAFXEm"]
+    assert "prevents this by design" not in freeze_text and "REFREEZE_REASON" in freeze_text  # NR2-M1
+    troubleshooting = CELLS["83fda0b2603d"]
+    assert "REFREEZE_REASON" in troubleshooting  # the refusal has a recovery row
+    assert "frozen development result changed after freeze" in troubleshooting  # NR2-m4: 4.1 rerun after 8.0
+    limitations = CELLS["kLiPqnp9FXEo"]
+    assert "default hyperparameters" in limitations and "not tuned" in limitations  # NR2-m2
+    for cell_id in ("ccf87e15ac16", "faafc7ab3106", "thuW_LzJFXEm", "79f4f7fdc9f4"):
+        answer = CELLS[cell_id]
+        assert "commit `05d54cd`" in answer  # NR2-m1: every quoted answer names its recorded run
+        assert "revision 2.0.1" not in answer and "Lower for every model" not in answer
+    # NR2-m6
+    assert "TabICLv2 fine-tuning selects its checkpoint by validation accuracy" in CELLS["jkJ6XuNHFXEh"]
+    references = CELLS["PSJigkamFXEp"]
+    for link in (
+        "arxiv.org/abs/2510.21204",
+        "arxiv.org/abs/2410.18164",
+        "arxiv.org/abs/2605.13986",
+        "arxiv.org/abs/2602.11139",
+    ):
+        assert link in references  # NR2-m7
+
+
+def test_saved_output_advice_matches_the_committed_notebook() -> None:
+    """NR2-m3: the committed notebook has no outputs, so no cell tells learners to hide saved outputs."""
+    notebook = json.loads(NOTEBOOK.read_text(encoding="utf-8"))
+    assert not any(cell.get("outputs") for cell in notebook["cells"] if cell["cell_type"] == "code")
+    for cell_id in ("fbcbb4ee401d", "KSNqzrMVFXEm"):
+        assert "hide them first" not in CELLS[cell_id] and "saved outputs hidden" not in CELLS[cell_id]
+
+
+# --- NR2 round 2 (2026-10-13): peer-review follow-up on the freeze record and the test stage -----------
+
+ONE_BASELINE = {'SELECTED_MODEL_KEYS = "" # @param': 'SELECTED_MODEL_KEYS = "lightgbm" # @param'}
+TEST_OFF = {"EVALUATE_FROZEN_TEST = True # @param": "EVALUATE_FROZEN_TEST = False # @param"}
+WITH_REASON = {'REFREEZE_REASON = "" # @param': 'REFREEZE_REASON = "rerun after a fix" # @param'}
+
+
+def _test_stage_state(tmp_path: Path) -> dict:
+    from sklearn.metrics import confusion_matrix, recall_score
+
+    state = _section_state(tmp_path)
+    val = state["frames"]["val"][state["FEATURE_COLUMNS"]].describe().T
+    state.update(
+        TARGET_COLUMN="target",
+        confusion_matrix=confusion_matrix,
+        recall_score=recall_score,
+        ranges={"val": val["min"].astype(str)},
+    )
+    return state
+
+
+def test_a_disabled_rerun_of_the_test_stage_does_not_hide_the_exposure(tmp_path: Path) -> None:
+    """Freeze one baseline, score it, rerun 8.1 with EVALUATE_FROZEN_TEST off (which resets TEST_RESULTS),
+    then refreeze: the round-1 guard allowed this without a reason."""
+    state = _test_stage_state(tmp_path)
+    _run_cell("32NWYtJvFXEg", state)  # 4.1
+    _run_cell("aNhMl_zxFXEn", state, ONE_BASELINE)  # 8.0
+    _run_cell("S8SYDvNeFXEn", state)  # 8.1
+    _run_cell("S8SYDvNeFXEn", state, TEST_OFF)  # 8.1 again, disabled
+    assert state["TEST_RESULTS"] is None
+    with pytest.raises(RuntimeError, match="Section 8.1 started a test evaluation"):
+        _run_cell("aNhMl_zxFXEn", state, ONE_BASELINE)
+
+
+def test_a_test_stage_that_fails_part_way_still_counts_as_exposure(tmp_path: Path) -> None:
+    state = _test_stage_state(tmp_path)
+    _run_cell("32NWYtJvFXEg", state)  # 4.1
+    _run_cell("aNhMl_zxFXEn", state)  # 8.0 freezes every baseline
+    (state["BASELINE_ROOT"] / "random_forest" / "artifact.pkl").write_bytes(b"tampered")
+    with pytest.raises(ValueError, match="changed after freeze"):
+        _run_cell("S8SYDvNeFXEn", state)  # 8.1 stops part-way
+    with pytest.raises(RuntimeError, match="REFREEZE_REASON"):
+        _run_cell("aNhMl_zxFXEn", state)
+
+
+def test_the_exposure_record_survives_and_a_test_informed_refreeze_is_exploratory(tmp_path: Path) -> None:
+    state = _test_stage_state(tmp_path)
+    _run_cell("32NWYtJvFXEg", state)  # 4.1
+    _run_cell("aNhMl_zxFXEn", state)  # 8.0
+    first = state["FREEZE_PATH"].read_bytes()
+    assert json.loads(first)["evaluation_status"] == "confirmatory"
+    _run_cell("S8SYDvNeFXEn", state)  # 8.1
+    _run_cell("de7423f26aa7", state)  # 8.1b writes the exposure record
+    exposure = json.loads((state["SESSION_ROOT"] / "test_exposure.json").read_text())
+    assert {r["freeze_sha256"] for r in exposure} == {hashlib.sha256(first).hexdigest()}
+
+    # Even with every in-memory trace gone, the file still blocks a silent refreeze.
+    state["TEST_RESULTS"] = None
+    state.pop("frozen")
+    with pytest.raises(RuntimeError, match="test_exposure.json records"):
+        _run_cell("aNhMl_zxFXEn", state)
+
+    _run_cell("aNhMl_zxFXEn", state, WITH_REASON)
+    second = json.loads(state["FREEZE_PATH"].read_text())
+    assert second["evaluation_status"] == "exploratory (test-informed)"
+    record = second["previous_freezes"][0]
+    assert record["replaced_because"] == "rerun after a fix" and record["test_scores_seen"] is True
+    # The replaced freeze is kept in full, not only summarised.
+    assert (state["SESSION_ROOT"] / record["document"]).read_bytes() == first
+
+    # A later refreeze before any new test evaluation needs no reason, but cannot become confirmatory again.
+    _run_cell("aNhMl_zxFXEn", state)
+    third = json.loads(state["FREEZE_PATH"].read_text())
+    assert third["evaluation_status"] == "exploratory (test-informed)"
+    assert len(third["previous_freezes"]) == 2
+    assert len(list((state["SESSION_ROOT"] / "freeze_history").glob("freeze-*.json"))) == 2
+
+
+def test_the_freeze_names_the_selected_model_comparator_and_contrasts(tmp_path: Path, capsys) -> None:
+    state = _test_stage_state(tmp_path)
+    _run_cell("32NWYtJvFXEg", state)  # 4.1
+    _run_cell("UKzaZmJxFXEm", state)  # 7.1
+    _run_cell("aNhMl_zxFXEn", state)  # 8.0
+    frozen = json.loads(state["FREEZE_PATH"].read_text())
+    validation = {key: entry["validation"]["balanced_accuracy"] for key, entry in frozen["selected"].items()}
+    full = [key for key in validation if not key.startswith("lightgbm_no_")]
+    log_loss = {key: entry["validation"]["log_loss"] for key, entry in frozen["selected"].items()}
+    expected = min(full, key=lambda key: (-validation[key], log_loss[key], key))
+    assert frozen["validation_selection"]["model_key"] == expected
+    assert "ties broken by lower validation log loss" in frozen["comparator"]["rule"]
+    kinds = {(c["model"], c["comparator"]) for c in frozen["planned_contrasts"]}
+    assert ("lightgbm_no_stockout", "lightgbm") in kinds
+    assert frozen["omitted_ablations"] == []
+
+    _run_cell("S8SYDvNeFXEn", state)  # 8.1
+    capsys.readouterr()
+    _run_cell("de7423f26aa7", state)  # 8.1b
+    out = capsys.readouterr().out
+    selected = frozen["validation_selection"]["model_key"]
+    assert f"Validation-selected model, named in the freeze before test scoring: {selected}" in out
+    assert "TEST confusion matrix" in out
+    assert int(state["TEST_CONFUSION"].to_numpy().sum()) == len(state["frames"]["test"])
+
+
+def test_the_test_review_refuses_a_comparator_that_changed_after_the_freeze(tmp_path: Path) -> None:
+    state = _test_stage_state(tmp_path)
+    _run_cell("32NWYtJvFXEg", state)  # 4.1
+    _run_cell("aNhMl_zxFXEn", state)  # 8.0
+    _run_cell("S8SYDvNeFXEn", state)  # 8.1
+    comparator = json.loads(state["FREEZE_PATH"].read_text())["comparator"]["model_key"]
+    live = state["baseline_validation_results"].copy()
+    # A later change to the live table.
+    live.loc[live["model_key"] == "training_prior_majority", "balanced_accuracy"] = 2.0
+    state["baseline_validation_results"] = live
+    assert comparator != "training_prior_majority"
+    with pytest.raises(RuntimeError, match="Section 8.2 would compare against training_prior_majority"):
+        _run_cell("de7423f26aa7", state)
+
+
+def test_dropped_ablations_are_recorded_and_their_summaries_invalidated(tmp_path: Path) -> None:
+    state = _test_stage_state(tmp_path)
+    _run_cell("32NWYtJvFXEg", state)  # 4.1
+    _run_cell("UKzaZmJxFXEm", state)  # 7.1
+    _run_cell("32NWYtJvFXEg", state)  # 4.1 again deletes the ablation folders
+    _run_cell("aNhMl_zxFXEn", state)  # 8.0
+    omitted = json.loads(state["FREEZE_PATH"].read_text())["omitted_ablations"]
+    assert {entry["model_key"] for entry in omitted} == {"lightgbm_no_stockout", "lightgbm_no_period_proxies"}
+    assert all("Section 4.1 was rerun" in entry["reason"] for entry in omitted)
+    assert state["ablation_validation_results"].empty
+
+
+def test_the_adaptation_table_names_each_mode_and_checkpoint_criterion(tmp_path: Path) -> None:
+    runs = {}
+    for key, mode in (("tabiclv2_icl", "in_context"), ("tabiclv2_finetuned", "fine_tuned")):
+        run_dir = tmp_path / key
+        run_dir.mkdir()
+        result = {"model": "TabICLv2 Classifier", "effective_mode": mode}
+        (run_dir / "result.json").write_text(json.dumps(result))
+        runs[key] = run_dir
+    state = {
+        "json": json,
+        "pd": pd,
+        "FOUNDATION_RUN_DIRS": runs,
+        "CONDITION_SPECS": {key: {"environment": "tabicl"} for key in runs},
+    }
+    _run_cell("5b0a1d7e9c22", state)
+    table = state["FOUNDATION_ADAPTATION"].set_index("model_key")
+    assert table.loc["tabiclv2_finetuned", "checkpoint_selection"].startswith("validation accuracy")
+    assert bool(table.loc["tabiclv2_finetuned", "validation_score_optimistic"]) is True
+    assert table.loc["tabiclv2_icl", "checkpoint_selection"].startswith("none")
+    assert state["FOUNDATION_MODES_RUN"] == ["fine_tuned", "in_context"]
+
+
+def test_the_peer_review_wording_and_export_records() -> None:
+    bootstrap_text = CELLS["af1060298fc3"]
+    assert "minimum amount of uncertainty" not in bootstrap_text and "illustrative" in bootstrap_text
+    assert "declared better" not in CELLS["79f4f7fdc9f4"]
+    assert "not a p-value" in bootstrap_text
+    export = CELLS["Da6jGcVwFXEo"]
+    needles = ('"bootstrap": {', '"evaluation_status"', '"recomputability"', "freeze_history")
+    for needle in needles + ("test_exposure.json",):
+        assert needle in export
+    metrics = CELLS["faafc7ab3106"]
+    assert "| 0 to 1;" in metrics and "| −1 to 1;" in metrics
+    assert "LightGBM is overconfident" not in metrics
+    assert "after day *t* has closed" in CELLS["O7Ob3allFXEb"]
+    assert "relative-band persistence" in CELLS["07tLCbl0FXEg"]
+    old_claim = "Mitra fine-tuning selects its checkpoint by validation balanced accuracy"
+    assert old_claim not in CELLS["jkJ6XuNHFXEh"]
+    # 8.1 must keep assigning `frozen` before it scores anything: Section 8.0's exposure check relies on it.
+    test_stage = CELLS["S8SYDvNeFXEn"]
+    reads_freeze = test_stage.index("frozen = json.loads(FREEZE_PATH.read_text())")
+    assert reads_freeze < test_stage.index("for key, entry in")
