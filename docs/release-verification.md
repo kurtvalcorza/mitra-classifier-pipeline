@@ -155,7 +155,7 @@ CI runs `tools/validate_release_assets.py`, which preserves full generator/parit
 - notebook JSON parses; every code cell compiles as plain Python (no `%`/`!` magics); no persisted outputs or
   execution counts; no unresolved placeholder markers; every code cell is preceded by an explanatory markdown cell;
 - the tutorial directory contains exactly the two generated standalone notebooks plus explicitly allowlisted auxiliary notebooks; the generated pair remains named in `tutorials/README.md` with its profile, notebook-spec version and standalone carrier, while the comparative workshop is registered separately as `E2E` / `WORKSHOP`, Notebook Spec `2.1`, with a standalone embedded-adapter carrier; it does not inherit generated-notebook parity evidence;
-- the original auxiliary FreshRetailNet workshop requires no committed outputs or execution counts; the v2 executed-record exception retains outputs and counts and rejects saved errors. For both, every code cell and its embedded isolated runner parse as Python, `metadata.dimer` records `E2E` / `WORKSHOP`, spec `2.1`, `standalone: true`, and the pinned dataset SHA / balanced-accuracy / `uv`-managed Python-3.12 / identity-bound cache / frozen-artifact verification markers are present;
+- the original auxiliary FreshRetailNet workshop requires no committed outputs or execution counts; the v2 executed-record exception permits committed outputs and execution counts from a recorded run (the committed v2 notebook currently has none) and rejects saved errors. For both, every code cell and its embedded isolated runner parse as Python, `metadata.dimer` records `E2E` / `WORKSHOP`, spec `2.1`, `standalone: true`, and the pinned dataset SHA / balanced-accuracy / `uv`-managed Python-3.12 / identity-bound cache / frozen-artifact verification markers are present;
 - the standalone carrier (ST1–ST6, PAR1–PAR3): no clone, repository install or repository import on the primary path
   (the previous pair's `git clone` of this repository is gone); one cell tagged `embedded_module` equal to
   `mitra_pipeline/tutorial_api.py` after the generator's documented rewrite (the `DEFAULT_WEIGHTS_DIR` line); the inline
@@ -269,6 +269,7 @@ they are measurements for the stated runtime, not general estimates.
 | 2026-10-11 | `373aaf5` / `95d0ad114f2d` | Colab CLI 0.7.4, fresh Colab Tesla T4 | Rice pixel-tables workshop, default path | 2,002.7 s | **PASSED**: 15/15 code cells, 0 errors (see the rice workshop section) |
 | 2026-10-12 | `373aaf5` / `95d0ad114f2d` | Colab Tesla T4 in the browser (maintainer-run) | Rice workshop default Run all; then BYOD zip via the upload dialog | 32.4 min | **PASSED** Run all; BYOD upload **FAILED** on a notebook defect fixed in `1374c3b4` |
 | 2026-10-12 | `98e7725` / `1374c3b456c1` | Colab Tesla T4 in the browser (maintainer-run) | Rice workshop Run all with Mitra; BYOD zip via the upload dialog; refused upload | 49.1 min | **PASSED**: 15/15, BYOD scored once, malformed chip refused (see the rice workshop section) |
+| 2026-10-14 | `ac0998c` / `a25bfbfb310b` | Colab CLI 0.7.4 sequential execution, fresh Colab Tesla T4 | FreshRetailNet v2 guided workshop, default path (no field edited; forms, uploads and optional journeys not exercised) | 546.4 s | **PASSED**: 23/23 code cells, 0 errors; metrics equal the 2026-10-03 run; `evaluation_status` confirmatory, `previous_freezes` `[]` (see the NR2 section) |
 
 ### Colab CLI execution of the E2E notebook at `83b4d0c` (blob `2748c0a2e7f8`) — 2026-10-08
 
@@ -476,3 +477,94 @@ Both editions were run separately at commit `05d54cdd968f34b9168404968b9a294041a
 - **Evidence boundary:** the saved outputs were inspected. The journeys not exercised, listed above, remain open.
 
 This record satisfies the fresh default-path run of both revisions, including the v1 §3.2, §4.2, §5.1b, §5.6, §6.2 and §8.1b outputs. The other items listed for revision 2.1.1 of each edition above remain open. **Status: Candidate.**
+
+## FreshRetailNet Classification v2: NR2 review fixes — 2026-10-12
+
+A Notebook Review Framework v1 review (prefix NR2) of the guided edition at `6b10569` (blob `f00c9351`) found 1 Major,
+7 Minor and 1 Suggestion. The revision label stays **2.2.0**: `WORKSHOP_REVISION` is set in Section 0.1, which must stay
+byte-identical to the compact edition's. The change is logged in `metadata.dimer.review_fixes`.
+
+- **NR2-M1 (Major):** Section 8.0 now carries the compact edition's refreeze guard. Once the frozen models have been
+  scored on the test partition (`TEST_RESULTS`, or a saved `runs/test/*/result.json`), it refuses to replace the freeze
+  unless `REFREEZE_REASON` is entered; a replaced freeze is kept in `previous_freezes` in `freeze.json` and the export,
+  and stale test-stage results are cleared. Section 8's text says what is enforced instead of "prevents this by design".
+- **NR2-m4:** reproduced on a CPU harness of the notebook's own cells: 4.1 → 7.1 → 4.1 → 8.0 raised a bare
+  `FileNotFoundError` on a deleted ablation `result.json`. Section 8.0 now skips ablation runs whose folders are gone
+  and says to rerun 7.1. Cells 4.1 and 8.1 must stay identical to the compact edition's, so they were not changed; a
+  4.1 rerun after the freeze still stops 8.1 (with "frozen development result changed after freeze"), and
+  Troubleshooting now says how to recover from both.
+- **NR2-m1:** the four sample answers that quote numbers name the run they come from (revision 2.2.0, commit `05d54cd`,
+  blob `b3c33de9`, Colab CLI T4, 2026-10-03). The stale "revision 2.0.1" caveat is gone, and "Lower for every model"
+  now reads "every fitted model", since the training-prior majority stays at 0.333.
+- **NR2-m2 (owner ruling C):** the limitations and the multi-model and test answers state that the classical baselines
+  ran fixed default hyperparameters without validation tuning and the foundation models ran in context at their
+  defaults. A validation-tuned, early-stopped LightGBM baseline is a follow-up; no number changes here.
+- **NR2-m3:** no cell advises hiding saved outputs the committed notebook does not have; `metadata.dimer`, the tutorials
+  README and this record now name the same evidence for the same blob.
+- **NR2-m5:** the opening states the measured total (668.6 s on a fresh Colab T4, about 258 s of it `uv`) and the
+  download (about 13 GB of packages plus 0.9 GB of checkpoints, computed from PyPI and Hugging Face listings of the
+  pinned files, not measured).
+- **NR2-m6:** Section 5 states that fine-tuned TabICLv2 selects its checkpoint by validation accuracy (the shared runner
+  passes `eval_metric="accuracy"`), while fine-tuned Mitra uses balanced accuracy. The runner is a shared cell, so it
+  was not changed.
+- **NR2-m7:** References cite each model's paper and model card (arXiv identifiers checked on 2026-10-13).
+- **NR2-S1:** not addressed (Suggestion).
+
+**Round 2 (2026-10-13), after an independent peer review of the PR.** Only v2-only cells changed (8.0, 8.1b, 9.1, and a new 5.5b pair); every code cell that equals the compact edition's stayed byte-identical.
+
+- **Refreeze bypass (reproduced, fixed):** freezing one baseline, scoring it, rerunning 8.1 with `EVALUATE_FROZEN_TEST` off (which resets `TEST_RESULTS`) and rerunning 8.0 was allowed without a reason. 8.0 now also treats as exposure the freeze that 8.1 read before scoring (kept when 8.1 is rerun disabled or fails part-way), saved foundation-model test results, and an append-only `test_exposure.json` that 8.0 and 8.1b write, bound to the freeze's SHA-256. It cannot detect test scores seen in an earlier runtime session; writing the record inside 8.1 itself would need a change to a cell shared with the compact edition.
+- **Exploratory status:** a refreeze after test exposure marks the new freeze `evaluation_status: exploratory (test-informed)`, and the status never returns to confirmatory in that session. It is exported and printed; the text says a reason records the contamination and does not undo it.
+- **Replaced freezes kept in full** under `freeze_history/` (exported); `previous_freezes` points at each copy.
+- **The freeze names the validation-selected model, the comparator, the tie-break rule, the planned contrasts and any omitted ablation (with its reason)**; stale 7.1 summary rows of deleted ablations are dropped. 8.2 is a shared cell, so it still ranks the live baseline table; 8.1b now refuses to continue if that ranking no longer gives the frozen comparator. 8.1b shows the validation-selected model's test result as the confirmatory one, with a test confusion matrix and per-band test recall.
+- **5.5b** lists each foundation condition's adaptation mode and checkpoint-selection criterion. Correction to round 1: fine-tuned Mitra does not select by balanced accuracy. The runner's balanced-accuracy choice is not passed to Mitra, whose metric setting accepts only accuracy or log loss.
+- **Export:** bootstrap settings (draws, seed, method), recomputability with and without row-level files, freeze history, exposure record, adaptation table, test confusion and the optional foundation ablation.
+- **Wording:** the 8.2 intervals are an illustrative IID row bootstrap, probably too narrow and not a lower bound, with no superiority claims and a multiplicity note. Metric ranges are 0–1 for balanced accuracy and −1 to 1 for MCC. Log loss suggests possible overconfidence rather than diagnosing it. The forecast is issued after day *t* closes, for sales on day *t* + 7. Pretraining is described by model, and the lag rule is called a relative-band persistence rule.
+
+Eight new behavioural and source checks in `tests/test_workshop_v2_review_fixes.py` cover the bypass, a part-way failure, exposure persistence, exploratory status, full retention, the selection record, the comparator check, omitted ablations and the adaptation table. Default-path numbers are unchanged; the freeze and export gain fields only.
+
+`tests/test_workshop_v2_review_fixes.py` adds four checks: two run the notebook's own 4.1, 7.1 and 8.0 cells on a
+synthetic table with a logistic model standing in for LightGBM (logic checks, not model runs), and two check the text.
+All four fail on `6b10569`. **Evidence boundary:** when written, no hosted run of this blob existed; the Colab CLI fresh
+Run all of blob `a25bfbfb` (REL14) is now recorded below. Still open: a browser BYOD session with one valid and one
+refused ZIP (REL12), the fast path, the optional fine-tuning and foundation-ablation toggles, and the §8.0 refusal and
+`REFREEZE_REASON` path in a hosted session. **Status: Candidate.**
+
+### Colab CLI execution of the NR2 fixes at `ac0998c` (blob `a25bfbfb`) — 2026-10-14
+
+The guided edition was run at commit `ac0998ceb5cef6efcff8f2624d5c38e5c90bbca7` (notebook blob
+`a25bfbfb310be605a565f02dfc91a156ca02316d`, revision label 2.2.0). The executed notebook is preserved byte for byte as
+[`…Workshop_v2_ac0998c_colab-cli-t4.ipynb`](execution-evidence/2026-10-14/DIMER_FreshRetailNet_MultiModel_Classification_Workshop_v2_ac0998c_colab-cli-t4.ipynb)
+(SHA-256 `62af67b9e557c9502e73f9dbcc9a600a70d9eb141cbd67387e75dc140c0714d1`).
+
+- **Source:** downloaded from GitHub at the PR head; Git blob verified before the session. The executed copy has the
+  same 58 cells in the same order and the same source (no `# @param` edited).
+- **Executor:** Colab CLI 0.7.4, fresh Colab Tesla T4, through the workspace `colab-cli-serial-test-suite`
+  (`colab new --gpu T4`, `colab exec -f`, `colab stop`), 17:30–17:39 UTC, session wall 546.4 s. Code cells ran in order
+  in one kernel; this is CLI sequential execution, not a browser Run all, and order is evidenced by the `Executing cell
+  k/N` log. Forms and uploads were not exercised.
+- **Path exercised:** default controls only, as in the 2026-10-03 run. Not run: the §8.0 refusal and `REFREEZE_REASON`
+  path, the fine-tuned TabICLv2 and foundation ablations, the fast path, and BYOD.
+- **Outcome:** PASSED, 23/23 code cells with no error outputs (one more code cell than 2.2.0 at `05d54cd`: the new
+  5.5b). The completion summary reports 9 validation models, 11 frozen test models, no foundation failures, and
+  "Run-all complete". The AutoGluon memory warning seen in the earlier run recurs; it is a warning only.
+- **Isolated environments:** all four uv environments built from the hash-locked files and passed `uv pip check`; uv
+  reported 81 s (Mitra), 57 s (TabDPT), 77 s (TabICL) and 37 s (TabPFN) preparing packages.
+- **Freeze and exposure (default single Run all):** the session was fresh, so §8.0 found no earlier `freeze.json` and no
+  exposure signal: `previous_freezes` is written as `[]` and `evaluation_status` as `confirmatory`. This is read from
+  the cell's code path and its output: §8.0 printed no "Replaced an earlier freeze" line and §8.0, §8.1b and §9.1
+  printed no exploratory warning. The `freeze.json` file itself was not retrieved before the VM was released. §8.0
+  names `tabpfn3_icl` as the validation-selected model and `random_forest` as the comparator.
+- **Comparison with the 2026-10-03 run of blob `b3c33de9`:** every printed metric is equal — the data checks and EDA,
+  the baselines, the validation table (TabPFN-3 0.6021 … Random Forest 0.5733), the confusion matrix, the ablations,
+  the frozen-test results (TabPFN-3 0.5587 … LightGBM 0.5205), the bootstrap intervals and the §8.3 preview. The
+  differences are: (1) host memory and disk figures in the AutoGluon log and its throughput estimate (77.8 → 77.9
+  rows/s), runtime noise; (2) new display-only outputs from this PR — the §5.5b adaptation table (all four conditions
+  `in_context`, no checkpoint selection), the §8.0 selection line, and §8.1b's confirmatory TabPFN-3 test row (balanced
+  accuracy 0.5587, accuracy 0.5725, macro F1 0.5608, MCC 0.3512, log loss 0.9158; equal to the §8.1 row) with a test
+  confusion matrix and per-band test recall (low 0.4638, mid 0.5564, high 0.6558); (3) the export folder and report
+  ZIP digest (`1492c68e5152c9b6…`), which differ by construction in a new session and because the export now carries
+  the freeze history, exposure record and adaptation table; (4) uv download order and timings.
+- **Not updated:** `metadata.dimer.review_fixes[].execution_evidence` inside the notebook still says "pending"; changing
+  it would change the notebook blob this record binds to.
+
+This record satisfies REL14 for blob `a25bfbfb`. The other items listed above remain open. **Status: Candidate.**

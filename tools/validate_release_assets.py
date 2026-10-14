@@ -287,6 +287,14 @@ AUXILIARY_NOTEBOOKS = {
             'development_config = json.loads((run_dir / "run_config.json").read_text())',  # NR-04: frozen config
             "HOST_OUTSIDE_TESTED_RANGE = {",  # NR-05: host versions checked against the tested range
             '"comparison_definitions": {',  # NR-07: recomputable export
+            # NR2 review (2026-10-12); tests/test_workshop_v2_review_fixes.py exercises them.
+            'REFREEZE_REASON = "" # @param',  # NR2-M1: no silent refreeze after the test
+            '"previous_freezes": previous_freezes',  # NR2-M1: a replaced freeze stays on the record
+            'missing_ablations = [key for key in registered_ablations if key not in ablation_keys]',  # NR2-m4
+            'TEST_EXPOSURE_PATH = SESSION_ROOT / "test_exposure.json"',  # exposure survives a disabled 8.1
+            '"evaluation_status": evaluation_status',  # a test-informed refreeze is exploratory
+            '"validation_selection": {"model_key": validation_selected',  # the confirmatory model
+            "# @title 5.5b Adaptation mode and checkpoint selection",  # modes and selection metric
         ),
         "markdown_markers": (
             "Mitra Classifier",
