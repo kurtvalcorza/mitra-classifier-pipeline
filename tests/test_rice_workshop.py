@@ -75,14 +75,29 @@ def test_split_is_the_capstone_rule_and_never_uses_the_development_example() -> 
     for region in range(6):
         for k in range(4):
             rows.append({"group_id": f"ph_{region}_{k}", "year": 2020, "split": "train",
-                         "region_iso": f"PH-0{region}", "stratum": "rice" if k % 2 == 0 else "nonrice"})
-    rows += [{"group_id": "ph_v_1", "year": 2021, "split": "validation", "region_iso": "PH-07", "stratum": "rice"}]
+                         "region_iso": f"PH-0{region}", "stratum": "rice" if k % 2 == 0 else "nonrice",
+                         "x_min": region * 100_000 + k * 5_120, "y_max": 1_000_000})
+    rows += [{"group_id": "ph_v_1", "year": 2021, "split": "validation", "region_iso": "PH-07", "stratum": "rice",
+              "x_min": 900_000, "y_max": 1_000_000}]
     first = rt.sample_roles(rows)
     assert first == rt.sample_roles(rows)
     roles = first["roles"]
     assert set(roles["fit"]).isdisjoint(roles["development"]) and roles["validation"] == ["ph_v_1_2021"]
     with pytest.raises(ValueError, match="development example"):
         rt.check_roles({"fit": [f"{rt.DEVELOPMENT_EXAMPLE_GROUP}_2020"]})
+    # Peer review #3: roles are disjoint by region, stable location and footprint, not only by chip-year identifier.
+    geography = first["geography"]
+    assert geography["regions_disjoint"] and geography["locations_disjoint"] and geography["footprints_disjoint"]
+    fit_row = next(r for r in rows if rt.chip_id(r) == roles["fit"][0])
+    same_region = rows[:-1] + [{**rows[-1], "region_iso": fit_row["region_iso"]}]
+    with pytest.raises(ValueError, match="region_iso .* appears in both"):
+        rt.sample_roles(same_region)
+    same_place = rows[:-1] + [{**rows[-1], "group_id": fit_row["group_id"]}]
+    with pytest.raises(ValueError, match="group_id .* appears in both"):
+        rt.sample_roles(same_place)
+    overlapping = rows[:-1] + [{**rows[-1], "x_min": fit_row["x_min"] + 1_000, "y_max": fit_row["y_max"]}]
+    with pytest.raises(ValueError, match="overlap"):
+        rt.sample_roles(overlapping)
 
 
 def test_fit_sample_is_the_capstone_pixel_sample() -> None:
@@ -650,3 +665,42 @@ def test_review_fixes_rpt2_titles_completion_and_byod_refusals() -> None:
     template = build.CONCLUSION_TEMPLATE
     assert "Sentinel-1 SAR" in next(line for line in template.splitlines() if line.startswith("- Limits"))
     assert "limits rice mapping here more than the classifier does" not in "\n".join(_cells("markdown"))
+
+
+def test_comparison_displays_run_on_a_scored_protocol(tmp_path: Path, monkeypatch) -> None:
+    # Peer review #2 #7 #9: the development and validation display cells execute on a real (synthetic) scored run,
+    # including the matched B10k comparison and Mitra's matched-sample grid. Display-only: nothing is written.
+    pd = pytest.importorskip("pandas")
+    matplotlib = pytest.importorskip("matplotlib")
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    _fake_model(monkeypatch)
+    runner = _runner([])
+    ledger = _synthetic_run(tmp_path / "run")
+    baseline = rt.baseline_stage(ledger, systems=("A",))
+    for key in list(baseline):  # a stand-in B10k row (LightGBM is not in CI): same values as A, different system
+        baseline[key.replace("A/", "B10k/")] = {**baseline[key], "system": "B10k", "name": rt.BASELINE_SYSTEMS["B10k"]}
+    found = rt.foundation_stage(ledger, ["C1", "C3"], runner, {}, mitra_dev_pixels=500)
+    rt.activity_stage(ledger, runner, enabled=False, system="C1", feature_set="s2m1", sizes=[100], available=["C1"])
+    rt.freeze_stage(ledger, mitra_validation_pixels=700)
+    rt.score_stage(ledger, runner)
+    metrics = pd.read_csv(ledger.root / "scores" / "metrics.csv")
+    stand_in = metrics[metrics["condition"].str.startswith("A/")].assign(
+        condition=lambda d: d["condition"].str.replace("A/", "B10k/"), system=rt.BASELINE_SYSTEMS["B10k"])
+    chips = pd.DataFrame([{"chip": c, "role": "validation", "region": "PH-07", "labelled_pixels": 3950}
+                          for c in ("v0", "v1")])
+    shown: list = []
+    namespace = {"rt": rt, "pd": pd, "np": np, "plt": plt, "display": shown.append, "LEDGER": ledger,
+                 "BASELINE": baseline, "FOUNDATION": found, "METRICS": pd.concat([metrics, stand_in]), "CHIPS": chips}
+    monkeypatch.setattr(plt, "show", lambda: None)
+    exec(compile(build.CELL_DEV_GRID, "dev_grid", "exec"), namespace)
+    assert {m["system"] for m in namespace["matched"]} == {"TabPFN-3"}  # Mitra (sampled) is left out
+    exec(compile(build.CELL_RESULTS, "results", "exec"), namespace)
+    plt.close("all")
+    frames = [f for f in shown if hasattr(f, "columns")]
+    assert any("F1 minus B10k (same fit rows and pixels)" in f.columns for f in frames)
+    assert any("not scored (edge band, nodata)" in f.columns for f in frames)
+    assert len(namespace["MITRA_MATCHED"]) > 0
+    assert "predicted rice share" in namespace["CHIP_TABLE"].columns
+
