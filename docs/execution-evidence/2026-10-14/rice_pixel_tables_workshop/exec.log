@@ -1,0 +1,879 @@
+[colab] Parsing notebook '/home/kurt/colab-runs/mitra-classifier-pipeline-03071f0-854739/DIMER_Philippines_Rice_Pixel_Tables_Workshop_03071f0_colab-cli-t4.ipynb'...
+[colab] Executing cell 1/15 - 0.1 Infrastructure: runtime check, session folder and the notebook's helper code...
+| this runtime                                                                  
+---|---                                                                         
+python | 3.13.15                                                                
+numpy | 2.1.3                                                                   
+pandas | 2.2.3                                                                  
+lightgbm | 4.6.0                                                                
+gpu | Tesla T4, 15360 MiB                                                       
+disk_free_gb | 207.6                                                            
+Session folder: /content/dimer_rice_pixel_tables/sessions/8fc3c4168799
+[colab] Executing cell 2/15 - 1.1 Download, verify, assign roles and stage the pixel tables...
+Using Colab cache for faster access to the 'rice-philippines-s2-alphaearth-v1-teaching' dataset.
+dataset resolved anonymously by kagglehub in 21.8 s: /kaggle/input/rice-philippines-s2-alphaearth-v1-teaching
+| chips | regions | labelled_pixels                                             
+---|---|---|---                                                                 
+role |  |  |                                                                    
+development | 8 | PH-01, PH-02, PH-15, PH-40 | 119885                           
+fit | 24 | PH-05, PH-09, PH-12, PH-13, PH-14, PH-41 | 361054                    
+validation | 8 | PH-07, PH-08 | 113821                                          
+| feature_set | table | rows | rice                                             
+---|---|---|---|---                                                             
+0 | alphaearth | fit | 10000 | 3513                                             
+1 | alphaearth | fitlgbm | 65536 | 21742                                        
+2 | alphaearth | dev | 30000 | 2389                                             
+3 | alphaearth | eval | 113821 | hidden until scored                            
+4 | s2m1 | fit | 10000 | 3513                                                   
+5 | s2m1 | fitlgbm | 65536 | 21742                                              
+6 | s2m1 | dev | 30000 | 2389                                                   
+7 | s2m1 | eval | 113821 | hidden until scored                                  
+Roles share no region, no location and no chip footprint; smallest gap between footprints of different roles (km): {'fit-development': 28.6, 'fit-validation': 190.3, 'development-validation': 384.0}
+INDEX and 40 chips verified against their SHA-256 values; layout: expanded; 319.5 s
+[colab] Executing cell 3/15 - 1.2 Quarterly NDVI by class, and missing embeddings (fit rows only)...
+<Figure size 600x320 with 1 Axes>
+
+[Image saved to: /tmp/tmpmj6nym83.png]
+Development subset: 0.0% of pixels have no AlphaEarth embedding (AE_valid = 0); they are filled with fit means and flagged by the AE_valid column.
+| B2_mean | B2_std | B2_min | B2_max | B2_p10 | B2_p50 | B2_p90 | B3_mean       
+---|---|---|---|---|---|---|---|---                                             
+0 | 0.039 | 0.022 | 0.002 | 0.091 | 0.020 | 0.029 | 0.059 | 0.058               
+1 | 0.042 | 0.028 | 0.002 | 0.123 | 0.021 | 0.030 | 0.060 | 0.061               
+2 | 0.049 | 0.035 | 0.011 | 0.127 | 0.022 | 0.041 | 0.110 | 0.063               
+117
+[colab] Executing cell 4/15 - 2.1 Baselines A, B and B10k on both feature sets (development only)...
+| condition | fit rows | trees | dev F1 at 0.5 | chosen threshold | dev F1 at   
+chosen | seconds                                                                
+---|---|---|---|---|---|---|---                                                 
+0 | A/alphaearth | - | - | 0.0000 | 0.50 | 0.0000 | 0.01                        
+1 | B/alphaearth | 65536 | 200 | 0.8940 | 0.35 | 0.8948 | 4.92                  
+2 | B10k/alphaearth | 10000 | 199 | 0.8749 | 0.75 | 0.8859 | 1.92               
+3 | A/s2m1 | - | - | 0.0000 | 0.50 | 0.0000 | 0.01                              
+4 | B/s2m1 | 65536 | 195 | 0.8082 | 0.40 | 0.8083 | 5.59                        
+5 | B10k/s2m1 | 10000 | 195 | 0.8148 | 0.55 | 0.8164 | 2.26                     
+[colab] Executing cell 5/15 - 3.1 Choose the foundation-model conditions...
+| system | context rows | features | development pixels | validation pixels |   
+prediction chunk rows | settings                                                
+---|---|---|---|---|---|---|---                                                 
+0 | TabPFN-3 | 10000 | alphaearth 65 / s2m1 70 | 30000 | all labelled | 8192 |  
+{'n_estimators': 4}                                                             
+1 | TabICLv2 | 10000 | alphaearth 65 / s2m1 70 | 30000 | all labelled | 8192 |  
+{'n_estimators': 8}                                                             
+2 | TabDPT v1.2 | 10000 | alphaearth 65 / s2m1 70 | 30000 | all labelled | 8192 
+| {'n_ensembles': 4, 'context_size': 4096, 'batc...                             
+[colab] Executing cell 6/15 - 3.2 Stage carried adapters and prepare isolated model environments...
+$ /content/dimer_rice_pixel_tables/environments/uv-0.12.15/uv venv --managed-python --python 3.12.12 /content/dimer_rice_pixel_tables/environments/tabdpt-8a19b1d6c4c8
+Downloading cpython-3.12.12-linux-x86_64-gnu (download) (32.3MiB)
+ Downloaded cpython-3.12.12-linux-x86_64-gnu (download)
+Using CPython 3.12.12
+Creating virtual environment at: dimer_rice_pixel_tables/environments/tabdpt-8a19b1d6c4c8
+Activate with: source dimer_rice_pixel_tables/environments/tabdpt-8a19b1d6c4c8/bin/activate
+$ /content/dimer_rice_pixel_tables/environments/uv-0.12.15/uv pip install --python /content/dimer_rice_pixel_tables/environments/tabdpt-8a19b1d6c4c8/bin/python --require-hashes --no-deps --index-url https://pypi.org/simple --only-binary :all: -r /content/dimer_rice_pixel_tables/environments/tabdpt-8a19b1d6c4c8/requirements.lock.txt
+Using Python 3.12.12 environment at: dimer_rice_pixel_tables/environments/tabdpt-8a19b1d6c4c8
+Resolved 54 packages in 372ms
+Downloading networkx (2.0MiB)
+Downloading sympy (6.0MiB)
+Downloading pillow (6.6MiB)
+Downloading pyarrow (47.8MiB)
+Downloading torchvision (7.1MiB)
+Downloading nvidia-cuda-cupti-cu12 (8.5MiB)
+Downloading scipy (35.6MiB)
+Downloading nvidia-cufile-cu12 (1.1MiB)
+Downloading nvidia-cudnn-cu12 (544.5MiB)
+Downloading torchaudio (3.3MiB)
+Downloading nvidia-cusolver-cu12 (150.9MiB)
+Downloading nvidia-cuda-nvrtc-cu12 (22.6MiB)
+Downloading nvidia-cublas-cu12 (374.9MiB)
+Downloading nvidia-cusparselt-cu12 (149.5MiB)
+Downloading nvidia-curand-cu12 (53.7MiB)
+Downloading nvidia-nccl-cu12 (192.0MiB)
+Downloading numpy (15.9MiB)
+Downloading pandas (11.4MiB)
+Downloading torch (783.0MiB)
+Downloading nvidia-nvjitlink-cu12 (18.8MiB)
+Downloading triton (148.5MiB)
+Downloading nvidia-cufft-cu12 (190.9MiB)
+Downloading hf-xet (4.3MiB)
+Downloading scikit-learn (11.9MiB)
+Downloading nvidia-cusparse-cu12 (206.5MiB)
+Downloading faiss-cpu (29.8MiB)
+ Downloaded nvidia-cufile-cu12
+ Downloaded networkx
+ Downloaded torchaudio
+ Downloaded hf-xet
+ Downloaded sympy
+ Downloaded pillow
+ Downloaded torchvision
+ Downloaded nvidia-cuda-cupti-cu12
+ Downloaded pandas
+ Downloaded scikit-learn
+ Downloaded numpy
+ Downloaded nvidia-nvjitlink-cu12
+ Downloaded nvidia-cuda-nvrtc-cu12
+ Downloaded faiss-cpu
+ Downloaded scipy
+ Downloaded pyarrow
+ Downloaded nvidia-curand-cu12
+ Downloaded triton
+ Downloaded nvidia-cusparselt-cu12
+ Downloaded nvidia-cusolver-cu12
+ Downloaded nvidia-cufft-cu12
+ Downloaded nvidia-nccl-cu12
+ Downloaded nvidia-cusparse-cu12
+ Downloaded nvidia-cublas-cu12
+ Downloaded nvidia-cudnn-cu12
+ Downloaded torch
+Prepared 54 packages in 50.67s
+Installed 54 packages in 538ms
+ + certifi==2026.7.22
+ + charset-normalizer==3.5.2
+ + cloudpickle==3.1.2
+ + faiss-cpu==1.11.0
+ + filelock==4.0.9
+ + fsspec==2026.9.0
+ + hf-xet==1.6.0
+ + huggingface-hub==0.36.2
+ + idna==3.20
+ + jinja2==3.1.6
+ + joblib==1.6.0
+ + markupsafe==3.0.4
+ + mpmath==1.3.0
+ + networkx==3.7
+ + numpy==2.3.0
+ + nvidia-cublas-cu12==12.6.4.1
+ + nvidia-cuda-cupti-cu12==12.6.80
+ + nvidia-cuda-nvrtc-cu12==12.6.77
+ + nvidia-cuda-runtime-cu12==12.6.77
+ + nvidia-cudnn-cu12==9.5.1.17
+ + nvidia-cufft-cu12==11.3.0.4
+ + nvidia-cufile-cu12==1.11.1.6
+ + nvidia-curand-cu12==10.3.7.77
+ + nvidia-cusolver-cu12==11.7.1.2
+ + nvidia-cusparse-cu12==12.5.4.2
+ + nvidia-cusparselt-cu12==0.6.3
+ + nvidia-nccl-cu12==2.26.2
+ + nvidia-nvjitlink-cu12==12.6.85
+ + nvidia-nvtx-cu12==12.6.77
+ + omegaconf==2.3.0
+ + packaging==26.3
+ + pandas==2.3.2
+ + pillow==12.3.0
+ + pyarrow==25.0.0
+ + python-dateutil==2.9.0.post0
+ + pytz==2026.4
+ + pyyaml==6.0.3
+ + requests==2.34.2
+ + safetensors==0.5.3
+ + scikit-learn==1.7.0
+ + scipy==1.15.3
+ + setuptools==84.0.0
+ + six==1.17.0
+ + sympy==1.14.0
+ + tabdpt==1.2.0
+ + threadpoolctl==3.7.0
+ + torch==2.7.1
+ + torchaudio==2.7.1
+ + torchvision==0.22.1
+ + tqdm==4.67.1
+ + triton==3.3.1
+ + typing-extensions==4.16.0
+ + tzdata==2026.4
+ + urllib3==2.8.0
+$ /content/dimer_rice_pixel_tables/environments/uv-0.12.15/uv pip install --python /content/dimer_rice_pixel_tables/environments/tabdpt-8a19b1d6c4c8/bin/python --require-hashes --no-deps --index-url https://pypi.org/simple --no-build-isolation -r /content/dimer_rice_pixel_tables/environments/tabdpt-8a19b1d6c4c8/requirements-sdist.lock.txt
+Using Python 3.12.12 environment at: dimer_rice_pixel_tables/environments/tabdpt-8a19b1d6c4c8
+Resolved 1 package in 76ms
+   Building antlr4-python3-runtime==4.9.3
+      Built antlr4-python3-runtime==4.9.3
+Prepared 1 package in 1.34s
+Installed 1 package in 56ms
+ + antlr4-python3-runtime==4.9.3
+$ /content/dimer_rice_pixel_tables/environments/uv-0.12.15/uv pip check --python /content/dimer_rice_pixel_tables/environments/tabdpt-8a19b1d6c4c8/bin/python
+Using Python 3.12.12 environment at: dimer_rice_pixel_tables/environments/tabdpt-8a19b1d6c4c8
+Checked 55 packages in 0.98ms
+All installed packages are compatible
+$ /content/dimer_rice_pixel_tables/environments/tabdpt-8a19b1d6c4c8/bin/python -c 'import tabdpt_classifier_pipeline.pipeline; import tabdpt_classifier_pipeline.artifact'
+$ /content/dimer_rice_pixel_tables/environments/uv-0.12.15/uv venv --managed-python --python 3.12.12 /content/dimer_rice_pixel_tables/environments/tabicl-f666488fd747
+Using CPython 3.12.12
+Creating virtual environment at: dimer_rice_pixel_tables/environments/tabicl-f666488fd747
+Activate with: source dimer_rice_pixel_tables/environments/tabicl-f666488fd747/bin/activate
+$ /content/dimer_rice_pixel_tables/environments/uv-0.12.15/uv pip install --python /content/dimer_rice_pixel_tables/environments/tabicl-f666488fd747/bin/python --require-hashes --no-deps --index-url https://pypi.org/simple --only-binary :all: -r /content/dimer_rice_pixel_tables/environments/tabicl-f666488fd747/requirements.lock.txt
+Using Python 3.12.12 environment at: dimer_rice_pixel_tables/environments/tabicl-f666488fd747
+Resolved 90 packages in 444ms
+Downloading pygments (1.2MiB)
+Downloading torchaudio (1.7MiB)
+Downloading scipy (33.7MiB)
+Downloading triton (236.5MiB)
+Downloading nvidia-cufft (204.2MiB)
+Downloading nvidia-nvjitlink (40.5MiB)
+Downloading torch (528.9MiB)
+Downloading nvidia-cuda-runtime (2.1MiB)
+Downloading nvidia-nccl-cu13 (206.0MiB)
+Downloading transformers (11.7MiB)
+Downloading scikit-learn (8.7MiB)
+Downloading lightgbm (3.3MiB)
+Downloading pandas (10.5MiB)
+Downloading pyarrow (47.8MiB)
+Downloading wandb (24.9MiB)
+Downloading nvidia-cusparselt-cu13 (162.3MiB)
+Downloading nvidia-cudnn-cu13 (527.5MiB)
+Downloading numpy (15.9MiB)
+Downloading pydantic-core (2.0MiB)
+Downloading tokenizers (3.2MiB)
+Downloading nvidia-cusolver (191.6MiB)
+Downloading nvidia-cufile (1.2MiB)
+Downloading nvidia-nvshmem-cu13 (57.6MiB)
+Downloading nvidia-cublas (403.5MiB)
+Downloading nvidia-curand (56.8MiB)
+Downloading cuda-bindings (6.8MiB)
+Downloading nvidia-cuda-nvrtc (86.0MiB)
+Downloading nvidia-cusparse (139.2MiB)
+Downloading nvidia-cuda-cupti (10.2MiB)
+Downloading torchvision (7.1MiB)
+ Downloaded nvidia-cufile
+ Downloaded pygments
+ Downloaded torchaudio
+ Downloaded pydantic-core
+ Downloaded nvidia-cuda-runtime
+ Downloaded tokenizers
+ Downloaded lightgbm
+ Downloaded torchvision
+ Downloaded cuda-bindings
+ Downloaded scikit-learn
+ Downloaded nvidia-cuda-cupti
+ Downloaded pandas
+ Downloaded transformers
+ Downloaded numpy
+ Downloaded wandb
+ Downloaded scipy
+ Downloaded nvidia-nvjitlink
+ Downloaded pyarrow
+ Downloaded nvidia-curand
+ Downloaded nvidia-nvshmem-cu13
+ Downloaded nvidia-cuda-nvrtc
+ Downloaded nvidia-cusparse
+ Downloaded nvidia-cusparselt-cu13
+ Downloaded nvidia-cusolver
+ Downloaded nvidia-cufft
+ Downloaded nvidia-nccl-cu13
+ Downloaded triton
+ Downloaded nvidia-cublas
+ Downloaded torch
+ Downloaded nvidia-cudnn-cu13
+Prepared 67 packages in 58.13s
+Installed 90 packages in 493ms
+ + annotated-doc==0.0.5
+ + annotated-types==0.8.0
+ + anyio==4.15.1
+ + certifi==2026.7.22
+ + charset-normalizer==3.5.2
+ + click==8.5.0
+ + cloudpickle==3.1.2
+ + cuda-bindings==13.4.3
+ + cuda-pathfinder==1.8.3
+ + cuda-toolkit==13.0.3.0
+ + einops==0.8.2
+ + filelock==4.0.9
+ + fsspec==2026.9.0
+ + googleapis-common-protos==1.75.5
+ + h11==0.16.0
+ + hf-xet==1.6.0
+ + httpcore==1.0.9
+ + httpx==0.28.1
+ + huggingface-hub==1.30.0
+ + idna==3.20
+ + jinja2==3.1.6
+ + joblib==1.6.0
+ + lightgbm==4.7.0
+ + markdown-it-py==4.2.0
+ + markupsafe==3.0.4
+ + mdurl==0.1.2
+ + mpmath==1.3.0
+ + narwhals==2.26.0
+ + networkx==3.7
+ + numpy==2.5.2
+ + nvidia-cublas==13.1.1.3
+ + nvidia-cuda-cupti==13.0.85
+ + nvidia-cuda-nvrtc==13.0.88
+ + nvidia-cuda-runtime==13.0.96
+ + nvidia-cudnn-cu13==9.24.0.43
+ + nvidia-cufft==12.0.0.61
+ + nvidia-cufile==1.15.1.6
+ + nvidia-curand==10.4.0.35
+ + nvidia-cusolver==12.0.4.66
+ + nvidia-cusparse==12.6.3.3
+ + nvidia-cusparselt-cu13==0.8.1
+ + nvidia-nccl-cu13==2.30.7
+ + nvidia-nvjitlink==13.4.92
+ + nvidia-nvshmem-cu13==3.4.5
+ + nvidia-nvtx==13.0.85
+ + opentelemetry-api==1.45.0
+ + opentelemetry-exporter-http-transport==0.66b0
+ + opentelemetry-exporter-otlp-common==0.66b0
+ + opentelemetry-exporter-otlp-proto-common==1.45.0
+ + opentelemetry-exporter-otlp-proto-http==1.45.0
+ + opentelemetry-proto==1.45.0
+ + opentelemetry-sdk==1.45.0
+ + opentelemetry-semantic-conventions==0.66b0
+ + packaging==26.3
+ + pandas==3.0.5
+ + pillow==12.3.0
+ + platformdirs==4.12.2
+ + protobuf==7.36.2
+ + psutil==7.2.2
+ + pyarrow==25.0.1
+ + pydantic==2.13.5
+ + pydantic-core==2.46.5
+ + pygments==2.21.0
+ + python-dateutil==2.9.0.post0
+ + pyyaml==6.0.3
+ + regex==2026.9.29
+ + requests==2.34.2
+ + rich==15.0.0
+ + safetensors==0.8.0
+ + scikit-learn==1.9.0
+ + scipy==1.18.1
+ + setuptools==84.0.0
+ + shellingham==1.5.4
+ + six==1.17.0
+ + sympy==1.14.0
+ + tabicl==2.1.1
+ + threadpoolctl==3.7.0
+ + tokenizers==0.23.2
+ + torch==2.14.0
+ + torchaudio==2.11.0
+ + torchvision==0.29.0
+ + tqdm==4.70.1
+ + transformers==5.17.0
+ + triton==3.8.0
+ + typer==0.27.2
+ + typing-extensions==4.16.0
+ + typing-inspection==0.4.4
+ + urllib3==2.8.0
+ + wandb==0.30.0
+ + xxhash==4.0.1
+$ /content/dimer_rice_pixel_tables/environments/uv-0.12.15/uv pip check --python /content/dimer_rice_pixel_tables/environments/tabicl-f666488fd747/bin/python
+Using Python 3.12.12 environment at: dimer_rice_pixel_tables/environments/tabicl-f666488fd747
+Checked 90 packages in 2ms
+All installed packages are compatible
+$ /content/dimer_rice_pixel_tables/environments/tabicl-f666488fd747/bin/python -c 'import tabicl_classifier_pipeline.api'
+$ /content/dimer_rice_pixel_tables/environments/uv-0.12.15/uv venv --managed-python --python 3.12.12 /content/dimer_rice_pixel_tables/environments/tabpfn-3847ccb73baf
+Using CPython 3.12.12
+Creating virtual environment at: dimer_rice_pixel_tables/environments/tabpfn-3847ccb73baf
+Activate with: source dimer_rice_pixel_tables/environments/tabpfn-3847ccb73baf/bin/activate
+$ /content/dimer_rice_pixel_tables/environments/uv-0.12.15/uv pip install --python /content/dimer_rice_pixel_tables/environments/tabpfn-3847ccb73baf/bin/python --require-hashes --no-deps --index-url https://pypi.org/simple --only-binary :all: -r /content/dimer_rice_pixel_tables/environments/tabpfn-3847ccb73baf/requirements.lock.txt
+Using Python 3.12.12 environment at: dimer_rice_pixel_tables/environments/tabpfn-3847ccb73baf
+Resolved 63 packages in 180ms
+Downloading nvidia-cudnn-cu13 (349.1MiB)
+Downloading setuptools (1.0MiB)
+Downloading numpy (15.9MiB)
+Downloading nvidia-nccl-cu13 (187.4MiB)
+Downloading nvidia-cusparselt-cu13 (162.0MiB)
+Downloading torch (506.1MiB)
+Downloading torchvision (7.2MiB)
+Downloading nvidia-nvjitlink (38.8MiB)
+Downloading triton (179.5MiB)
+Downloading nvidia-cublas (403.5MiB)
+ Downloaded setuptools
+ Downloaded torchvision
+ Downloaded numpy
+ Downloaded nvidia-nvjitlink
+ Downloaded nvidia-cusparselt-cu13
+ Downloaded triton
+ Downloaded nvidia-nccl-cu13
+ Downloaded nvidia-cudnn-cu13
+ Downloaded nvidia-cublas
+ Downloaded torch
+Prepared 14 packages in 36.27s
+Installed 63 packages in 329ms
+ + annotated-types==0.8.0
+ + certifi==2026.7.22
+ + charset-normalizer==3.5.2
+ + cloudpickle==3.1.2
+ + cuda-bindings==13.4.3
+ + cuda-pathfinder==1.8.3
+ + cuda-toolkit==13.0.2
+ + einops==0.8.2
+ + filelock==4.0.9
+ + fsspec==2026.9.0
+ + hf-xet==1.6.0
+ + huggingface-hub==0.36.2
+ + idna==3.20
+ + jinja2==3.1.6
+ + joblib==1.6.0
+ + lightgbm==4.7.0
+ + markupsafe==3.0.4
+ + mpmath==1.3.0
+ + narwhals==2.26.0
+ + networkx==3.7
+ + numpy==2.5.3
+ + nvidia-cublas==13.1.0.3
+ + nvidia-cuda-cupti==13.0.85
+ + nvidia-cuda-nvrtc==13.0.88
+ + nvidia-cuda-runtime==13.0.96
+ + nvidia-cudnn-cu13==9.19.0.56
+ + nvidia-cufft==12.0.0.61
+ + nvidia-cufile==1.15.1.6
+ + nvidia-curand==10.4.0.35
+ + nvidia-cusolver==12.0.4.66
+ + nvidia-cusparse==12.6.3.3
+ + nvidia-cusparselt-cu13==0.8.0
+ + nvidia-nccl-cu13==2.28.9
+ + nvidia-nvjitlink==13.0.88
+ + nvidia-nvshmem-cu13==3.4.5
+ + nvidia-nvtx==13.0.85
+ + packaging==26.3
+ + pandas==2.3.2
+ + pillow==12.3.0
+ + pydantic==2.13.5
+ + pydantic-core==2.46.5
+ + pydantic-settings==2.15.0
+ + python-dateutil==2.9.0.post0
+ + python-dotenv==1.2.4
+ + pytz==2026.4
+ + pyyaml==6.0.3
+ + requests==2.34.2
+ + safetensors==0.8.0
+ + scikit-learn==1.9.0
+ + scipy==1.18.1
+ + setuptools==81.0.0
+ + six==1.17.0
+ + sympy==1.14.0
+ + tabpfn==8.1.0
+ + threadpoolctl==3.7.0
+ + torch==2.11.0
+ + torchvision==0.26.0
+ + tqdm==4.70.1
+ + triton==3.6.0
+ + typing-extensions==4.16.0
+ + typing-inspection==0.4.4
+ + tzdata==2026.4
+ + urllib3==2.8.0
+$ /content/dimer_rice_pixel_tables/environments/uv-0.12.15/uv pip check --python /content/dimer_rice_pixel_tables/environments/tabpfn-3847ccb73baf/bin/python
+Using Python 3.12.12 environment at: dimer_rice_pixel_tables/environments/tabpfn-3847ccb73baf
+Checked 63 packages in 1ms
+All installed packages are compatible
+$ /content/dimer_rice_pixel_tables/environments/tabpfn-3847ccb73baf/bin/python -c 'import tabpfn_classifier_pipeline.pipeline'
+| environment | model_id | revision | adapter_revision | lock                   
+---|---|---|---|---|---                                                         
+0 | tabdpt | Layer6/TabDPT | 4462ffbd1d8dea25d4862d30beed4b70cd596ae5 |         
+1e35dc4738f015b254b1724fd4bc7ba9f49668af | a39e002de590                         
+1 | tabicl | jingang/TabICL | 4dcd344ece2c00be9e831fdd35bed57b5ad83e19 |        
+7400516ac86e3b6e55f5134ad5e550f312948981 | 498285f156b9                         
+2 | tabpfn | Prior-Labs/tabpfn_3 | 24a16a89d245878b846555110985634aa2e656d7 |   
+769fb7b47e01b1d10edd954dabc634b8034598c2 | c280359a8426                         
+[colab] Executing cell 7/15 - 3.3 Run the foundation models (development only)...
+$ /content/dimer_rice_pixel_tables/environments/tabpfn-3847ccb73baf/bin/python /content/dimer_rice_pixel_tables/sessions/8fc3c4168799/support/fm_runner.py --config /content/dimer_rice_pixel_tables/sessions/8fc3c4168799/runs/sample/foundation/C1/develop-alphaearth-s2m1.config.json
+[tabpfn/alphaearth] context registered: 10000 rows in 5.74 s
+    predicted 8192/30000 rows in 8.2 s
+    predicted 16384/30000 rows in 15.8 s
+    predicted 24576/30000 rows in 23.3 s
+    predicted 30000/30000 rows in 29.8 s
+[tabpfn/s2m1] context registered: 10000 rows in 0.76 s
+    predicted 8192/30000 rows in 8.1 s
+    predicted 16384/30000 rows in 16.1 s
+    predicted 24576/30000 rows in 24.2 s
+    predicted 30000/30000 rows in 31.1 s
+RESULT {"family": "tabpfn", "mode": "develop", "device": "cuda", "torch": "2.11.0+cu130", "python": "3.12.12", "settings": {"n_estimators": 4}, "feature_sets": {"alphaearth": {"feature_set": "alphaearth", "fit_rows": 10000, "fit_rice": 3513, "dev_rows": 30000, "load_s": 4.13, "fit_s": 5.74, "predict_dev_s": 29.85, "artifact_inventory": {"tabpfn/artifact_manifest.json": "99b2224ebfd3aae6c56310dfbfaa1e17d91c2ae25f0320db6ef467ec996084bd", "tabpfn/model.ckpt": "d0d865d54dfbc524f5703104be90620182dca7e5fb2c16de72e9959ea18f3988", "tabpfn/model.tabpfn_fit": "28f9bf40a1a8c3988afa9cfec63403a1472a9d1ad481d9bf7cc36a230cfb15bc"}, "peak_gpu_gib": 0.913}, "s2m1": {"feature_set": "s2m1", "fit_rows": 10000, "fit_rice": 3513, "dev_rows": 30000, "load_s": 0.57, "fit_s": 0.76, "predict_dev_s": 31.15, "artifact_inventory": {"tabpfn/artifact_manifest.json": "29b6873b0e48bc1ad268ed63ecf08b898bd21700dc83e57e84958ea74feaf416", "tabpfn/model.ckpt": "d0d865d54dfbc524f5703104be90620182dca7e5fb2c16de72e9959ea18f3988", "tabpfn/model.tabpfn_fit": "6a3103804e7f7389b817c2cbbd6964234ae72f40a667a47d5734217f074fcd3e"}, "peak_gpu_gib": 0.965}}, "gpu": "Tesla T4"}
+$ /content/dimer_rice_pixel_tables/environments/tabicl-f666488fd747/bin/python /content/dimer_rice_pixel_tables/sessions/8fc3c4168799/support/fm_runner.py --config /content/dimer_rice_pixel_tables/sessions/8fc3c4168799/runs/sample/foundation/C2/develop-alphaearth-s2m1.config.json
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[tabicl/alphaearth] context registered: 10000 rows in 1.77 s
+    predicted 8192/30000 rows in 11.8 s
+    predicted 16384/30000 rows in 22.7 s
+    predicted 24576/30000 rows in 33.8 s
+    predicted 30000/30000 rows in 43.5 s
+[tabicl/s2m1] context registered: 10000 rows in 1.77 s
+    predicted 8192/30000 rows in 12.1 s
+    predicted 16384/30000 rows in 24.4 s
+    predicted 24576/30000 rows in 37.0 s
+    predicted 30000/30000 rows in 48.0 s
+RESULT {"family": "tabicl", "mode": "develop", "device": "cuda", "torch": "2.14.0+cu130", "python": "3.12.12", "settings": {"n_estimators": 8}, "feature_sets": {"alphaearth": {"feature_set": "alphaearth", "fit_rows": 10000, "fit_rice": 3513, "dev_rows": 30000, "load_s": 6.7, "fit_s": 1.77, "predict_dev_s": 43.49, "artifact_inventory": {"tabicl/tabicl.pkl": "02c803c9895ccce021eee7f4770dca0f16b393625cd0059d3ba9ab1df2774f37"}, "peak_gpu_gib": 9.535}, "s2m1": {"feature_set": "s2m1", "fit_rows": 10000, "fit_rice": 3513, "dev_rows": 30000, "load_s": 0.31, "fit_s": 1.77, "predict_dev_s": 48.0, "artifact_inventory": {"tabicl/tabicl.pkl": "bb8d40e060b85c62d871a6cb5b432c9a7a0ae8eec24ece2cc68610d3eeb541da"}, "peak_gpu_gib": 9.751}}, "gpu": "Tesla T4"}
+$ /content/dimer_rice_pixel_tables/environments/tabdpt-8a19b1d6c4c8/bin/python /content/dimer_rice_pixel_tables/sessions/8fc3c4168799/support/fm_runner.py --config /content/dimer_rice_pixel_tables/sessions/8fc3c4168799/runs/sample/foundation/C4/develop-alphaearth-s2m1.config.json
+[tabdpt/alphaearth] context registered: 10000 rows in 2.76 s
+    predicted 8192/30000 rows in 9.8 s
+    predicted 16384/30000 rows in 18.9 s
+    predicted 24576/30000 rows in 28.1 s
+    predicted 30000/30000 rows in 36.0 s
+[tabdpt/s2m1] context registered: 10000 rows in 1.61 s
+    predicted 8192/30000 rows in 9.3 s
+    predicted 16384/30000 rows in 18.5 s
+    predicted 24576/30000 rows in 27.6 s
+    predicted 30000/30000 rows in 35.3 s
+RESULT {"family": "tabdpt", "mode": "develop", "device": "cuda", "torch": "2.7.1+cu126", "python": "3.12.12", "settings": {"n_ensembles": 4, "context_size": 4096, "batch_size": 4096}, "feature_sets": {"alphaearth": {"feature_set": "alphaearth", "fit_rows": 10000, "fit_rice": 3513, "dev_rows": 30000, "load_s": 5.35, "fit_s": 2.76, "predict_dev_s": 35.98, "artifact_inventory": {"tabdpt/artifact.json": "1400a7cb14037688538bc4e19091017ded08d054c2f562920498a399da54d367", "tabdpt/training_context.parquet": "6c07b5c454a7a965616cbdf4d949397e630ea436036669ce23f7dad97ec79e0a"}, "peak_gpu_gib": 0.478}, "s2m1": {"feature_set": "s2m1", "fit_rows": 10000, "fit_rice": 3513, "dev_rows": 30000, "load_s": 0.72, "fit_s": 1.61, "predict_dev_s": 35.32, "artifact_inventory": {"tabdpt/artifact.json": "d1f920ffbde6e503767e70cf5c69488ed6daec35516da188baa0d17c6999252e", "tabdpt/training_context.parquet": "f71d7c3062b9c7c059162160b54b4b746a6c7264d7df330f59992b97227f15da"}, "peak_gpu_gib": 0.486}}, "gpu": "Tesla T4"}
+| condition | dev pixels | dev F1 at 0.5 | chosen threshold | dev F1 at chosen |
+load_s s | fit_s s | predict_dev_s s | peak GPU GiB | device                    
+---|---|---|---|---|---|---|---|---|---|---                                     
+0 | C1/alphaearth | 30000 | 0.8687 | 0.70 | 0.8716 | 4.13 | 5.74 | 29.85 | 0.913
+| cuda                                                                          
+1 | C1/s2m1 | 30000 | 0.8145 | 0.35 | 0.8194 | 0.57 | 0.76 | 31.15 | 0.965 |    
+cuda                                                                            
+2 | C2/alphaearth | 30000 | 0.8911 | 0.40 | 0.8940 | 6.70 | 1.77 | 43.49 | 9.535
+| cuda                                                                          
+3 | C2/s2m1 | 30000 | 0.8007 | 0.40 | 0.8137 | 0.31 | 1.77 | 48.00 | 9.751 |    
+cuda                                                                            
+4 | C4/alphaearth | 30000 | 0.8969 | 0.40 | 0.8979 | 5.35 | 2.76 | 35.98 | 0.478
+| cuda                                                                          
+5 | C4/s2m1 | 30000 | 0.8224 | 0.55 | 0.8265 | 0.72 | 1.61 | 35.32 | 0.486 |    
+cuda                                                                            
+[colab] Executing cell 8/15 - 4.1 Development grid, feature effect, matched classifier comparison and threshold curves...
+
+                                                                   
+ feature_set                                    alphaearth  s2m1   
+ ───────────────────────────────────────────────────────────────── 
+ system                                                            
+ All non-rice                                   0.0000      0.0000 
+ LightGBM (10,000 fit rows, same-data control)  0.8859      0.8164 
+ LightGBM (65,536 fit rows)                     0.8948      0.8083 
+ TabDPT v1.2                                    0.8979      0.8265 
+ TabICLv2                                       0.8940      0.8137 
+ TabPFN-3                                       0.8716      0.8194 
+                                                                   
+| feature effect (AlphaEarth - M1)                                              
+---|---                                                                         
+system |                                                                        
+LightGBM (10,000 fit rows, same-data control) | 0.0695                          
+LightGBM (65,536 fit rows) | 0.0866                                             
+TabDPT v1.2 | 0.0713                                                            
+TabICLv2 | 0.0803                                                               
+TabPFN-3 | 0.0522                                                               
+| spread among these system recipes (best - worst learned)                      
+---|---                                                                         
+alphaearth | 0.0263                                                             
+s2m1 | 0.0183                                                                   
+
+                                  
+ feature_set  alphaearth  s2m1    
+ ──────────────────────────────── 
+ system                           
+ TabDPT v1.2  0.0120      0.0101  
+ TabICLv2     0.0081      -0.0027 
+ TabPFN-3     -0.0144     0.0030  
+                                  
+<Figure size 1100x340 with 2 Axes>
+
+[Image saved to: /tmp/tmpp25erw6m.png]
+[colab] Executing cell 9/15 - 5.1 TabPFN-3 context-size sweep on development...
+$ /content/dimer_rice_pixel_tables/environments/tabpfn-3847ccb73baf/bin/python /content/dimer_rice_pixel_tables/sessions/8fc3c4168799/support/fm_runner.py --config /content/dimer_rice_pixel_tables/sessions/8fc3c4168799/runs/sample/activity/C1/sweep-s2m1.config.json
+    predicted 8192/30000 rows in 3.7 s
+    predicted 16384/30000 rows in 6.6 s
+    predicted 24576/30000 rows in 9.4 s
+    predicted 30000/30000 rows in 11.6 s
+    predicted 8192/30000 rows in 3.8 s
+    predicted 16384/30000 rows in 7.6 s
+    predicted 24576/30000 rows in 11.5 s
+    predicted 30000/30000 rows in 14.6 s
+    predicted 8192/30000 rows in 8.9 s
+    predicted 16384/30000 rows in 18.0 s
+    predicted 24576/30000 rows in 27.0 s
+    predicted 30000/30000 rows in 34.6 s
+RESULT {"family": "tabpfn", "mode": "sweep", "device": "cuda", "torch": "2.11.0+cu130", "python": "3.12.12", "settings": {"n_estimators": 4}, "feature_sets": {"s2m1": {"feature_set": "s2m1", "sizes": [{"context_rows": 1000, "context_rice": 351, "load_s": 0.79, "fit_s": 2.46, "predict_dev_s": 11.57, "peak_gpu_gib": 0.936}, {"context_rows": 3000, "context_rice": 1054, "load_s": 0.56, "fit_s": 0.82, "predict_dev_s": 14.63, "peak_gpu_gib": 0.944}, {"context_rows": 10000, "context_rice": 3513, "load_s": 0.57, "fit_s": 0.75, "predict_dev_s": 34.6, "peak_gpu_gib": 0.964}]}}, "gpu": "Tesla T4"}
+| context_rows | context_rice | fit_s | predict_dev_s | dev_f1_at_0p5 |         
+dev_selected_threshold | dev_f1_selected                                        
+---|---|---|---|---|---|---|---                                                 
+0 | 1000 | 351 | 2.46 | 11.57 | 0.8047 | 0.65 | 0.8201                          
+1 | 3000 | 1054 | 0.82 | 14.63 | 0.8262 | 0.60 | 0.8347                         
+2 | 10000 | 3513 | 0.75 | 34.60 | 0.8145 | 0.35 | 0.8194                        
+For comparison, TabPFN-3 on AlphaEarth with 10,000 rows: development F1 0.8716
+<Figure size 500x300 with 1 Axes>
+
+[Image saved to: /tmp/tmpaulpdbvo.png]
+[colab] Executing cell 10/15 - 6.1 Freeze...
+selection.json SHA-256: 6f143fde4e9e426eeeeff1e31bb1922ee56340025f2550a7b5fa60b310c24823
+| threshold | dev F1                                                            
+---|---|---                                                                     
+condition |  |                                                                  
+A/alphaearth | 0.50 | 0.0000                                                    
+A/s2m1 | 0.50 | 0.0000                                                          
+B/alphaearth | 0.35 | 0.8948                                                    
+B/s2m1 | 0.40 | 0.8083                                                          
+B10k/alphaearth | 0.75 | 0.8859                                                 
+B10k/s2m1 | 0.55 | 0.8164                                                       
+C1/alphaearth | 0.70 | 0.8716                                                   
+C1/s2m1 | 0.35 | 0.8194                                                         
+C2/alphaearth | 0.40 | 0.8940                                                   
+C2/s2m1 | 0.40 | 0.8137                                                         
+C4/alphaearth | 0.40 | 0.8979                                                   
+C4/s2m1 | 0.55 | 0.8265                                                         
+[colab] Executing cell 11/15 - 7.1 Score the frozen conditions on validation (once)...
+$ /content/dimer_rice_pixel_tables/environments/tabpfn-3847ccb73baf/bin/python /content/dimer_rice_pixel_tables/sessions/8fc3c4168799/support/fm_runner.py --config /content/dimer_rice_pixel_tables/sessions/8fc3c4168799/runs/sample/foundation/C1/score-alphaearth-s2m1.config.json
+    predicted 8192/8192 rows in 8.9 s
+    predicted 8192/113821 rows in 8.4 s
+    predicted 16384/113821 rows in 16.9 s
+    predicted 24576/113821 rows in 25.5 s
+    predicted 32768/113821 rows in 34.2 s
+    predicted 40960/113821 rows in 42.8 s
+    predicted 49152/113821 rows in 51.3 s
+    predicted 57344/113821 rows in 59.7 s
+    predicted 65536/113821 rows in 68.1 s
+    predicted 73728/113821 rows in 76.5 s
+    predicted 81920/113821 rows in 84.9 s
+    predicted 90112/113821 rows in 93.3 s
+    predicted 98304/113821 rows in 101.8 s
+    predicted 106496/113821 rows in 110.3 s
+    predicted 113821/113821 rows in 118.3 s
+    predicted 8192/8192 rows in 8.8 s
+    predicted 8192/113821 rows in 8.8 s
+    predicted 16384/113821 rows in 17.6 s
+    predicted 24576/113821 rows in 26.5 s
+    predicted 32768/113821 rows in 35.3 s
+    predicted 40960/113821 rows in 44.2 s
+    predicted 49152/113821 rows in 53.0 s
+    predicted 57344/113821 rows in 61.8 s
+    predicted 65536/113821 rows in 70.5 s
+    predicted 73728/113821 rows in 79.3 s
+    predicted 81920/113821 rows in 88.1 s
+    predicted 90112/113821 rows in 96.8 s
+    predicted 98304/113821 rows in 105.6 s
+    predicted 106496/113821 rows in 114.4 s
+    predicted 113821/113821 rows in 122.9 s
+RESULT {"family": "tabpfn", "mode": "score", "device": "cuda", "torch": "2.11.0+cu130", "python": "3.12.12", "settings": {"n_estimators": 4}, "feature_sets": {"alphaearth": {"feature_set": "alphaearth", "reload_s": 5.73, "reload_parity": {"rows": 8192, "max_abs_difference": 0.0, "tolerance": 0.0001, "within_tolerance": true, "decisions_identical_at_frozen_threshold": true}, "eval_rows": 113821, "predict_eval_s": 118.35, "peak_gpu_gib": 0.922}, "s2m1": {"feature_set": "s2m1", "reload_s": 3.29, "reload_parity": {"rows": 8192, "max_abs_difference": 0.0, "tolerance": 0.0001, "within_tolerance": true, "decisions_identical_at_frozen_threshold": true}, "eval_rows": 113821, "predict_eval_s": 122.87, "peak_gpu_gib": 0.937}}, "gpu": "Tesla T4"}
+$ /content/dimer_rice_pixel_tables/environments/tabicl-f666488fd747/bin/python /content/dimer_rice_pixel_tables/sessions/8fc3c4168799/support/fm_runner.py --config /content/dimer_rice_pixel_tables/sessions/8fc3c4168799/runs/sample/foundation/C2/score-alphaearth-s2m1.config.json
+    predicted 8192/8192 rows in 12.0 s
+    predicted 8192/113821 rows in 11.9 s
+    predicted 16384/113821 rows in 23.9 s
+    predicted 24576/113821 rows in 35.7 s
+    predicted 32768/113821 rows in 47.4 s
+    predicted 40960/113821 rows in 59.2 s
+    predicted 49152/113821 rows in 70.9 s
+    predicted 57344/113821 rows in 82.7 s
+    predicted 65536/113821 rows in 94.5 s
+    predicted 73728/113821 rows in 106.3 s
+    predicted 81920/113821 rows in 118.1 s
+    predicted 90112/113821 rows in 129.9 s
+    predicted 98304/113821 rows in 141.6 s
+    predicted 106496/113821 rows in 153.4 s
+    predicted 113821/113821 rows in 164.6 s
+    predicted 8192/8192 rows in 12.4 s
+    predicted 8192/113821 rows in 12.4 s
+    predicted 16384/113821 rows in 24.8 s
+    predicted 24576/113821 rows in 37.2 s
+    predicted 32768/113821 rows in 49.7 s
+    predicted 40960/113821 rows in 62.1 s
+    predicted 49152/113821 rows in 74.6 s
+    predicted 57344/113821 rows in 87.0 s
+    predicted 65536/113821 rows in 99.4 s
+    predicted 73728/113821 rows in 111.8 s
+    predicted 81920/113821 rows in 124.2 s
+    predicted 90112/113821 rows in 136.7 s
+    predicted 98304/113821 rows in 149.1 s
+    predicted 106496/113821 rows in 161.5 s
+    predicted 113821/113821 rows in 173.4 s
+RESULT {"family": "tabicl", "mode": "score", "device": "cuda", "torch": "2.14.0+cu130", "python": "3.12.12", "settings": {"n_estimators": 8}, "feature_sets": {"alphaearth": {"feature_set": "alphaearth", "reload_s": 2.17, "reload_parity": {"rows": 8192, "max_abs_difference": 0.0, "tolerance": 0.0001, "within_tolerance": true, "decisions_identical_at_frozen_threshold": true}, "eval_rows": 113821, "predict_eval_s": 164.62, "peak_gpu_gib": 9.535}, "s2m1": {"feature_set": "s2m1", "reload_s": 0.5, "reload_parity": {"rows": 8192, "max_abs_difference": 0.0, "tolerance": 0.0001, "within_tolerance": true, "decisions_identical_at_frozen_threshold": true}, "eval_rows": 113821, "predict_eval_s": 173.39, "peak_gpu_gib": 9.751}}, "gpu": "Tesla T4"}
+$ /content/dimer_rice_pixel_tables/environments/tabdpt-8a19b1d6c4c8/bin/python /content/dimer_rice_pixel_tables/sessions/8fc3c4168799/support/fm_runner.py --config /content/dimer_rice_pixel_tables/sessions/8fc3c4168799/runs/sample/foundation/C4/score-alphaearth-s2m1.config.json
+    predicted 8192/8192 rows in 9.3 s
+    predicted 8192/113821 rows in 9.2 s
+    predicted 16384/113821 rows in 18.4 s
+    predicted 24576/113821 rows in 27.6 s
+    predicted 32768/113821 rows in 36.7 s
+    predicted 40960/113821 rows in 45.7 s
+    predicted 49152/113821 rows in 54.8 s
+    predicted 57344/113821 rows in 63.8 s
+    predicted 65536/113821 rows in 72.9 s
+    predicted 73728/113821 rows in 82.0 s
+    predicted 81920/113821 rows in 91.1 s
+    predicted 90112/113821 rows in 100.2 s
+    predicted 98304/113821 rows in 109.3 s
+    predicted 106496/113821 rows in 118.4 s
+    predicted 113821/113821 rows in 127.1 s
+    predicted 8192/8192 rows in 9.1 s
+    predicted 8192/113821 rows in 9.1 s
+    predicted 16384/113821 rows in 18.2 s
+    predicted 24576/113821 rows in 27.3 s
+    predicted 32768/113821 rows in 36.5 s
+    predicted 40960/113821 rows in 45.6 s
+    predicted 49152/113821 rows in 54.7 s
+    predicted 57344/113821 rows in 63.9 s
+    predicted 65536/113821 rows in 73.0 s
+    predicted 73728/113821 rows in 82.1 s
+    predicted 81920/113821 rows in 91.2 s
+    predicted 90112/113821 rows in 100.3 s
+    predicted 98304/113821 rows in 109.4 s
+    predicted 106496/113821 rows in 118.5 s
+    predicted 113821/113821 rows in 127.2 s
+RESULT {"family": "tabdpt", "mode": "score", "device": "cuda", "torch": "2.7.1+cu126", "python": "3.12.12", "settings": {"n_ensembles": 4, "context_size": 4096, "batch_size": 4096}, "feature_sets": {"alphaearth": {"feature_set": "alphaearth", "reload_s": 3.07, "reload_parity": {"rows": 8192, "max_abs_difference": 0.0, "tolerance": 0.0001, "within_tolerance": true, "decisions_identical_at_frozen_threshold": true}, "eval_rows": 113821, "predict_eval_s": 127.11, "peak_gpu_gib": 0.478}, "s2m1": {"feature_set": "s2m1", "reload_s": 1.61, "reload_parity": {"rows": 8192, "max_abs_difference": 0.0, "tolerance": 0.0001, "within_tolerance": true, "decisions_identical_at_frozen_threshold": true}, "eval_rows": 113821, "predict_eval_s": 127.23, "peak_gpu_gib": 0.486}}, "gpu": "Tesla T4"}
+| rows | max_abs_difference | within_tolerance                                  
+---|---|---|---                                                                 
+C1/alphaearth | 8192 | 0.0 | True                                               
+C1/s2m1 | 8192 | 0.0 | True                                                     
+C2/alphaearth | 8192 | 0.0 | True                                               
+C2/s2m1 | 8192 | 0.0 | True                                                     
+C4/alphaearth | 8192 | 0.0 | True                                               
+C4/s2m1 | 8192 | 0.0 | True                                                     
+[colab] Executing cell 12/15 - 7.2 Validation grid, effects, full table and per-chip diagnosis...
+
+                                                                   
+ feature_set                                    alphaearth  s2m1   
+ ───────────────────────────────────────────────────────────────── 
+ system                                                            
+ All non-rice                                   0.0000      0.0000 
+ LightGBM (10,000 fit rows, same-data control)  0.9049      0.7300 
+ LightGBM (65,536 fit rows)                     0.9277      0.7549 
+ TabDPT v1.2                                    0.9329      0.7617 
+ TabICLv2                                       0.9280      0.7680 
+ TabPFN-3                                       0.8958      0.7584 
+                                                                   
+| feature effect (AlphaEarth - M1)                                              
+---|---                                                                         
+system |                                                                        
+LightGBM (10,000 fit rows, same-data control) | 0.1749                          
+LightGBM (65,536 fit rows) | 0.1728                                             
+TabDPT v1.2 | 0.1713                                                            
+TabICLv2 | 0.1600                                                               
+TabPFN-3 | 0.1374                                                               
+| spread among these system recipes (best - worst learned)                      
+---|---                                                                         
+alphaearth | 0.0371                                                             
+s2m1 | 0.0380                                                                   
+| feature_set | F1 minus B10k (same fit rows and pixels)                        
+---|---|---                                                                     
+condition |  |                                                                  
+C1/alphaearth | alphaearth | -0.0091                                            
+C1/s2m1 | s2m1 | 0.0285                                                         
+C2/alphaearth | alphaearth | 0.0231                                             
+C2/s2m1 | s2m1 | 0.0380                                                         
+C4/alphaearth | alphaearth | 0.0280                                             
+C4/s2m1 | s2m1 | 0.0317                                                         
+| condition | split | pixels | threshold_rule | threshold | f1 | iou | precision
+| recall | undefined                                                            
+---|---|---|---|---|---|---|---|---|---|---                                     
+0 | A/alphaearth | validation | all 113821 labelled validation pixels | 0.5 |   
+0.50 | 0.0000 | 0.0000 | NaN | 0.0000 | precision: no pixel predicted rice      
+1 | A/alphaearth | validation | all 113821 labelled validation pixels |         
+development-selected | 0.50 | 0.0000 | 0.0000 | NaN | 0.0000 | precision: no    
+pixel predicted rice                                                            
+2 | A/s2m1 | validation | all 113821 labelled validation pixels | 0.5 | 0.50 |  
+0.0000 | 0.0000 | NaN | 0.0000 | precision: no pixel predicted rice             
+3 | A/s2m1 | validation | all 113821 labelled validation pixels |               
+development-selected | 0.50 | 0.0000 | 0.0000 | NaN | 0.0000 | precision: no    
+pixel predicted rice                                                            
+4 | B/alphaearth | validation | all 113821 labelled validation pixels | 0.5 |   
+0.50 | 0.9244 | 0.8595 | 0.9472 | 0.9028 | NaN                                  
+5 | B/alphaearth | validation | all 113821 labelled validation pixels |         
+development-selected | 0.35 | 0.9277 | 0.8651 | 0.9291 | 0.9262 | NaN           
+6 | B/s2m1 | validation | all 113821 labelled validation pixels | 0.5 | 0.50 |  
+0.7582 | 0.6106 | 0.6798 | 0.8570 | NaN                                         
+7 | B/s2m1 | validation | all 113821 labelled validation pixels |               
+development-selected | 0.40 | 0.7549 | 0.6063 | 0.6533 | 0.8938 | NaN           
+8 | B10k/alphaearth | validation | all 113821 labelled validation pixels | 0.5 |
+0.50 | 0.9204 | 0.8526 | 0.9332 | 0.9080 | NaN                                  
+9 | B10k/alphaearth | validation | all 113821 labelled validation pixels |      
+development-selected | 0.75 | 0.9049 | 0.8263 | 0.9587 | 0.8569 | NaN           
+10 | B10k/s2m1 | validation | all 113821 labelled validation pixels | 0.5 | 0.50
+| 0.7314 | 0.5766 | 0.6519 | 0.8330 | NaN                                       
+11 | B10k/s2m1 | validation | all 113821 labelled validation pixels |           
+development-selected | 0.55 | 0.7300 | 0.5748 | 0.6623 | 0.8130 | NaN           
+12 | C1/alphaearth | validation | all 113821 labelled validation pixels | 0.5 | 
+0.50 | 0.9319 | 0.8725 | 0.9510 | 0.9136 | NaN                                  
+13 | C1/alphaearth | validation | all 113821 labelled validation pixels |       
+development-selected | 0.70 | 0.8958 | 0.8113 | 0.9734 | 0.8297 | NaN           
+14 | C1/s2m1 | validation | all 113821 labelled validation pixels | 0.5 | 0.50 |
+0.7565 | 0.6084 | 0.7097 | 0.8100 | NaN                                         
+15 | C1/s2m1 | validation | all 113821 labelled validation pixels |             
+development-selected | 0.35 | 0.7584 | 0.6109 | 0.6598 | 0.8918 | NaN           
+16 | C2/alphaearth | validation | all 113821 labelled validation pixels | 0.5 | 
+0.50 | 0.9108 | 0.8362 | 0.9742 | 0.8551 | NaN                                  
+17 | C2/alphaearth | validation | all 113821 labelled validation pixels |       
+development-selected | 0.40 | 0.9280 | 0.8657 | 0.9630 | 0.8955 | NaN           
+18 | C2/s2m1 | validation | all 113821 labelled validation pixels | 0.5 | 0.50 |
+0.7654 | 0.6200 | 0.7045 | 0.8378 | NaN                                         
+19 | C2/s2m1 | validation | all 113821 labelled validation pixels |             
+development-selected | 0.40 | 0.7680 | 0.6234 | 0.6793 | 0.8834 | NaN           
+20 | C4/alphaearth | validation | all 113821 labelled validation pixels | 0.5 | 
+0.50 | 0.9310 | 0.8709 | 0.9493 | 0.9134 | NaN                                  
+21 | C4/alphaearth | validation | all 113821 labelled validation pixels |       
+development-selected | 0.40 | 0.9329 | 0.8743 | 0.9253 | 0.9407 | NaN           
+22 | C4/s2m1 | validation | all 113821 labelled validation pixels | 0.5 | 0.50 |
+0.7550 | 0.6064 | 0.6323 | 0.9366 | NaN                                         
+23 | C4/s2m1 | validation | all 113821 labelled validation pixels |             
+development-selected | 0.55 | 0.7617 | 0.6151 | 0.6488 | 0.9220 | NaN           
+Validation class balance (now that scoring is done): 12889 rice of 113821 labelled pixels
+
+                                                                                
+ con…  A/a…  A/s…  B/a…  B/s…  B10…  B10…  C1/…  C1/…  C2/…  C2/…  C4/…  C4/s2… 
+ ────────────────────────────────────────────────────────────────────────────── 
+ chip                                                                           
+ ph_…  0.0   0.0   0.9…  0.6…  0.9…  0.5…  0.8…  0.7…  0.9…  0.7…  0.9…  0.717  
+ ph_…  NaN   NaN   NaN   0.0…  NaN   0.0…  NaN   0.0…  NaN   0.0…  NaN   0.000  
+ ph_…  0.0   0.0   0.8…  0.7…  0.7…  0.7…  0.8…  0.6…  0.8…  0.6…  0.9…  0.754  
+ ph_…  0.0   0.0   0.8…  0.5…  0.8…  0.5…  0.8…  0.4…  0.8…  0.5…  0.8…  0.496  
+ ph_…  0.0   0.0   0.8…  0.6…  0.7…  0.6…  0.8…  0.6…  0.8…  0.6…  0.8…  0.593  
+ ph_…  0.0   0.0   0.9…  0.8…  0.9…  0.8…  0.9…  0.9…  0.9…  0.8…  0.9…  0.904  
+ ph_…  0.0   0.0   0.9…  0.8…  0.9…  0.8…  0.9…  0.8…  0.9…  0.8…  0.9…  0.876  
+ ph_…  NaN   NaN   NaN   NaN   NaN   0.0…  NaN   0.0…  NaN   0.0…  NaN   NaN    
+                                                                                
+| region | scored pixels | not scored (edge band, nodata)                       
+---|---|---|---                                                                 
+chip |  |  |                                                                    
+ph_240_427_2021 | PH-07 | 12742 | 0.222                                         
+ph_242_425_2019 | PH-07 | 16384 | 0.000                                         
+ph_243_420_2021 | PH-07 | 14583 | 0.110                                         
+ph_245_424_2019 | PH-07 | 14554 | 0.112                                         
+ph_251_427_2019 | PH-07 | 12238 | 0.253                                         
+ph_273_485_2019 | PH-08 | 13362 | 0.184                                         
+ph_278_478_2021 | PH-08 | 13574 | 0.172                                         
+ph_293_513_2020 | PH-08 | 16384 | 0.000                                         
+False positives per chip (pixels called rice where the reference says non-rice):
+
+                                                                                
+ con…  A/a…  A/s…  B/a…  B/s…  B10…  B10…  C1/…  C1/…  C2/…  C2/…  C4/…  C4/s2… 
+ ────────────────────────────────────────────────────────────────────────────── 
+ chip                                                                           
+ ph_…  0     0     162   1738  83    1476  0     1183  20    1103  196   1353   
+ ph_…  0     0     0     1     0     6     0     4     0     3     0     2      
+ ph_…  0     0     40    436   37    345   16    282   24    250   44    311    
+ ph_…  0     0     100   856   37    671   27    946   75    857   158   1007   
+ ph_…  0     0     464   1990  179   1766  206   2215  231   1917  408   2444   
+ ph_…  0     0     67    483   61    436   31    557   59    561   123   547    
+ ph_…  0     0     78    609   79    641   12    740   34    684   50    768    
+ ph_…  0     0     0     0     0     2     0     1     0     1     0     0      
+                                                                                
+Share of scored pixels predicted rice:
+
+                                                                                
+ con…  A/a…  A/s…  B/a…  B/s…  B10…  B10…  C1/…  C1/…  C2/…  C2/…  C4/…  C4/s2… 
+ ────────────────────────────────────────────────────────────────────────────── 
+ chip                                                                           
+ ph_…  0.0   0.0   0.1…  0.2…  0.1…  0.2…  0.1…  0.2…  0.1…  0.2…  0.1…  0.258  
+ ph_…  0.0   0.0   0.0…  0.0…  0.0…  0.0…  0.0…  0.0…  0.0…  0.0…  0.0…  0.000  
+ ph_…  0.0   0.0   0.0…  0.0…  0.0…  0.0…  0.0…  0.0…  0.0…  0.0…  0.0…  0.078  
+ ph_…  0.0   0.0   0.0…  0.0…  0.0…  0.0…  0.0…  0.1…  0.0…  0.0…  0.0…  0.107  
+ ph_…  0.0   0.0   0.1…  0.3…  0.1…  0.2…  0.1…  0.3…  0.1…  0.3…  0.1…  0.352  
+ ph_…  0.0   0.0   0.2…  0.2…  0.2…  0.2…  0.2…  0.2…  0.2…  0.2…  0.2…  0.268  
+ ph_…  0.0   0.0   0.2…  0.3…  0.2…  0.2…  0.2…  0.3…  0.2…  0.3…  0.2…  0.327  
+ ph_…  0.0   0.0   0.0…  0.0…  0.0…  0.0…  0.0…  0.0…  0.0…  0.0…  0.0…  0.000  
+                                                                                
+<Figure size 700x320 with 1 Axes>
+
+[Image saved to: /tmp/tmp75v60tm1.png]
+[colab] Executing cell 13/15 - 8.1 Reload one condition in a fresh process, then export results.zip...
+$ /content/dimer_rice_pixel_tables/environments/tabpfn-3847ccb73baf/bin/python /content/dimer_rice_pixel_tables/sessions/8fc3c4168799/support/fm_runner.py --config /content/dimer_rice_pixel_tables/sessions/8fc3c4168799/runs/sample/foundation/C1/probe-alphaearth.config.json
+    predicted 8192/8192 rows in 8.8 s
+RESULT {"family": "tabpfn", "mode": "probe", "device": "cuda", "torch": "2.11.0+cu130", "python": "3.12.12", "settings": {"n_estimators": 4}, "feature_sets": {"alphaearth": {"feature_set": "alphaearth", "rows": 8192, "max_abs_difference": 0.0, "tolerance": 0.0001, "within_tolerance": true, "decisions_identical_at_frozen_threshold": true, "seconds": 8.79}}, "gpu": "Tesla T4"}
+| validation reload check                                                       
+---|---                                                                         
+ran | True                                                                      
+condition | C1/alphaearth                                                       
+decisions_identical_at_frozen_threshold | True                                  
+feature_set | alphaearth                                                        
+max_abs_difference | 0.0                                                        
+rows | 8192                                                                     
+seconds | 8.79                                                                  
+tolerance | 0.0001                                                              
+within_tolerance | True                                                         
+results.zip: 31 files, checksums verified, SHA-256 faef0c62394a25789faceacb26fd5cc15e394c902cd0954d8419d6b1ab7cf585
+/content/dimer_rice_pixel_tables/sessions/8fc3c4168799/runs/sample/results.zip  
+[colab] Executing cell 14/15 - 10.1 Bring your own chips (re-adapts, freezes and scores your test chips once)...
+BYOD not run (USE_BYOD = False).
+[colab] Executing cell 15/15 - Run-all completion summary...
+| value                                                                         
+---|---                                                                         
+profile | E2E                                                                   
+mode | WORKSHOP                                                                 
+stages finished | [activity, baseline, export, foundation, freez...             
+conditions scored | 12                                                          
+reload probe | True                                                             
+results.zip | /content/dimer_rice_pixel_tables/sessions/8fc3...                 
+BYOD experiment | disabled (USE_BYOD = False)                                   
+wall minutes | 30.7                                                             
+Run all complete for the sample experiment: data verified, baselines and foundation models developed, choices frozen, validation scored once, artifact reload checked, results exported.
+BYOD experiment: disabled (USE_BYOD = False)
+[colab] Saving notebook with outputs to '/home/kurt/colab-runs/mitra-classifier-pipeline-03071f0-854739/DIMER_Philippines_Rice_Pixel_Tables_Workshop_03071f0_colab-cli-t4_output.ipynb'...

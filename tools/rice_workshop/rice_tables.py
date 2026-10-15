@@ -220,13 +220,47 @@ def check_roles(roles: Mapping[str, Sequence[str]]) -> None:
             seen[cid] = role
 
 
+CHIP_METRES = 2_560  # 128 pixels x 20 m
+
+
+def check_role_geography(rows: Sequence[Mapping[str, Any]], roles: Mapping[str, Sequence[str]]) -> dict[str, Any]:
+    """Teaching dataset only: no region, no stable location (`group_id`, the same across years) and no chip footprint
+    is shared between roles. Also reports the smallest distance between footprints of different roles. Unique chip-year
+    identifiers alone would not establish this."""
+    by_id = {chip_id(r): r for r in rows}
+    role_of = {cid: role for role, ids in roles.items() for cid in ids}
+    for key in ("region_iso", "group_id"):
+        owner: dict[str, str] = {}
+        for cid, role in sorted(role_of.items()):
+            value = by_id[cid][key]
+            if owner.setdefault(value, role) != role:
+                raise ValueError(f"{key} {value} appears in both {owner[value]} and {role}; roles must be geographically disjoint")
+    gaps: dict[str, float] = {}
+    names = list(roles)
+    for i, a in enumerate(names):
+        for b in names[i + 1:]:
+            best = float("inf")
+            for x in roles[a]:
+                for y in roles[b]:
+                    dx = abs(by_id[x]["x_min"] - by_id[y]["x_min"])
+                    dy = abs(by_id[x]["y_max"] - by_id[y]["y_max"])
+                    if dx < CHIP_METRES and dy < CHIP_METRES:
+                        raise ValueError(f"the footprints of {x} ({a}) and {y} ({b}) overlap")
+                    best = min(best, float(np.hypot(max(0, dx - CHIP_METRES), max(0, dy - CHIP_METRES))))
+            gaps[f"{a}-{b}"] = round(best / 1000, 1)
+    return {"regions_disjoint": True, "locations_disjoint": True, "footprints_disjoint": True,
+            "min_footprint_gap_km": gaps}
+
+
 def sample_roles(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    """fit / development from split_fit_dev, validation = the dataset's validation chips; roles are disjoint."""
+    """fit / development from split_fit_dev, validation = the dataset's validation chips; roles are disjoint by chip,
+    region, stable location and footprint."""
     split = split_fit_dev(rows)
     roles = {"fit": split["fit"], "development": split["development"],
              "validation": sorted(chip_id(r) for r in rows if r["split"] == "validation")}
     check_roles(roles)
-    return {"roles": roles, "split": split}
+    geography = check_role_geography(rows, roles)
+    return {"roles": roles, "split": split, "geography": geography}
 
 
 # --------------------------------------------------------------------------------------------------
@@ -1090,7 +1124,9 @@ def prepare_sample(ledger: Ledger, source: Path, cache: Path) -> dict[str, Any]:
         "roles": roles, "split": {k: v for k, v in role_info["split"].items() if k not in ("fit", "development")},
         "label_dataset": "label (0 non-rice, 1 rice, 255 ignored); label_raw is never read",
     }
-    return _finish_prepare(ledger, data_manifest, manifest, table, started)
+    prepared = _finish_prepare(ledger, data_manifest, manifest, table, started)
+    prepared["geography"] = role_info["geography"]  # displayed only; not part of the hashed manifests
+    return prepared
 
 
 def prepare_byod(ledger: Ledger, chips: Mapping[str, Mapping[str, Any]], plan: Mapping[str, Any],
@@ -1445,13 +1481,16 @@ def score_stage(ledger: Ledger, runner, *, split_label: str = "validation") -> d
     _write_predictions(out / f"{split_label}_predictions.csv.gz", data, order, conditions, probabilities, samples)
     failures = [k for k, v in parity.items()
                 if not v["within_tolerance"] or v.get("decisions_identical_at_frozen_threshold") is False]
-    mark_scored(ledger, status="complete", conditions=sorted(conditions), parity_failures=failures)
-    ledger.finish("score", conditions=sorted(conditions), parity_failures=failures)
     if failures:
+        # The scored-once lock stays (scored.json), but no score receipt is written: the reload probe and the export
+        # need that receipt, so a run whose parity failed cannot be reported as complete (RPT2-m1).
+        mark_scored(ledger, status="parity_failed", conditions=sorted(conditions), parity_failures=failures)
         raise RuntimeError(f"reload parity failed for {failures}: the reloaded artifact did not reproduce its "
                            f"development probabilities within {RELOAD_TOLERANCE} or its decisions at the frozen "
-                           "threshold. The scores are recorded; preserve "
-                           "verification.json and the logs and report it.")
+                           "threshold. The scores are recorded but the stage is not finished, so the reload check "
+                           "and the export will not run; preserve verification.json and the logs and report it.")
+    mark_scored(ledger, status="complete", conditions=sorted(conditions), parity_failures=failures)
+    ledger.finish("score", conditions=sorted(conditions), parity_failures=failures)
     return {"rows": rows, "per_chip": chip_rows, "parity": parity}
 
 
@@ -1524,6 +1563,9 @@ def export_stage(ledger: Ledger, summary: Mapping[str, Any], conclusion_template
     artifacts stay in the runtime (their file inventories are in selection.json): the bundle carries no model weights
     and no source imagery."""
     ledger.start("export")
+    failures = ledger.receipt("score").get("parity_failures")
+    if failures:
+        raise RuntimeError(f"export refused: the score stage recorded reload parity failures for {failures}")
     export = ledger.root / "export"
     export.mkdir(parents=True)
     members = [*EXPORT_MEMBERS]
