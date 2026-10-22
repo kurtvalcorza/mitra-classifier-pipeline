@@ -321,7 +321,7 @@ they are measurements for the stated runtime, not general estimates.
   `d2a330457fe8dbda2e7ad016e2ac0a0e8a461a738b1864ff5861654acb3cca01` (printed by the run; the downloaded copy has the same digest).
   It is the source of the `sample-bundle-v1` release asset used by the predictor-inference notebook.
 - **Evidence files** (`docs/execution-evidence/2026-10-08/mitra_classifier_colab/`, byte-exact, covered by the `-text` rule):
-  executed notebook `518e27b3d78199e5302cb937e3cf6157ac04b477647e6479d680c9188a7d55e0`, `run_summary.json` `a96513e2eee6d28b031187d25e28f213f576b7fd41ee9fb2bffb2f6f566631c8`, `exec.log` `75bfe90bdfc0da8dde6d463fa8fed6ab61e18bfe242264f6799fc7a242b1f1c3`, `mitra_classifier_result.json` `9a5280b7cb8554c43d8397fccefe9fbcc2e6daf58342692a881e67a387de0cdb`.
+  executed notebook `518e27b3d78199e5302cb937e3cf6157ac04b477647e6479d680c9188a7d55e0`, `run_summary.json` `a96513e2eee6d28b031187d25e28f213f576b7fd41ee9fb2bffb2f6f566631c8`, `exec.log` `75bfe90bdfc0da8dde6d463fa8fed6ab61e18bfe242264f6799fc7a242b1f1c3` (as first committed; redacted 2026-10-22, now `c545b111d225dde006dc33da829168761a24f9a61df15d11a3fbe6b1e5f8cf8c`), `mitra_classifier_result.json` `9a5280b7cb8554c43d8397fccefe9fbcc2e6daf58342692a881e67a387de0cdb`.
 - **Not exercised:** browser Run all, BYOD (single CSV and pre-split), `RUN_FINE_TUNING` on GPU, new-data inference upload,
   the Wine activity. The worked answers were checked against this run (NOTEBOOK_SPEC REL13): they hold; the Section 5 answer's
   "about 0.63" majority-class accuracy is 0.6228 on the holdout here (rounding).
@@ -342,7 +342,7 @@ they are measurements for the stated runtime, not general estimates.
 - **Outcome:** **one pass, no restart, 0 errors**; 9/9 code cells (the carried-module cell has no output by design); isolated
   environment built in 81 s; wall 146.4 s.
 - **Evidence files** (`docs/execution-evidence/2026-10-08/mitra_classifier_predictor_inference_colab/`, byte-exact, `-text`):
-  executed notebook `af19781f12ecc1a94e79cf79e7ac6799942b1db06aa83337f22380d6f407cf12`, `run_summary.json` `11ad039da588b4202c8a9bcbe3d74197265ef92e290ee5d61400058e29d750e2`, `exec.log` `399f4a5c4b2a06751996a15c09ff20aef56cae3be2e1c624577b5454928c3ece`.
+  executed notebook `af19781f12ecc1a94e79cf79e7ac6799942b1db06aa83337f22380d6f407cf12`, `run_summary.json` `11ad039da588b4202c8a9bcbe3d74197265ef92e290ee5d61400058e29d750e2`, `exec.log` `399f4a5c4b2a06751996a15c09ff20aef56cae3be2e1c624577b5454928c3ece` (as first committed; redacted 2026-10-22, now `5b5d0ebea4f2a661415c9f65b332219f1e53c200ab7b67877c30d4040ac017e6`).
 - **Not exercised:** browser Run all, your-own-bundle path (`ARTIFACT_ZIP_PATH`), BYOD rows (`NEW_DATA_PATH`), the Colab upload
   dialog, the activity at another scale. The GitHub-hosted integration smoke (`notebook-release.yml`) exercises the own-bundle path
   with a CI-produced bundle on every pull request; that is regression coverage, not release evidence.
@@ -640,3 +640,21 @@ The guided edition was run at commit `ac0998ceb5cef6efcff8f2624d5c38e5c90bbca7` 
   it would change the notebook blob this record binds to.
 
 This record satisfies REL14 for blob `a25bfbfb`. The other items listed above remain open. **Status: Candidate.**
+
+### Local-path redaction of earlier evidence (2026-10-22)
+
+The local run directory in these earlier committed evidence files was replaced by `<local-run-dir>/`, the
+convention the later evidence in this repository already uses. Only those bytes changed: line endings and every
+other byte are as committed. Git history is not rewritten, so earlier commits still hold the original files.
+SHA-256 before (committed on `main`) → after:
+
+| File | Replacements | SHA-256 before | SHA-256 after |
+| :--- | ---: | :--- | :--- |
+| `docs/execution-evidence/2026-10-08/mitra_classifier_colab/exec.log` | 2 | `75bfe90bdfc0da8dde6d463fa8fed6ab61e18bfe242264f6799fc7a242b1f1c3` | `c545b111d225dde006dc33da829168761a24f9a61df15d11a3fbe6b1e5f8cf8c` |
+| `docs/execution-evidence/2026-10-08/mitra_classifier_predictor_inference_colab/exec.log` | 2 | `399f4a5c4b2a06751996a15c09ff20aef56cae3be2e1c624577b5454928c3ece` | `5b5d0ebea4f2a661415c9f65b332219f1e53c200ab7b67877c30d4040ac017e6` |
+| `docs/execution-evidence/2026-10-12/rice_pixel_tables_workshop/exec.log` | 2 | `6d6c2c6133f1572103bb197ad5c2f019904237d54b7bfd518f8f71f2d60ecea6` | `ca6ff8cbcf5344242e61af2ae5c5c000b88db855e2a4b8b667eaf542ccda6017` |
+| `docs/execution-evidence/2026-10-14/rice_pixel_tables_workshop/exec.log` | 2 | `2b4b7e33cc778ca432e1f01ebe5e9e59918df29605ce9510e3731ea65971e7c2` | `f8efb345741c8b4fa66d5c474d2f0ee4e1ecc70e9e12d9409afe127aeeaf8f30` |
+
+Where this document quotes one of these files' earlier hash as its committed hash, the new hash is now
+given beside it.
+
