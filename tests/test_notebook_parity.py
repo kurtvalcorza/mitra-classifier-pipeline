@@ -100,7 +100,7 @@ def test_par2_inline_manifest_and_pins_match_repository(notebook: dict) -> None:
     assert inline_pins == build._pins(ROOT, TEMPLATE)
     meta = notebook["metadata"]["dimer"]
     assert meta["standalone"] is True
-    assert meta["notebook_spec"] == build.NOTEBOOK_SPEC
+    assert meta["notebook_spec"] == TEMPLATE.get("notebook_spec", build.NOTEBOOK_SPEC)
     pkg_dir = TEMPLATE.get("package_dir", f"src/{TEMPLATE['package']}")
     entry = TEMPLATE.get("entry_module", "pipeline.py")
     assert meta["generated_from"]["module"] == f"{pkg_dir}/{entry}"
@@ -121,5 +121,10 @@ def test_st1_primary_path_has_no_repository_dependency(notebook: dict) -> None:
     assert "git" not in re.findall(r"subprocess\.run\(\[([^\]]*)\]", code).__str__()
     assert f"import {TEMPLATE['package']}" not in code
     assert f"from {TEMPLATE['package']}" not in code
-    # own-repository clone/install (ST1); SHA-pinned upstream git dependencies are allowed
-    assert "github.com/kurtvalcorza" not in code
+    # own-repository clone/install (ST1); SHA-pinned upstream git dependencies are allowed. The one exception is the
+    # pinned sample-artifact URL in the carried module (Section 10, SART6), allowed as an exact whole token only.
+    own = "\n".join(_source(c) for c in _cells(notebook, "code") if not c.get("metadata", {}).get("dimer", {}).get("embedded_module"))
+    assert "github.com/kurtvalcorza" not in own
+    carried = "\n".join(_source(c) for c in _cells(notebook, "code") if c.get("metadata", {}).get("dimer", {}).get("embedded_module"))
+    pinned = 'SAMPLE_ARTIFACT_URL = "https://github.com/kurtvalcorza/mitra-classifier-pipeline/releases/download/sample-artifact-breast-cancer-v1/mitra_classifier_predictor.zip"'
+    assert carried.count("github.com/kurtvalcorza") == 1 and pinned in carried

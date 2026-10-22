@@ -2,8 +2,9 @@
 
 Only the task-specific prose and stage cells live here. Runtime install, the embedded package module
 (``mitra_pipeline/tutorial_api.py``, a root-level package: ``package_dir``), and the model pin/stage/verify cell
-are produced by the generator from repository sources so they cannot drift from the package. The
-ARTIFACT-INFERENCE companion has its own template, ``tools/notebook_template_artifact_inference.py``.
+are produced by the generator from repository sources so they cannot drift from the package. The notebook
+closes its canonical path with the external-artifact section (Section 10, NOTEBOOK_SPEC 3.0 §19.1) that replaced the
+separate predictor-inference companion notebook: it scores a pinned bundle exported by an earlier recorded run.
 """
 # ruff: noqa: E501  -- markdown prose and code-cell text are kept on single lines for readable rendering
 
@@ -40,6 +41,10 @@ TEMPLATE = {
     "notebook_name": "mitra_classifier_colab.ipynb",
     "profile": "E2E",
     "mode": "GUIDED",
+    "notebook_spec": "3.0",
+    "notebook_kind": "TUTORIAL",
+    # Section 10 downloads one pinned release asset from github.com (SART6); the generator's External access bullet says so.
+    "external_access_note": "Section 10 also downloads one pinned release asset of this repository from `github.com` (the sample predictor bundle, no sign-in), checked against its pinned SHA-256 before extraction. No credentials are required; nothing is installed from this repository.",
     "isolated_runtime": True,
     "infrastructure_labels": True,
     # The fleet's uv isolated-environment mechanism (generator /2.2): managed CPython, a
@@ -56,7 +61,7 @@ TEMPLATE = {
     },
     "lock": "tutorials/requirements-colab-isolated.lock.txt",
     "run_all": (
-        "Selecting **Run all** in a fresh supported runtime builds an isolated, hash-locked environment with the pinned dependencies (nothing is installed into the notebook kernel, so no restart is needed), stages and digest-verifies the pinned Mitra snapshot, loads scikit-learn's bundled Breast Cancer Wisconsin table (no download), validates the tables into an input manifest and checks class coverage and split overlap, fits the pretrained Mitra predictor by **in-context conditioning on the training split** (the adaptation stage that runs by default — no gradient update) alongside executable baselines, evaluates on the held-out split and writes the evaluation report, exports the deployable predictor bundle and reloads it from disk to prove the fresh boundary. Gradient fine-tuning of the Mitra weights is an optional experiment (`RUN_FINE_TUNING`, off by default, Section 6) because it needs a GPU-sized time budget. In-context conditioning on the support rows is this notebook's adaptation stage. No repository clone, DIMER worker or service, credential, upload dialog or configuration edit is required (§5)."
+        "Selecting **Run all** in a fresh supported runtime builds an isolated, hash-locked environment with the pinned dependencies (nothing is installed into the notebook kernel, so no restart is needed), stages and digest-verifies the pinned Mitra snapshot, loads scikit-learn's bundled Breast Cancer Wisconsin table (no download), validates the tables into an input manifest and checks class coverage and split overlap, fits the pretrained Mitra predictor by **in-context conditioning on the training split** (the adaptation stage that runs by default — no gradient update) alongside executable baselines, evaluates on the held-out split and writes the evaluation report, exports the deployable predictor bundle and reloads it from disk to prove the fresh boundary, and finally (Section 10) downloads a pinned predictor bundle that an earlier recorded run of this notebook exported, verifies its SHA-256 before extraction, reconstructs the predictor from that bundle alone and scores the sample's independent test rows with it. Gradient fine-tuning of the Mitra weights is an optional experiment (`RUN_FINE_TUNING`, off by default, Section 6) because it needs a GPU-sized time budget. In-context conditioning on the support rows is this notebook's adaptation stage. No repository clone, DIMER worker or service, credential, upload dialog or configuration edit is required (§5); the only GitHub request is Section 10's pinned, digest-checked release-asset download."
     ),
     "byod": (
         "After the sample workflow completes, set `USE_BYOD = True` in Section 4 (with an `Upload …` `DATA_SOURCE`, and `BYOD_PATH` pointing at one labelled CSV or at a directory holding pre-split `train.csv`/`val.csv`/`test.csv`; on Colab an empty path opens the upload dialog) and re-run from that cell; it enters the same validation, split, in-context fitting, baseline, evaluation, export and fresh-reload cells as the sample (DAT14), and `RUN_NEW_DATA_INFERENCE` in Section 8 scores your own unlabelled rows with the fitted predictor. Expected schema, ceilings and privacy guidance are stated in the Prerequisites and in Section 4; uploads stay inside this runtime. BYOD is optional and never part of the default path."
@@ -103,7 +108,7 @@ TEMPLATE = {
         "**What you will do.** Condition a pretrained tabular foundation model on a small labelled table, compare it row by row with three baselines on the same partitions, and export a bundle that reloads from fresh files. **How:** Runtime → Run all (one pass, no restart, no upload); the declarations are in the collapsible block below."
     ),
     "guided": {"opening": [(
-        "**Who this notebook is for.** A learner who knows basic pandas, has used Colab or Jupyter and has met a train/holdout split and accuracy, and wants to see what an in-context tabular foundation model does with a small table: how it is *conditioned* on support rows instead of trained, how its numbers are read against trivial and classical baselines on the same rows, and what the exported predictor bundle contains. The audience is students and practitioners deciding whether Mitra fits their own tables; no prior experience with AutoGluon or Mitra is assumed — each term is explained where it first matters and again in the **Glossary**. CPU is enough for the default path; the optional fine-tuning gate needs a GPU.\n\n**Input → Model → Output.**\n\n| | |\n|---|---|\n| Input | a labelled table (`DATA_SOURCE`): the default is scikit-learn's bundled Breast Cancer Wisconsin table (569 rows, 30 numeric features, two classes), split 60/20/20 into support, holdout and an independent test partition; or your own CSV (one file, or pre-split `train.csv` / `val.csv` / `test.csv`) via `BYOD_PATH` or the Colab upload dialog |\n| Model | the pinned `autogluon/mitra-classifier` checkpoint (302,717,904-byte `model.safetensors`) served through AutoGluon's `TabularPredictor`; `fit` with `fine_tune=False` registers the support rows — no weight is gradient-updated — and `RUN_FINE_TUNING` (off) is the only path that trains |\n| Output | accuracy, balanced accuracy, macro F1, MCC, log loss and ROC-AUC on the holdout and the test partition beside a majority-class predictor, LightGBM and Random Forest; an input manifest with one recorded refusal; an evaluation report with the verdict `sample-sanity`; eight scored rows; a predictor bundle (`outputs/mitra_classifier_predictor.zip`) that is reloaded from fresh files and checked against the in-memory model; `result.json` |\n\n**How to use this notebook.** Choose any runtime, then **Runtime → Run all**. Run all completes in one pass: Section 1 installs nothing into the notebook's own Python, so no restart is needed. Sections 1–3 are **infrastructure** — the isolated environment, the carried module and the verified snapshot — and their cells are collapsed; you may run them without studying them. The learning path starts in Section 4. Form fields (`# @param`) are the only values meant to be edited, and the defaults reproduce the recorded run. Before each principal result the notebook asks you to **Predict**; after it comes a collapsible **Check your reasoning** with a worked answer. The answers give directions and magnitudes, not numbers to match; the few counts they quote (partition sizes, file sizes) are deterministic and are labelled with the run they come from — the Kaggle T4 run of 14 September 2026 recorded for the previous notebook revision (blob `9599d5c`). **Troubleshooting**, a **Glossary** and a **Conclusion** template are at the end. Budget about ten minutes; the AutoGluon install and the 300 MB checkpoint dominate.\n\n**Roadmap:** 1–3 infrastructure → 4 the table and its split *(core concept: support, holdout and an independent test partition)* → 5 validation, the input manifest and one deliberate refusal *(core concept: the data contract, class coverage and leakage checks)* → 6 the pretrained model beside a majority-class predictor, LightGBM and Random Forest on the same rows *(evaluation practice: baselines first; in-context conditioning versus training)* → 7 the evaluation report and its verdict *(evaluation practice)* → 8 optional new-data inference → 9 export the bundle and prove a fresh reload *(engineering)* → conclude."
+        "**Who this notebook is for.** A learner who knows basic pandas, has used Colab or Jupyter and has met a train/holdout split and accuracy, and wants to see what an in-context tabular foundation model does with a small table: how it is *conditioned* on support rows instead of trained, how its numbers are read against trivial and classical baselines on the same rows, and what the exported predictor bundle contains. The audience is students and practitioners deciding whether Mitra fits their own tables; no prior experience with AutoGluon or Mitra is assumed — each term is explained where it first matters and again in the **Glossary**. CPU is enough for the default path; the optional fine-tuning gate needs a GPU.\n\n**Input → Model → Output.**\n\n| | |\n|---|---|\n| Input | a labelled table (`DATA_SOURCE`): the default is scikit-learn's bundled Breast Cancer Wisconsin table (569 rows, 30 numeric features, two classes), split 60/20/20 into support, holdout and an independent test partition; or your own CSV (one file, or pre-split `train.csv` / `val.csv` / `test.csv`) via `BYOD_PATH` or the Colab upload dialog |\n| Model | the pinned `autogluon/mitra-classifier` checkpoint (302,717,904-byte `model.safetensors`) served through AutoGluon's `TabularPredictor`; `fit` with `fine_tune=False` registers the support rows — no weight is gradient-updated — and `RUN_FINE_TUNING` (off) is the only path that trains |\n| Output | accuracy, balanced accuracy, macro F1, MCC, log loss and ROC-AUC on the holdout and the test partition beside a majority-class predictor, LightGBM and Random Forest; an input manifest with one recorded refusal; an evaluation report with the verdict `sample-sanity`; eight scored rows; a predictor bundle (`outputs/mitra_classifier_predictor.zip`) that is reloaded from fresh files and checked against the in-memory model; `result.json`; and, from a pinned bundle made by an earlier recorded run, predictions for the independent test rows under `outputs/external_artifact/` |\n\n**How to use this notebook.** Choose any runtime, then **Runtime → Run all**. Run all completes in one pass: Section 1 installs nothing into the notebook's own Python, so no restart is needed. Sections 1–3 are **infrastructure** — the isolated environment, the carried module and the verified snapshot — and their cells are collapsed; you may run them without studying them. The learning path starts in Section 4. Form fields (`# @param`) are the only values meant to be edited, and the defaults reproduce the recorded run. Before each principal result the notebook asks you to **Predict**; after it comes a collapsible **Check your reasoning** with a worked answer. The answers give directions and magnitudes, not numbers to match; the few counts they quote (partition sizes, file sizes) are deterministic and are labelled with the run they come from — the Kaggle T4 run of 14 September 2026 recorded for the previous notebook revision (blob `9599d5c`). After the export, **Interpretation and limits** and a **Conclusion** template close the main path; Section 10 then serves a bundle made elsewhere, and it is the last step of Run all. An optional activity, **Troubleshooting**, a **Glossary** and **References** follow. Budget about ten minutes; the AutoGluon install and the 300 MB checkpoint dominate.\n\n**Roadmap:** 1–3 infrastructure → 4 the table and its split *(core concept: support, holdout and an independent test partition)* → 5 validation, the input manifest and one deliberate refusal *(core concept: the data contract, class coverage and leakage checks)* → 6 the pretrained model beside a majority-class predictor, LightGBM and Random Forest on the same rows *(evaluation practice: baselines first; in-context conditioning versus training)* → 7 the evaluation report and its verdict *(evaluation practice)* → 8 optional new-data inference → 9 export the bundle and prove a fresh reload *(engineering)* → interpretation and conclusion → 10 serve a bundle made elsewhere *(core concept: what is verified before a Python-serialised artifact is deserialised, and what is not)* → 11 optional activity."
     )]},
     "prerequisites": [
         "- **Learner:** basic pandas and Colab or Jupyter familiarity; no prior experience with AutoGluon or Mitra. In-context conditioning, the partitions, the metrics, the baselines and the bundle are explained where they are first used and again in the Glossary.",
@@ -561,7 +566,7 @@ TEMPLATE = {
                 "and disclosure obligations (ART3/ART7). `tutorial_run_metadata.json` records the base-model identity "
                 "and digests, the AutoGluon/Python versions, the problem type, the target, features and class labels, "
                 "the mode and selection basis, the data digest and the metrics; `write_artifact_manifest` inventories "
-                "every file with its size and SHA-256 (ART5/ART6). The directory is zipped and its SHA-256 printed.\n\n"
+                "every file with its size and SHA-256 (ART5/ART6). The directory is zipped by `deterministic_zip` (sorted members, a fixed timestamp and mode, written atomically), so the ZIP's SHA-256, printed here, depends only on the files it holds.\n\n"
                 "An in-memory predictor is not evidence that serialisation worked. The cell extracts the exact ZIP into a "
                 "fresh directory with `safe_extract_archive` (path, symlink, size and compression-ratio checks; never "
                 "`extractall`), verifies the manifest and provenance with `validate_artifact_directory` **before** "
@@ -594,7 +599,7 @@ TEMPLATE = {
                 "manifest_path = write_artifact_manifest(active_path)\n"
                 "archive_base = Path('outputs') / '{stem}_predictor'\n"
                 "Path(str(archive_base) + '.zip').unlink(missing_ok=True)\n"
-                "archive = Path(shutil.make_archive(str(archive_base), 'zip', root_dir=active_path))\n"
+                "archive = deterministic_zip(active_path, Path(str(archive_base) + '.zip'))  # sorted members, fixed timestamp and mode, atomic write\n"
                 "archive_digest = sha256_file(archive)\n"
                 "print({{'predictor_zip': str(archive), 'zip_sha256': archive_digest, 'artifact_manifest': str(manifest_path)}})\n\n"
                 "RELOAD_DIR = Path('outputs') / 'artifact-reload'\n"
@@ -638,8 +643,8 @@ TEMPLATE = {
                 "<details><summary>Check your reasoning</summary>Equal within `rtol=1e-6, atol=1e-8`, and the labels identical: the cell prints `PASS` only after `validate_artifact_directory` verified every file's size and SHA-256 and the provenance before `TabularPredictor.load` ran. The bundle contains the registered support rows themselves (Mitra predicts by attending over them), so it inherits the source data's confidentiality, licensing and retention obligations — a point the `tutorial_run_metadata.json` records as the data digest.</details>"
             ),
         },
-    ],
-    "closing": (
+        {
+            "md": (
         "## Interpretation and limits\n\n"
         "`prediction` is the `argmax` of uncalibrated class probabilities over the classes registered from the "
         "support rows; the package ships no threshold, and any deployment cut-off must be chosen on the caller's own "
@@ -657,7 +662,243 @@ TEMPLATE = {
         "report, score rows with class probabilities under an explicit `argmax` rule, export the deployable predictor "
         "bundle with its manifest and provenance, and reload an equivalent predictor from that bundle alone — without "
         "the repository being reachable. It does **not** establish benchmark superiority, domain generalisation, "
-        "fairness, robustness, probability calibration, production safety, or deployment fitness.\n\n"
+        "fairness, robustness, probability calibration, production safety, or deployment fitness."
+            ),
+        },
+        {
+            "md": (
+                "## Conclusion (your notes)\n\n"
+                "Before you leave the main path, write three lines in this cell: (1) the pretrained Mitra row of Section 6 beside the majority-class predictor, LightGBM and Random Forest on the holdout, and whether the differences exceed the one-row resolution; (2) what the `sample-sanity` verdict does and does not license you to claim; (3) one property of your own table (row count, feature count, class balance, independence of rows) that would change how you read these numbers. Section 10 then shows the other half of deployment: serving a bundle that was made somewhere else."
+            ),
+        },
+        {
+            "md": (
+                "## 10. Using an artifact made elsewhere\n\n"
+                "So far this notebook has scored rows with the predictor it conditioned in this run, and Section 9 proved that this "
+                "run's bundle reloads from fresh files. This section does something different: the reload shows that this run's "
+                "export survives serialization, and this section shows that an artifact made elsewhere can be validated and served "
+                "here. It downloads a pinned predictor bundle that an earlier, recorded run of this notebook exported, verifies its "
+                "SHA-256 before opening it, shows its provenance and format, reconstructs the predictor from the bundle alone, and "
+                "scores rows that follow the same data contract as the rest of this notebook. **This run's own export "
+                "(`outputs/{stem}_predictor.zip`, Section 9) is never used here.**\n\n"
+                "**This section needs only the setup cells (Sections 1–3).** It reads no table, model or file that Sections 4–9 "
+                "created, and its variables carry an `ext_` / `EXT_` prefix so it overwrites none of theirs: if you already hold a "
+                "compatible bundle you can run Sections 1–3 and then this section alone. Its outputs go to "
+                "`outputs/external_artifact/`, apart from the main path's files.\n\n"
+                "**The pinned sample artifact.** By default the cell downloads `mitra_classifier_predictor.zip` from this "
+                "repository's GitHub release `sample-artifact-breast-cancer-v1` (no account or token). It is the export of a "
+                "recorded hosted Colab T4 run of this notebook's default path (the Breast Cancer sample) at commit `be831ef`; the "
+                "release notes name the run, and the asset is never replaced (a changed artifact gets a new tag). **The download is "
+                "about 280 MB** (the bundle carries the Mitra checkpoint with AutoGluon's state), so this is the slowest cell after "
+                "Section 1; a complete earlier download in this runtime is reused. The carried module pins the URL "
+                "(`SAMPLE_ARTIFACT_URL`) and the SHA-256 (`SAMPLE_ARTIFACT_SHA256`); the cell prints both, the producer and the "
+                "format **before** it downloads anything, then `fetch_pinned_artifact` refuses the file unless its SHA-256 equals the "
+                "pinned value, and nothing is extracted from a refused file. Only then does `safe_extract_archive` write the members "
+                "(path, symlink, size and compression-ratio checks; never `extractall`); `validate_artifact_directory` verifies the "
+                "bundle's manifest (every listed file present, no unlisted file, sizes and SHA-256 equal) and its provenance; the "
+                "bundle must name the pinned base checkpoint; and `check_data_contract` requires the default path's task, features, "
+                "target and class labels (SART10). Any failed check stops the run, and no prediction file is written.\n\n"
+                "**Trust boundary.** A predictor bundle is Python-serialised state: `TabularPredictor.load` unpickles AutoGluon "
+                "objects, which can execute code, so loading a bundle means trusting its producer. Path checks and digests establish "
+                "integrity and consistency, not sender authenticity or the safety of deserialisation. The pinned SHA-256 binds this "
+                "download to the file the maintainer published, and nothing is deserialised before every check above has passed. "
+                "For a bundle of your own, the only binding is a digest you received from its producer through a separate channel.\n\n"
+                "**Optional: your own bundle (off by default).** Set `ARTIFACT_SOURCE` to `My own artifact ZIP`, set "
+                "`ARTIFACT_ZIP_PATH` (or leave it empty on Colab to upload) and paste the producer's `EXPECTED_ZIP_SHA256`; the "
+                "digest is required unless `ALLOW_UNVERIFIED_ARTIFACT` is ticked for an already-trusted local bundle, which prints a "
+                "warning. The location field is a dropdown that defaults to the pinned asset.\n\n"
+                "**Predict:** list the checks that run before `TabularPredictor.load`, in order. Which of them would catch an archive that was altered after export, and which property of the archive does none of them establish?"
+            ),
+            "code": (
+                "import shutil\n\n"
+                "from sklearn.datasets import load_breast_cancer\n\n"
+                "ARTIFACT_SOURCE = 'Pinned sample artifact'  # @param [\"Pinned sample artifact\", \"My own artifact ZIP\"]\n"
+                "ARTIFACT_ZIP_PATH = ''  # @param {{type:\"string\"}}\n"
+                "EXPECTED_ZIP_SHA256 = ''  # @param {{type:\"string\"}}\n"
+                "ALLOW_UNVERIFIED_ARTIFACT = False  # @param {{type:\"boolean\"}}\n"
+                "EXT_OUT = Path('outputs') / 'external_artifact'\n"
+                "EXT_INPUTS = Path('external_artifact_inputs')\n"
+                "shutil.rmtree(EXT_OUT, ignore_errors=True)  # a failed check below leaves no prediction file behind\n"
+                "EXT_INPUTS.mkdir(parents=True, exist_ok=True)\n"
+                "if ARTIFACT_SOURCE == 'Pinned sample artifact':\n"
+                "    print({{'sample_artifact': SAMPLE_ARTIFACT_URL, 'pinned_sha256': SAMPLE_ARTIFACT_SHA256, 'bytes': SAMPLE_ARTIFACT_BYTES, 'producer': SAMPLE_ARTIFACT_PRODUCER, 'format': f'{{ARTIFACT_FORMAT}} v{{ARTIFACT_FORMAT_VERSION}}', 'integrity': 'whole-archive SHA-256 before extraction, then every member against artifact_manifest.json'}})\n"
+                "    ext_zip = fetch_pinned_artifact(EXT_INPUTS / 'pinned_sample_artifact.zip', SAMPLE_ARTIFACT_URL, SAMPLE_ARTIFACT_SHA256)\n"
+                "    ext_source, ext_trusted_digest = 'pinned sample artifact', 'verified (pinned SAMPLE_ARTIFACT_SHA256)'\n"
+                "elif ARTIFACT_SOURCE == 'My own artifact ZIP':\n"
+                "    if ARTIFACT_ZIP_PATH.strip():\n"
+                "        ext_source_path = Path(ARTIFACT_ZIP_PATH.strip()).expanduser()\n"
+                "        if not ext_source_path.is_file():\n"
+                "            raise FileNotFoundError(f'ARTIFACT_ZIP_PATH {{ARTIFACT_ZIP_PATH!r}} is not a file (relative paths start at {{os.getcwd()}}): give the predictor bundle ZIP, or leave it empty on Colab to upload.')\n"
+                "        ext_zip = EXT_INPUTS / ('own-' + ext_source_path.name)\n"
+                "        if ext_source_path.resolve() != ext_zip.resolve():\n"
+                "            shutil.copyfile(ext_source_path, ext_zip)\n"
+                "    else:\n"
+                "        try:\n"
+                "            from google.colab import files\n"
+                "        except ImportError:\n"
+                "            raise RuntimeError('ARTIFACT_ZIP_PATH is empty and the upload dialog exists only in Google Colab: copy the bundle ZIP into the runtime and set ARTIFACT_ZIP_PATH to its path.') from None\n"
+                "        ext_uploaded = files.upload() or {{}}\n"
+                "        ext_zips = [(name, payload) for name, payload in ext_uploaded.items() if name.lower().endswith('.zip')]\n"
+                "        if len(ext_zips) != 1:\n"
+                "            raise RuntimeError(f'Upload exactly one predictor bundle ZIP (received {{sorted(ext_uploaded) or \"nothing; a cancelled dialog sends none\"}}). Run this cell again.')\n"
+                "        ext_zip = EXT_INPUTS / ('own-' + Path(ext_zips[0][0]).name)\n"
+                "        ext_zip.write_bytes(ext_zips[0][1])\n"
+                "    if EXPECTED_ZIP_SHA256.strip():\n"
+                "        check_trusted_digest(ext_zip, EXPECTED_ZIP_SHA256, 'EXPECTED_ZIP_SHA256')\n"
+                "        ext_trusted_digest = 'verified (EXPECTED_ZIP_SHA256)'\n"
+                "    elif not ALLOW_UNVERIFIED_ARTIFACT:\n"
+                "        raise RuntimeError('A trusted whole-archive SHA-256 is required before loading this Python-serialized artifact. Set EXPECTED_ZIP_SHA256, or set ALLOW_UNVERIFIED_ARTIFACT=True only for an already-trusted local artifact.')\n"
+                "    else:\n"
+                "        print('WARNING explicit unverified-artifact override enabled; sender authenticity/substitution is not checked.')\n"
+                "        ext_trusted_digest = 'NOT verified (ALLOW_UNVERIFIED_ARTIFACT)'\n"
+                "    ext_source = f'own artifact: {{ext_zip.name}}'\n"
+                "else:\n"
+                "    raise ValueError(f'Unknown ARTIFACT_SOURCE {{ARTIFACT_SOURCE!r}}.')\n"
+                "ext_zip_sha256 = sha256_file(ext_zip)\n"
+                "EXT_BUNDLE = EXT_INPUTS / 'bundle'\n"
+                "shutil.rmtree(EXT_BUNDLE, ignore_errors=True)\n"
+                "safe_extract_archive(ext_zip, EXT_BUNDLE)\n"
+                "ext_manifest, ext_metadata = validate_artifact_directory(EXT_BUNDLE)\n"
+                "if (ext_metadata['base_model'], ext_metadata['base_model_revision'], ext_metadata['weights_sha256'], ext_metadata['config_sha256']) != (MODEL_ID, MODEL_REVISION, WEIGHTS_SHA256, CONFIG_SHA256):\n"
+                "    raise RuntimeError('Bundle was not produced on the pinned base checkpoint carried by this notebook.')\n"
+                "if ARTIFACT_SOURCE == 'Pinned sample artifact':\n"
+                "    ext_table = load_breast_cancer(as_frame=True)\n"
+                "    check_data_contract(ext_metadata, {{'problemType': 'binary', 'featureColumns': list(ext_table.feature_names), 'targetColumn': 'target', 'classLabels': ['benign', 'malignant']}})\n"
+                "EXT_FEATURES = list(ext_metadata['features'])\n"
+                "EXT_TARGET = ext_metadata['target_column']\n"
+                "print({{'artifact_source': ext_source, 'trusted_digest': ext_trusted_digest, 'zip': ext_zip.name, 'zip_sha256': ext_zip_sha256, 'format': ext_manifest['artifact_format'], 'format_version': ext_manifest['artifact_format_version'], 'base_model': ext_metadata['base_model'], 'base_revision': ext_metadata['base_model_revision'][:12], 'problem_type': ext_metadata['problem_type'], 'mode': ext_metadata['mode'], 'selection_basis': ext_metadata['selection_basis'], 'data_contract': 'default path (Sample: Breast Cancer)' if ARTIFACT_SOURCE == 'Pinned sample artifact' else 'your bundle'}})\n"
+                "print({{'target': EXT_TARGET, 'features': len(EXT_FEATURES), 'class_labels': ext_metadata.get('class_labels'), 'producer_autogluon': ext_metadata['autogluon_version'], 'producer_python': ext_metadata['python_version'], 'data_source': ext_metadata.get('data_source'), 'producer_notebook_source': ext_metadata.get('notebook_source')}})"
+            ),
+        },
+        {
+            "md": (
+                "<details><summary>Check your reasoning</summary>In order: the whole-archive SHA-256 against the pinned digest (or `EXPECTED_ZIP_SHA256` for your own bundle); `safe_extract_archive`'s per-member path, symlink, size, expanded-size and compression-ratio checks; `validate_artifact_directory`'s manifest (every listed file present, no unlisted file, sizes and digests equal) and provenance checks; the bundle's base model, revision and digests against the carried pinned values; and, for the pinned bundle, the default data contract. An altered archive fails the whole-archive digest first and the manifest digests second. None of them establishes who produced the archive or that Python deserialisation is safe: `TabularPredictor.load` executes trusted serialised state, which is why a trusted digest is required by default.</details>\n\n"
+                "**What to notice:** the provenance line is printed before the download; then `trusted_digest: verified (pinned SAMPLE_ARTIFACT_SHA256)`, the `mode` (`pretrained`), the producer's AutoGluon and Python versions and its notebook source; and the bundle's 30 Breast Cancer features, its `target` column and the class labels `benign` and `malignant`."
+            ),
+        },
+        {
+            "md": (
+                "**Reconstruct the predictor locally.** AutoGluon predictor state is Python-serialised, so the runtime's AutoGluon "
+                "version must equal the producer's and the Python major/minor must match; both are checked before "
+                "`TabularPredictor.load` runs. The predictor is rebuilt from the extracted bundle only: the support rows Mitra "
+                "attends over, the model configuration and AutoGluon's fitted feature preprocessing all come from the bundle, so "
+                "nothing is refitted on the rows about to be scored and no network path is used. The Section 3 snapshot `pipe` "
+                "supplies only file locations to the serving wrapper; every prediction comes from the bundle's own state."
+            ),
+            "code": (
+                "from autogluon.tabular import TabularPredictor\n\n"
+                "ext_autogluon = importlib.metadata.version('autogluon.tabular')\n"
+                "if ext_metadata['autogluon_version'] != ext_autogluon:\n"
+                "    raise RuntimeError(f\"Artifact requires AutoGluon {{ext_metadata['autogluon_version']}}; runtime has {{ext_autogluon}}.\")\n"
+                "if '.'.join(str(ext_metadata['python_version']).split('.')[:2]) != '.'.join(platform.python_version().split('.')[:2]):\n"
+                "    raise RuntimeError(f\"Artifact was exported under Python {{ext_metadata['python_version']}}; runtime is {{platform.python_version()}}. Use matching Python major/minor.\")\n"
+                "ext_predictor = TabularPredictor.load(str(EXT_BUNDLE))\n"
+                "if ext_predictor.problem_type not in {{'binary', 'multiclass'}}:\n"
+                "    raise RuntimeError(f'Expected a binary/multiclass classification predictor; loaded {{ext_predictor.problem_type!r}}.')\n"
+                "ext_serving = MitraClassificationPipeline(weights_path=pipe.model_weight_path, config_path=pipe.config_path, snapshot_path=pipe.snapshot_path, device=pipe.device, source='artifact', predictor=ext_predictor, features=EXT_FEATURES)\n"
+                "ext_serving.target_column = EXT_TARGET\n"
+                "ext_serving.problem_type = str(ext_predictor.problem_type)\n"
+                "EXT_CLASSES = list(ext_serving.class_labels)\n"
+                "if ext_metadata.get('class_labels') is not None and [str(label) for label in EXT_CLASSES] != list(ext_metadata['class_labels']):\n"
+                "    raise RuntimeError('Reconstructed class labels disagree with the validated provenance.')\n"
+                "print({{'reconstructed_from': str(EXT_BUNDLE), 'models': list(ext_predictor.model_names()), 'features': len(EXT_FEATURES), 'classes': EXT_CLASSES, 'problem_type': ext_serving.problem_type, 'device': ext_serving.device, 'source': ext_serving.source}})"
+            ),
+        },
+        {
+            "md": (
+                "**Score sample rows, or your own.** By default the cell re-derives the sample's **independent test partition** "
+                "(114 rows) from scikit-learn's bundled Breast Cancer table with the seed recorded in the bundle, checks that the "
+                "table's digest equals the one the producer recorded, and removes the label: the rows follow the bundle's data "
+                "contract and are not among its support rows. They pass the same `read_csv_bytes` / `validate_inputs` / "
+                "`validate_inference_frame` checks as Section 8, and a probe with a missing feature must be refused. The output adds "
+                "`prediction` (the `argmax` label) and one `probability_<class>` column per class in the predictor's stored order "
+                "(uncalibrated; no threshold is shipped). With no labels passed, the evaluation report's verdict is `not-measurable`. "
+                "The predictions go to `outputs/external_artifact/{stem}_external_predictions.csv` and the input manifest, "
+                "evaluation report and bundle provenance to `outputs/external_artifact/{stem}_external_result.json`.\n\n"
+                "**Optional: your own rows (BYOD, off by default).** Tick `USE_OWN_ROWS` and set `EXTERNAL_ROWS_PATH` (or leave it "
+                "empty on Colab to upload) to an unlabelled CSV with the bundle's feature columns. With your own bundle your own rows "
+                "are required: the sample rows follow only the pinned bundle's contract."
+            ),
+            "code": (
+                "import hashlib\n\n"
+                "from sklearn.model_selection import train_test_split\n\n"
+                "USE_OWN_ROWS = False  # @param {{type:\"boolean\"}}\n"
+                "EXTERNAL_ROWS_PATH = ''  # @param {{type:\"string\"}}\n"
+                "print({{'inference_limits': {{'required_features': len(EXT_FEATURES), 'reserved_output_columns': ['prediction'] + [f'probability_{{c}}' for c in EXT_CLASSES], 'extra_columns': 'kept in the output, not passed to the model', 'row_ceiling': None}}}})\n"
+                "if not USE_OWN_ROWS:\n"
+                "    if ext_metadata.get('data_source') != 'Sample: Breast Cancer':\n"
+                "        raise RuntimeError(f\"The sample rows fit only a bundle trained on 'Sample: Breast Cancer'; this bundle was trained on {{ext_metadata.get('data_source')!r}}. Tick USE_OWN_ROWS and give unlabelled rows with its features.\")\n"
+                "    ext_table = load_breast_cancer(as_frame=True)\n"
+                "    ext_frame = ext_table.frame.rename(columns={{ext_table.target.name: EXT_TARGET}})\n"
+                "    ext_frame[EXT_TARGET] = ext_frame[EXT_TARGET].map({{0: 'malignant', 1: 'benign'}})\n"
+                "    ext_table_digest = hashlib.sha256(json.dumps({{'sample.csv': hashlib.sha256(ext_frame.to_csv(index=False, lineterminator='\\n').encode('utf-8')).hexdigest()}}, sort_keys=True).encode()).hexdigest()\n"
+                "    if ext_table_digest != ext_metadata.get('data_sha256'):\n"
+                "        raise RuntimeError(f\"scikit-learn's bundled table (digest {{ext_table_digest[:16]}}...) is not the table the bundle was produced from ({{str(ext_metadata.get('data_sha256'))[:16]}}...): tick USE_OWN_ROWS and give your own unlabelled rows.\")\n"
+                "    _, ext_remainder = train_test_split(ext_frame, test_size=0.4, random_state=ext_metadata['seed'], stratify=ext_frame[EXT_TARGET])\n"
+                "    _, ext_sample = train_test_split(ext_remainder, test_size=0.5, random_state=ext_metadata['seed'], stratify=ext_remainder[EXT_TARGET])\n"
+                "    ext_csv_name, ext_kind = 'sample-independent-test-rows.csv', 'sample'\n"
+                "    ext_payload = ext_sample.drop(columns=[EXT_TARGET]).to_csv(index=False).encode('utf-8')\n"
+                "elif EXTERNAL_ROWS_PATH.strip():\n"
+                "    ext_csv_name, ext_kind = os.path.basename(EXTERNAL_ROWS_PATH.strip()), 'BYOD'\n"
+                "    ext_payload = Path(EXTERNAL_ROWS_PATH.strip()).expanduser().read_bytes()\n"
+                "else:\n"
+                "    try:\n"
+                "        from google.colab import files\n"
+                "    except ImportError:\n"
+                "        raise RuntimeError('EXTERNAL_ROWS_PATH is empty and the upload dialog exists only in Google Colab: copy the CSV into the runtime and set EXTERNAL_ROWS_PATH to its path.') from None\n"
+                "    ext_csvs = [(name, payload) for name, payload in files.upload().items() if name.lower().endswith('.csv')]\n"
+                "    if len(ext_csvs) != 1:\n"
+                "        raise RuntimeError('Upload exactly one inference CSV.')\n"
+                "    (ext_csv_name, ext_payload), ext_kind = ext_csvs[0], 'BYOD'\n"
+                "ext_rows = read_csv_bytes(ext_payload, ext_csv_name)\n"
+                "ext_input_manifest = validate_inputs(ext_rows, None, feature_columns=EXT_FEATURES, names=[ext_csv_name])\n"
+                "# The fitted schema is the contract: a probe without the first required feature must be refused.\n"
+                "try:\n"
+                "    validate_inputs(ext_rows.drop(columns=[EXT_FEATURES[0]]), None, feature_columns=EXT_FEATURES)\n"
+                "except ValueError as exc:\n"
+                "    ext_input_manifest['findings'].append({{'input': 'missing-column-probe', 'verdict': 'rejected', 'message': str(exc)}})\n"
+                "else:\n"
+                "    raise RuntimeError('The missing-column probe was accepted: the inference validation is broken, so nothing is scored.')\n"
+                "X_ext, ext_extra_columns = validate_inference_frame(ext_rows, EXT_FEATURES)\n"
+                "ext_proba = ext_serving.predict_proba(X_ext)\n"
+                "ext_out = ext_rows.copy()\n"
+                "ext_out['prediction'] = ext_serving.predict(X_ext)\n"
+                "for class_label in EXT_CLASSES:\n"
+                "    ext_out[f'probability_{{class_label}}'] = ext_proba[class_label].to_numpy()\n"
+                "ext_report = evaluation_report(None, n_holdout=0, class_labels=EXT_CLASSES, target_column=EXT_TARGET, sample_kind=ext_kind)\n"
+                "EXT_OUT.mkdir(parents=True, exist_ok=True)\n"
+                "ext_out.to_csv(EXT_OUT / '{stem}_external_predictions.csv', index=False)\n"
+                "ext_result = {{\n"
+                "    'predictions': ext_out.to_dict(orient='records'),\n"
+                "    'evaluation_report': ext_report,\n"
+                "    'input_manifest': ext_input_manifest,\n"
+                "    'artifact': {{'source': ext_source, 'zip': ext_zip.name, 'zip_sha256': ext_zip_sha256, 'trusted_digest': ext_trusted_digest, 'pinned_url': SAMPLE_ARTIFACT_URL if ARTIFACT_SOURCE == 'Pinned sample artifact' else None, 'producer': SAMPLE_ARTIFACT_PRODUCER if ARTIFACT_SOURCE == 'Pinned sample artifact' else None, 'manifest': ext_manifest, 'run_metadata': ext_metadata}},\n"
+                "    'inference': {{'decisionRule': DECISION_RULE + ' over uncalibrated class probabilities', 'threshold': None, 'classLabels': [str(label) for label in EXT_CLASSES], 'problemType': ext_serving.problem_type, 'extra_columns': ext_extra_columns}},\n"
+                "    'input': {{'filename': ext_csv_name, 'rows': len(ext_out), 'features': EXT_FEATURES, 'kind': ext_kind}},\n"
+                "    'notebook_source': NOTEBOOK_SOURCE,\n"
+                "    'model_id': MODEL_ID,\n"
+                "    'model_revision': MODEL_REVISION,\n"
+                "    'model_license': MODEL_LICENSE,\n"
+                "    'runtime': {{'python': platform.python_version(), 'torch': torch.__version__, 'autogluon': ext_autogluon, 'device': ext_serving.device}},\n"
+                "}}\n"
+                "with open(EXT_OUT / '{stem}_external_result.json', 'w', encoding='utf-8') as handle:\n"
+                "    json.dump(ext_result, handle, indent=2, ensure_ascii=False)\n"
+                "print(ext_out.head())\n"
+                "print({{'verdict': ext_report['verdict'], 'rows': len(ext_out), 'written': sorted(p.as_posix() for p in EXT_OUT.iterdir())}})"
+            ),
+        },
+        {
+            "md": (
+                "**What to notice:** 114 rows with `prediction` and `probability_benign` / `probability_malignant`; the missing-column probe recorded as `rejected`; the verdict `not-measurable`; and the two files under `outputs/external_artifact/`.\n\n"
+                "**Checkpoint:** if you set `ARTIFACT_SOURCE` to `My own artifact ZIP` and pointed it at this run's own `outputs/{stem}_predictor.zip`, would that be external-artifact evidence?\n\n"
+                "<details><summary>Check your reasoning</summary>No. A bundle this run created and then reloaded is a fresh-boundary test, which Section 9 already performed. External evidence needs an artifact made outside this run with documented provenance, which is why the default is a pinned release asset from an earlier recorded run, checked by its SHA-256 before it is opened. Section 10 is the last step of **Run all**; everything below it is optional.</details>"
+            ),
+        },
+    ],
+    "closing": (
+        "## 11. Optional activity: does Mitra's advantage survive a three-class table?\n\n"
+        "Off by default: nothing below runs on **Run all**.\n\n"
+        "**Activity (about 3 minutes on CPU):** *Predict* — on `Sample: Wine` (178 rows, three classes) will Mitra beat LightGBM on the holdout, tie, or trail, and by how many rows? *Change* — set `DATA_SOURCE = 'Sample: Wine'` in Section 4. *Run* — Sections 4–7 (Runtime → Run after, from Section 4). *Observe* — 106 / 36 / 36 rows, `problem_type` `multiclass`, one-vs-rest `roc_auc`, and the `rows_correct` column on both partitions. *Explain* — with 36 holdout rows one row is 2.8 % of accuracy; write whether the holdout and the test rankings agree and what that says about a ranking from one small split.\n\n"
         '## Troubleshooting\n'
         '\n'
         '- **Section 1 stops with "This notebook needs a Linux x86_64 runtime"** — use Google Colab, Kaggle or a Linux x86_64 Jupyter server.\n'
@@ -673,18 +914,20 @@ TEMPLATE = {
         '- **BYOD: "BYOD path … does not exist" / "is missing [...]" / "the upload dialog exists only in Google Colab" / "Upload exactly one labelled CSV"** — set `BYOD_PATH` to a CSV file (or, for the pre-split option, a directory holding `train.csv`, `val.csv` and `test.csv`) in the runtime; it works on Kaggle and Jupyter. On Colab an empty path opens the dialog, and a cancelled dialog stops with that message.\n'
         '- **A `ValueError` from `validate_inputs` or `validate_labeled_frame`** — it names the table and the rule: a missing or duplicate column, fewer than `MIN_TRAIN_ROWS` rows, more than `MAX_FEATURES` features, fewer than `MIN_CLASSES` or more than `MAX_CLASSES` classes, a class with fewer than `MIN_CLASS_COUNT` support rows, or a holdout class absent from the support rows. Fix the table rather than the check.\n'
         "- **Section 9's reload check fails** — the export or the reload is broken; run Sections 6–9 again. Do not use the bundle.\n"
+        "- **Section 10's download fails or times out** — run the first Section 10 cell again (a complete download is reused); `github.com` release downloads must be reachable, and the bundle is about 280 MB. The pinned SHA-256 is checked before extraction, so a partial or altered file is never used.\n"
+        "- **\"Trusted digest mismatch\" / an unsafe-path, size or manifest failure / \"Bundle was not produced on the pinned base checkpoint\" / \"default data contract (SART10)\"** — the archive is not the one you trust, is altered, or was built on another base model or table: reject it and obtain the bundle and its digest again. Never bypass a failed check.\n"
+        "- **\"A trusted whole-archive SHA-256 is required\"** — your own bundle needs the digest its producer published, in `EXPECTED_ZIP_SHA256`; `ALLOW_UNVERIFIED_ARTIFACT = True` is only for an already-trusted local bundle and prints a warning.\n"
+        "- **\"Artifact requires AutoGluon …\" / \"exported under Python …\"** — the bundle is Python-serialised: use the runtime the producer used (the isolated environment pins AutoGluon 1.5.0 on CPython 3.12.12).\n"
+        "- **\"The sample rows fit only a bundle trained on 'Sample: Breast Cancer'\"** — you supplied your own bundle: tick `USE_OWN_ROWS` and give unlabelled rows with its features.\n"
         '\n'
         '## Change one thing (next experiments)\n'
         '\n'
         "Each of these changes one default and keeps the rest of the path. Set the value, then re-run the cells named; the earlier cells keep their results.\n"
         '\n'
-        "**Activity (about 3 minutes on CPU): does Mitra's advantage survive a three-class table?** *Predict* — on `Sample: Wine` (178 rows, three classes) will Mitra beat LightGBM on the holdout, tie, or trail, and by how many rows? *Change* — set `DATA_SOURCE = 'Sample: Wine'` in Section 4. *Run* — Sections 4–7 (Runtime → Run after, from Section 4). *Observe* — 106 / 36 / 36 rows, `problem_type` `multiclass`, one-vs-rest `roc_auc`, and the `rows_correct` column on both partitions. *Explain* — with 36 holdout rows one row is 2.8 % of accuracy; write whether the holdout and the test rankings agree and what that says about a ranking from one small split.\n"
-        '\n'
         "- **`EVAL_METRIC = 'log_loss'`** — re-run Sections 6–9. The metrics table does not change (every metric is always computed); AutoGluon's `Validation score` line switches to log loss, and with fine-tuning on, the gate compares log loss instead of accuracy.\n"
         "- **A different `SEED`** — re-run Sections 4–9. Expect the partition contents, and so every metric, to move by a few rows; compare the size of that movement with the gaps between models.\n"
         "- **`RUN_FINE_TUNING = True` on a GPU runtime** — re-run Sections 6–9 (several minutes). Expect a `fine-tuned holdout` line and `recommended_for_export` naming whichever predictor wins on the holdout under `EVAL_METRIC`; a worse independent-test result prints a warning but never changes the choice. On `Sample: Wine` the 36-row holdout is below `MIN_SELECTION_HOLDOUT_ROWS` (50), so the pretrained predictor is always kept and `selection_basis` reads `holdout-too-small:36<50`.\n"
         "- **Your own partitions** — extract one of the repository's `examples/sample-data` archives, set `DATA_SOURCE = 'Upload pre-split train/val/test'`, `USE_BYOD = True`, `BYOD_PATH` to the extracted directory and `TARGET_COLUMN` to its label (`Churn` for Telco Churn, `class` for Adult Census), then re-run Sections 4–9. Expect the Section 5 manifest to describe your table and a larger, slower Section 6.\n"
-        "- **The companion notebook** — feed the exported `outputs/mitra_classifier_predictor.zip` to the predictor-inference notebook in a separate session (its `ARTIFACT_ZIP_PATH` field).\n"
         '\n'
         '## Glossary\n'
         '\n'
@@ -703,15 +946,13 @@ TEMPLATE = {
         '- **Fresh reload** — the ZIP extracted with `safe_extract_archive` into a new directory, verified by `validate_artifact_directory` before `TabularPredictor.load`, and checked against the in-memory model on eight rows.\n'
         '- **Isolated environment** — the separate Python 3.12.12 environment Section 1 builds from the hash lock; every later cell runs there.\n'
         '- **BYOD** — bring your own data: a CSV (or a pre-split directory) via `BYOD_PATH`, or the Colab upload dialog when the path is empty.\n'
+        '- **External artifact / pinned sample artifact** — a bundle made outside this run; by default the release asset pinned in the carried module by URL and whole-archive SHA-256 (`SAMPLE_ARTIFACT_URL`, `SAMPLE_ARTIFACT_SHA256`), exported by an earlier recorded run of this notebook and verified before extraction.\n'
+        '- **Trust boundary** — digests prove integrity and consistency, not who produced the archive; `TabularPredictor.load` executes Python-serialised state, so load only bundles from a trusted producer.\n'
+        '- **Data contract (SART10)** — the task, features, target and class labels of the default path; the pinned bundle must follow it, and the sample rows Section 10 scores follow it too.\n'
         '\n'
-        '## Conclusion (your notes)\n'
-        '\n'
-        'Before you leave, write three lines in this cell: (1) the pretrained Mitra row of Section 6 beside the majority-class predictor, LightGBM and Random Forest on the holdout, and whether the differences exceed the one-row resolution; (2) what the `sample-sanity` verdict does and does not license you to claim; (3) one property of your own table (row count, feature count, class balance, independence of rows) that would change how you read these numbers.\n'
-        '\n'
-        "**Next experiments (summary):** the Wine activity (re-run Sections 4–7), `EVAL_METRIC` (Sections 6–9), `SEED` "
+        "**Next experiments (summary):** the Section 11 Wine activity (re-run Sections 4–7), `EVAL_METRIC` (Sections 6–9), `SEED` "
         "(Sections 4–9), fine-tuning on a GPU (Sections 6–9; never selects on Wine's 36-row holdout), your own extracted "
-        "partitions with `TARGET_COLUMN` set (Sections 4–9), and the exported `outputs/{stem}_predictor.zip` in the "
-        "companion predictor-inference notebook.\n\n"
+        "partitions with `TARGET_COLUMN` set (Sections 4–9), and your own bundle or rows in Section 10.\n\n"
         "## References\n\n"
         f"- Repository README: https://github.com/kurtvalcorza/{REPO}/blob/main/README.md\n"
         f"- Repository model card: https://github.com/kurtvalcorza/{REPO}/blob/main/MODEL_CARD.md\n"

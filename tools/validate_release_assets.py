@@ -1,7 +1,7 @@
 """Static release-asset validation for the Mitra Classifier DIMER pipeline.
 
-Checks the two STANDALONE tutorial notebooks (DIMER Notebook Specification 2.0 §4) — the `E2E`
-tutorial and its `ARTIFACT-INFERENCE` companion — the tutorial registry, model card, README, STATUS.md
+Checks the STANDALONE `E2E` tutorial notebook (DIMER Notebook Specification 3.0 §4; its external-artifact section,
+§19.1, replaced the retired `ARTIFACT-INFERENCE` companion notebook) — the tutorial registry, model card, README, STATUS.md
 and weight documentation for source conformance and cross-document identity consistency, and runs the
 generator parity checks (PAR1–PAR3) for every generated standalone notebook. Explicitly allowlisted auxiliary workshop notebooks receive separate syntax, provenance, and registry checks without weakening generated-notebook parity.
 
@@ -73,6 +73,10 @@ NOTEBOOKS = {
             "outputs/mitra_classifier_evaluation_report.json",
             "outputs/mitra_classifier_result.json",
             "outputs/mitra_classifier_predictions.csv",
+            # NOTEBOOK_SPEC 3.0 §19.1 XAS6: the external-artifact section's own output path.
+            "mitra_classifier_external_predictions.csv",
+            "mitra_classifier_external_result.json",
+            "EXT_OUT = Path('outputs') / 'external_artifact'",
         ),
         "code_markers": (
             "DATA_SOURCE = 'Sample: Breast Cancer'",
@@ -110,8 +114,32 @@ NOTEBOOKS = {
             "'model_revision': MODEL_REVISION",
             "'model_license': MODEL_LICENSE",
             "importlib.metadata.version('autogluon.tabular')",
+            # Deterministic export (sorted members, fixed timestamp and mode, atomic write).
+            "archive = deterministic_zip(active_path, Path(str(archive_base) + '.zip'))",
+            # The external-artifact section (§19.1, SART6-SART10): the pin lives in the carried module.
+            "ARTIFACT_SOURCE = 'Pinned sample artifact'",
+            "ext_zip = fetch_pinned_artifact(EXT_INPUTS / 'pinned_sample_artifact.zip', SAMPLE_ARTIFACT_URL, SAMPLE_ARTIFACT_SHA256)",
+            "check_trusted_digest(ext_zip, EXPECTED_ZIP_SHA256, 'EXPECTED_ZIP_SHA256')",
+            "raise RuntimeError('A trusted whole-archive SHA-256 is required before loading this Python-serialized artifact.",
+            "safe_extract_archive(ext_zip, EXT_BUNDLE)",
+            "ext_manifest, ext_metadata = validate_artifact_directory(EXT_BUNDLE)",
+            "!= (MODEL_ID, MODEL_REVISION, WEIGHTS_SHA256, CONFIG_SHA256):",
+            "check_data_contract(ext_metadata, ",
+            "if ext_metadata['autogluon_version'] != ext_autogluon:",
+            "ext_predictor = TabularPredictor.load(str(EXT_BUNDLE))",
+            "ext_input_manifest = validate_inputs(ext_rows, None, feature_columns=EXT_FEATURES, names=[ext_csv_name])",
+            "validate_inputs(ext_rows.drop(columns=[EXT_FEATURES[0]]), None, feature_columns=EXT_FEATURES)",
+            "X_ext, ext_extra_columns = validate_inference_frame(ext_rows, EXT_FEATURES)",
+        ),
+        "forbidden_code": (
+            "shutil.make_archive(",
         ),
         "markdown_markers": (
+            "## 10. Using an artifact made elsewhere",
+            "**This section needs only the setup cells (Sections 1–3).**",
+            "the reload shows that this run's export survives serialization, and this section shows that an artifact made elsewhere can be validated and served here",
+            "**Trust boundary.**",
+            "**The download is about 280 MB**",
             "**Capability:** end-to-end tabular classification with the pinned `autogluon/mitra-classifier` checkpoint",
             "no weight is gradient-updated",
             "**not calibrated probabilities**",
@@ -123,59 +151,6 @@ NOTEBOOKS = {
             "`sample-sanity`",
             "before** deserialising",
             "regression, forecasting, calibrated probabilities, or any deployment threshold",
-        ),
-    },
-    "mitra_classifier_predictor_inference_colab.ipynb": {
-        "template": "notebook_template_artifact_inference",
-        "profile": "ARTIFACT-INFERENCE",
-        "byod_gates": ("ALLOW_UNVERIFIED_ARTIFACT",),
-        "expected_outputs": (
-            "outputs/mitra_classifier_predictor_inference_input_manifest.json",
-            "outputs/mitra_classifier_predictor_inference_evaluation_report.json",
-            "outputs/mitra_classifier_predictor_inference_result.json",
-            "outputs/mitra_classifier_predictor_inference_predictions.csv",
-        ),
-        "code_markers": (
-            "ARTIFACT_ZIP_PATH = ''",
-            "EXPECTED_ZIP_SHA256 = ''",
-            "NEW_DATA_PATH = ''",
-            "raise RuntimeError('A trusted whole-archive SHA-256 is required before loading this Python-serialized artifact.",
-            "safe_extract_archive(zip_path, EXTRACT_ROOT)",
-            "artifact_manifest, run_metadata = validate_artifact_directory(EXTRACT_ROOT)",
-            "!= (MODEL_ID, MODEL_REVISION, WEIGHTS_SHA256, CONFIG_SHA256):",
-            "if run_metadata['autogluon_version'] != AUTOGLUON_VERSION:",
-            "if artifact_python_mm != runtime_python_mm:",
-            "predictor = TabularPredictor.load(str(EXTRACT_ROOT))",
-            "if predictor.problem_type not in {'binary', 'multiclass'}:",
-            "raise RuntimeError('Reconstructed class labels disagree with the validated provenance.')",
-            "input_manifest = validate_inputs(new_data, None, feature_columns=FEATURE_COLUMNS, names=[csv_name])",
-            "validate_inputs(new_data.drop(columns=[FEATURE_COLUMNS[0]]), None, feature_columns=FEATURE_COLUMNS)",
-            "X_new, extra_columns = validate_inference_frame(new_data, FEATURE_COLUMNS)",
-            "proba = serving.predict_proba(X_new)",
-            "out['prediction'] = serving.predict(X_new)",
-            "out[f'probability_{class_label}'] = proba[class_label].to_numpy()",
-            "report = evaluation_report(None, n_holdout=0, class_labels=CLASSES, target_column=TARGET_COLUMN, sample_kind=sample_kind)",
-            "'model_revision': MODEL_REVISION",
-            "'model_license': MODEL_LICENSE",
-        ),
-        "markdown_markers": (
-            "**Capability:** consume an externally supplied AutoGluon predictor bundle",
-            "produced **outside this execution**",
-            "**No artifact is created here**",
-            "**Trust boundary.**",
-            "`TabularPredictor.load()` executes trusted",
-            "**the probabilities are uncalibrated and no threshold is shipped by this pipeline**",
-            "its verdict is `not-measurable`",
-            "artifact creation, in-notebook fitting or fine-tuning, regression",
-        ),
-        "forbidden_code": (
-            # load_breast_cancer( is allowed here (MCP-B1): the default sample input is the producer's independent test
-            # partition re-derived from the locked scikit-learn table and checked against the bundle's data digest.
-            "load_wine(",
-            "majority_class_baseline(",
-            "shutil.make_archive(",
-            ".fit(",
-            "write_artifact_manifest(",
         ),
     },
 }
@@ -314,7 +289,8 @@ AUXILIARY_NOTEBOOKS = {
 # Specification 2.0; see docs/release-verification.md for the release gate.
 # ---------------------------------------------------------------------------
 
-NOTEBOOK_SPEC = "2.2"  # generated tutorials (build_notebook.py NOTEBOOK_SPEC)
+NOTEBOOK_SPEC = "3.0"  # the generated tutorial (template "notebook_spec"; NOTEBOOK_SPEC 3.0 retired the companion)
+NOTEBOOK_KIND = "TUTORIAL"  # §3.7 KND1
 AUXILIARY_DEFAULT_SPEC = "2.0"  # workshops that do not declare their own
 ALLOWED_PROFILES = {"E2E", "ARTIFACT-INFERENCE", "TASK-INFERENCE", "MULTI-CAPABILITY", "SMOKE", "WORKSHOP"}
 STATUS_TOKENS = ("Candidate", "Release-grade")
@@ -395,10 +371,8 @@ COMMON_MARKDOWN_MARKERS = (
 # Patterns that must never appear in tutorial code (comment-stripped), in any cell.
 FORBIDDEN_PATTERNS = (
     ("credential in clone URL", re.compile(r"https://[^/'\"\s]*@github\.com/|x-access-token:")),
-    # The one allowed github.com/kurtvalcorza URL in code is the companion's pinned sample-bundle release asset
-    # (Kurt 2026-10-04 MCP-B1; fleet pattern ratified 2026-10-08): a whole-archive SHA-256-checked download pinned in
-    # SAMPLE_ARTIFACT, not a repository dependency (NOTEBOOK_SPEC REL3 as clarified, SART6).
-    ("repository clone (ST1)", re.compile(r"\bgit\b[^\n]*\bclone\b|github\.com/kurtvalcorza(?!/mitra-classifier-pipeline/releases/download/sample-bundle-v\d+/[A-Za-z0-9_.-]+\.zip['\"])")),
+    # Repository references (github.com/kurtvalcorza) are checked separately by `disallowed_own_references` (ST1).
+    ("repository clone (ST1)", re.compile(r"\bgit\b[^\n]*\bclone\b")),
     ("mutable git dependency (MOD14)", re.compile(r"git\+https?://(?![^\n]*@[0-9a-f]{40}\b)")),
     ("editable self-install", re.compile(r"""['"](?:-e|--editable)['"]|pip install (?:-e|--editable)\b""")),
     ("repository package import (ST1)", re.compile(rf"^\s*(?:from|import)\s+{PACKAGE}\b", re.M)),
@@ -418,6 +392,32 @@ FORBIDDEN_OUTSIDE_MODULE_FLEET = (
     "worker_cli(",
     "subprocess.run([",
 )
+
+
+# ST1 (NOTEBOOK_SPEC 3.0 rollout, the tabicl-classifier PR #29 round-2 rule): the carried module may contain exactly one
+# github.com/kurtvalcorza reference, the pinned sample-artifact URL, compared as a whole token; the notebook's own cells
+# may contain none. Any reference containing `..`, `%2e` (any case), `?` or `#` is refused before the comparison, so a
+# prefix match can never admit a traversal (the hole found in rows 86 and 96).
+SAMPLE_ARTIFACT_TAG = "sample-artifact-breast-cancer-v1"
+PINNED_SAMPLE_ARTIFACT_URL = f"https://github.com/kurtvalcorza/{REPO_NAME}/releases/download/{SAMPLE_ARTIFACT_TAG}/mitra_classifier_predictor.zip"
+_OWN_REFERENCE = re.compile(r"github\.com/kurtvalcorza", re.I)
+_REFERENCE_STOP = set(" \t\r\n'\"`<>()[]{},;\\")
+
+
+def disallowed_own_references(text: str, allowed: tuple[str, ...] = ()) -> list[str]:
+    """Every github.com/kurtvalcorza reference in ``text`` that is not exactly one of ``allowed`` (whole token)."""
+    bad = []
+    for match in _OWN_REFERENCE.finditer(text):
+        start, end = match.start(), match.end()
+        while start > 0 and text[start - 1] not in _REFERENCE_STOP:
+            start -= 1
+        while end < len(text) and text[end] not in _REFERENCE_STOP:
+            end += 1
+        reference = text[start:end]
+        traversal = ".." in reference or "%2e" in reference.lower() or "?" in reference or "#" in reference
+        if traversal or reference not in allowed:
+            bad.append(reference)
+    return bad
 
 
 class ValidationError(AssertionError):
@@ -653,6 +653,7 @@ def _validate_notebook_structure(
     _check(profile == spec["profile"], f"{path.name}: profile {profile!r} != declared {spec['profile']!r}")
     version = dimer.get("notebook_spec", dimer.get("notebook_spec_version"))
     _check(version == NOTEBOOK_SPEC, f"{path.name}: metadata.dimer must declare notebook spec version '{NOTEBOOK_SPEC}'")
+    _check(dimer.get("notebook_kind") == NOTEBOOK_KIND, f"{path.name}: metadata.dimer.notebook_kind must be {NOTEBOOK_KIND!r} (KND1)")
     _check(dimer.get("notebook_mode") in ("REFERENCE", "GUIDED", "WORKSHOP"), f"{path.name}: metadata.dimer.notebook_mode must declare a §3.3 pedagogical mode")
     _check(dimer.get("standalone") is True, f"{path.name}: metadata.dimer.standalone must be true (ST6)")
     generated = dimer.get("generated_from")
@@ -834,6 +835,10 @@ def _validate_notebook_content(
     _check(not missing, f"{path.name}: missing required source markers: {missing}")
     present = [label for label, pattern in FORBIDDEN_PATTERNS if pattern.search(code)]
     _check(not present, f"{path.name}: forbidden/insecure source: {present}")
+    carried = "\n".join(text for index, text in stripped.items() if index in embedded)
+    own_cells = "\n".join(text for index, text in stripped.items() if index not in embedded)
+    bad_refs = disallowed_own_references(own_cells) + disallowed_own_references(carried, (PINNED_SAMPLE_ARTIFACT_URL,))
+    _check(not bad_refs, f"{path.name}: repository reference other than the exact pinned sample-artifact URL in the carried module (ST1): {bad_refs}")
     leaked = [marker for marker in FORBIDDEN_OUTSIDE_MODULE if marker in outside]
     _check(not leaked, f"{path.name}: direct library use outside the carried module cells (G2): {leaked}")
     worker = [marker for marker in FORBIDDEN_OUTSIDE_MODULE_FLEET if marker in outside_after_install]
@@ -946,7 +951,7 @@ def validate_notebooks() -> None:
     allowed_names = sorted(set(generated_names) | set(auxiliary_names) | {capstone_name, rice_name})
     _check(
         [p.name for p in notebooks] == allowed_names,
-        f"tutorial notebooks must be the generated pair plus explicitly allowlisted auxiliaries {allowed_names}, found {[p.name for p in notebooks]}",
+        f"tutorial notebooks must be the generated tutorial plus explicitly allowlisted auxiliaries {allowed_names}, found {[p.name for p in notebooks]}",
     )
     build = _load_tool("build_notebook")
     registry = _read(tutorials / "README.md")

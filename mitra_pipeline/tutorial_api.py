@@ -716,6 +716,103 @@ def write_artifact_manifest(root: str | Path) -> Path:
     return path
 
 
+# Deterministic export (NOTEBOOK_SPEC 3.0 rollout): every member gets this timestamp and mode, so the ZIP digest depends
+# only on the member names and bytes, never on file-system mtimes or the order the directory walk returns.
+ZIP_DATE_TIME = (1980, 1, 1, 0, 0, 0)
+
+
+def deterministic_zip(root: str | Path, archive: str | Path) -> Path:
+    """Write every file under ``root`` to ``archive`` in sorted order with a fixed timestamp and mode 0644, atomically.
+
+    ``shutil.make_archive`` stamps members with their file-system mtimes, so two exports of identical files print
+    different ZIP digests. The archive is written to a temporary name beside ``archive`` and moved into place only
+    when complete, so a reader never sees a partial ZIP.
+    """
+    root, archive = Path(root), Path(archive)
+    files = sorted((p for p in root.rglob("*") if p.is_file()), key=lambda p: p.relative_to(root).as_posix())
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    tmp = archive.with_name(archive.name + ".tmp")
+    with zipfile.ZipFile(tmp, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for path in files:
+            info = zipfile.ZipInfo(path.relative_to(root).as_posix(), date_time=ZIP_DATE_TIME)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = 0o644 << 16
+            with path.open("rb") as source, zf.open(info, "w", force_zip64=True) as target:
+                shutil.copyfileobj(source, target, 1024 * 1024)
+    os.replace(tmp, archive)
+    return archive
+
+
+# The pinned sample artifact of the E2E notebook's external-artifact section (NOTEBOOK_SPEC 3.0 §19.1, SART6-SART9): the
+# deterministic export of a recorded hosted run of the notebook's default path, published as an immutable release asset
+# and pinned here by URL and whole-archive SHA-256. The URL is a single literal: the release-asset validator allows this
+# exact URL, as a whole token, in the carried module and no other repository reference anywhere in the notebook (ST1).
+SAMPLE_ARTIFACT_TAG = "sample-artifact-breast-cancer-v1"
+SAMPLE_ARTIFACT_URL = "https://github.com/kurtvalcorza/mitra-classifier-pipeline/releases/download/sample-artifact-breast-cancer-v1/mitra_classifier_predictor.zip"  # literal: validators allow only this exact URL
+SAMPLE_ARTIFACT_SHA256 = "17cbea6fbd8ed5a97decd4b359ef2c47d1d6025d26447e7500bc65a4dde364dd"
+SAMPLE_ARTIFACT_BYTES = 280_280_365
+SAMPLE_ARTIFACT_PRODUCER = {
+    "notebook": "tutorials/mitra_classifier_colab.ipynb",
+    "commit": "be831ef",
+    "run": "recorded hosted Colab T4 run of the default path (Sample: Breast Cancer); its own fresh reload passed",
+    "release_tag": SAMPLE_ARTIFACT_TAG,
+    "data_source": "Sample: Breast Cancer",
+}
+SAMPLE_ARTIFACT_MAX_BYTES = 512 * 1024 * 1024  # a download larger than this is refused before it is hashed or opened
+
+
+def check_trusted_digest(path: str | Path, expected: str, field: str) -> str:
+    """Refuse a file whose SHA-256 is not ``expected``; nothing is extracted or deserialised before this passes."""
+    path = Path(path)
+    expected = str(expected).strip().lower()
+    if len(expected) != 64 or any(ch not in "0123456789abcdef" for ch in expected):
+        raise ValueError(f"{field} must be 64 hexadecimal characters (the digest the producer published with the artifact), got {expected!r}.")
+    observed = sha256_file(path)
+    if observed != expected:
+        raise ValueError(f"Trusted digest mismatch for {path.name}: {field} is {expected}, the file's SHA-256 is {observed}. This is not the artifact the digest was issued for; nothing was extracted. Obtain the artifact and its digest from the producer again.")
+    return observed
+
+
+def fetch_pinned_artifact(cache: str | Path, url: str, expected: str) -> Path:
+    """The pinned sample artifact: reused from ``cache`` when its digest matches, else downloaded (no authentication),
+    size-capped, and accepted only at the pinned SHA-256. The digest is checked before anything opens the file."""
+    cache = Path(cache)
+    if cache.is_file() and sha256_file(cache) == str(expected).strip().lower():
+        return cache
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    part = cache.with_name(cache.name + ".part")
+    size = 0
+    with urllib.request.urlopen(url, timeout=300) as response, part.open("wb") as out:
+        while chunk := response.read(1024 * 1024):
+            size += len(chunk)
+            if size > SAMPLE_ARTIFACT_MAX_BYTES:
+                out.close()
+                part.unlink(missing_ok=True)
+                raise ValueError(f"The pinned sample artifact at {url} exceeds {SAMPLE_ARTIFACT_MAX_BYTES} bytes: refused before hashing or extraction.")
+            out.write(chunk)
+    try:
+        check_trusted_digest(part, expected, "the pinned SAMPLE_ARTIFACT_SHA256")
+    except ValueError:
+        part.unlink(missing_ok=True)
+        raise
+    os.replace(part, cache)
+    return cache
+
+
+def check_data_contract(run_metadata: Mapping[str, Any], contract: Mapping[str, Any]) -> None:
+    """SART10: the artifact must follow the notebook's current default data contract (task, features, target, labels)."""
+    observed = {
+        "problemType": run_metadata.get("problem_type"),
+        "featureColumns": list(run_metadata.get("features") or []),
+        "targetColumn": run_metadata.get("target_column"),
+        "classLabels": sorted(str(label) for label in (run_metadata.get("class_labels") or [])),
+    }
+    expected = {key: (sorted(str(v) for v in contract[key]) if key == "classLabels" else (list(contract[key]) if key == "featureColumns" else contract[key])) for key in observed}
+    differs = [key for key in observed if observed[key] != expected[key]]
+    if differs:
+        raise RuntimeError(f"The artifact does not follow this notebook's default data contract (SART10): {differs} differ. An artifact built on another table or label set is refused even when its digest verifies.")
+
+
 def validate_artifact_directory(
     root: str | Path,
     *,

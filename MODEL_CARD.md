@@ -30,11 +30,7 @@ This repository ships standalone Google Colab tutorials that exercise its public
 
 - **End-to-End Pipeline Tutorial**: \
   [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kurtvalcorza/mitra-classifier-pipeline/blob/main/tutorials/mitra_classifier_colab.ipynb) [`mitra_classifier_colab.ipynb`](https://github.com/kurtvalcorza/mitra-classifier-pipeline/blob/main/tutorials/mitra_classifier_colab.ipynb) \
-  *Verify the pinned Mitra snapshot, validate a sample or your own labelled tables, evaluate in-context predictions against executable baselines, optionally fine-tune on CUDA, and export and reload the predictor bundle.*
-
-- **Predictor Artifact Inference Tutorial**: \
-  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kurtvalcorza/mitra-classifier-pipeline/blob/main/tutorials/mitra_classifier_predictor_inference_colab.ipynb) [`mitra_classifier_predictor_inference_colab.ipynb`](https://github.com/kurtvalcorza/mitra-classifier-pipeline/blob/main/tutorials/mitra_classifier_predictor_inference_colab.ipynb) \
-  *Validate an externally supplied predictor bundle and its trusted archive digest, load it without refitting, validate new unlabelled rows, and export class labels and probabilities with provenance.*
+  *Verify the pinned Mitra snapshot, validate a sample or your own labelled tables, evaluate in-context predictions against executable baselines, optionally fine-tune on CUDA, export and reload the predictor bundle, and (Section 10) validate and serve a pinned predictor bundle made by an earlier recorded run, reconstructed without refitting.*
 
 > [!NOTE]
 > Inference runs on CPU; optional gradient fine-tuning requires CUDA. These tutorials remain release candidates; see [release verification](docs/release-verification.md) for execution records and promotion requirements.

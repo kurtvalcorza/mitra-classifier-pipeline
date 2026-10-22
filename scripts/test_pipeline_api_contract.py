@@ -96,19 +96,14 @@ def main() -> None:
         "ACTIVE_MODEL.predict_proba(",
     ):
         assert marker in nb_text, f"E2E notebook does not exercise {marker}"
-    nb_code = chr(10).join("".join(c.get("source", [])) for c in nb["cells"] if c.get("cell_type") == "code")
+    # The carried module holds the one pinned sample-artifact URL (checked as an exact token by
+    # tools/validate_release_assets.py); the notebook's own cells may not reference this repository at all (ST1).
+    nb_code = chr(10).join("".join(c.get("source", [])) for c in nb["cells"] if c.get("cell_type") == "code" and not c.get("metadata", {}).get("dimer", {}).get("embedded_module"))
     assert "PIPELINE_API_URL" not in nb_code and "github.com/kurtvalcorza" not in nb_code, "E2E notebook must not fetch this repository (ST1)"
 
-    companion = json.loads((ROOT / "tutorials" / "mitra_classifier_predictor_inference_colab.ipynb").read_text(encoding="utf-8"))
-    companion_text = "\n".join(
-        "".join(c.get("source", [])) if isinstance(c.get("source", []), list) else str(c.get("source", ""))
-        for c in companion["cells"]
-    )
-    assert "serving.predict(" in companion_text
-    assert "serving.predict_proba(" in companion_text
-    companion_code = chr(10).join("".join(c.get("source", [])) for c in companion["cells"] if c.get("cell_type") == "code")
-    companion_without_sample = re.sub(r"https://github\.com/kurtvalcorza/mitra-classifier-pipeline/releases/download/sample-bundle-v\d+/[A-Za-z0-9_.-]+\.zip(?=['\"])", "", companion_code)
-    assert "PIPELINE_API_URL" not in companion_code and "github.com/kurtvalcorza" not in companion_without_sample
+    # The external-artifact section (Section 10) serves the reconstructed bundle through the same public wrapper.
+    assert "ext_serving.predict(" in nb_text
+    assert "ext_serving.predict_proba(" in nb_text
     print("Shared production-facing Mitra pipeline API contract: PASS")
 
 

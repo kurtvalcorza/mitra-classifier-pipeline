@@ -23,7 +23,6 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 E2E = ROOT / "tutorials" / "mitra_classifier_colab.ipynb"
-ART = ROOT / "tutorials" / "mitra_classifier_predictor_inference_colab.ipynb"
 
 
 def _cells(path: Path) -> list[dict]:
@@ -219,17 +218,18 @@ def test_rel13_quoted_counts_are_labelled_with_their_source_revision():
 # --- MCC-S1 / spec declaration -----------------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("path", [E2E, ART])
-def test_generated_notebooks_declare_notebook_spec_2_2(path):
+@pytest.mark.parametrize("path", [E2E])
+def test_generated_notebooks_declare_notebook_spec_3_0(path):
     notebook = json.loads(path.read_text(encoding="utf-8"))
-    assert notebook["metadata"]["dimer"]["notebook_spec"] == "2.2"
-    assert "DIMER Notebook Specification 2.2 — **standalone**" in _markdown(path)
+    assert notebook["metadata"]["dimer"]["notebook_spec"] == "3.0"
+    assert notebook["metadata"]["dimer"]["notebook_kind"] == "TUTORIAL"
+    assert "DIMER Notebook Specification 3.0 — **standalone**" in _markdown(path)
 
 
 # --- ENV15 / ENV16: the isolated worker's google.colab shims are well-formed modules ------------------------------------
 
 
-@pytest.mark.parametrize("path", [E2E, ART])
+@pytest.mark.parametrize("path", [E2E])
 @pytest.mark.parametrize("real_google", [False, True])
 def test_worker_colab_stubs_have_specs(path: Path, real_google: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     router = _code(path, '_WORKER_SOURCE = r"""')
