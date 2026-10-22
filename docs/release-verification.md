@@ -354,6 +354,21 @@ external-artifact section and the companion notebook is deleted; the pinned asse
 a recorded hosted Colab T4 run of the default path at `be831ef` (SHA-256 `17cbea6fbd8ed5a97decd4b359ef2c47d1d6025d26447e7500bc65a4dde364dd`,
 280,280,365 bytes). The revision's own hosted run is recorded below (second pass of §32.2). The paragraph after it describes the 2.2 pair.
 
+**What is recorded for the current blob, and what promotion still needs (2026-10-22).** The current E2E notebook blob is `f426780d`
+(`tutorials/mitra_classifier_colab.ipynb` at `20a13b1`, unchanged on `main` at `e4335d3`). Its one recorded hosted run is the `20a13b1`
+record below: Colab CLI `colab exec -f` (scripted, not a browser Run all) on a fresh Colab Tesla T4, default path, exit 0, 13/13
+code cells in the executor log, 0 error outputs, 189.7 s, input unchanged, verdict PASS; the fresh reload passed and Section 10
+verified the pinned asset before extraction. `RUN_FINE_TUNING` is off by default, so the GPU fine-tune branch did not run. The
+notebook stays **Candidate** until these are recorded for this blob:
+
+- **REL12:** a BYOD run in which one representative input is accepted through the downstream stages and one incompatible input is refused;
+- **REL2:** a browser run of the interactive journeys (BYOD upload dialog, optional-stage checkboxes, own-artifact ZIP); the scripted CLI run counts for the default path only;
+- **Optional activity:** the Section 11 activity (a re-run of Sections 4–7 with `DATA_SOURCE = 'Sample: Wine'`), which is markdown-only and has not been run on this blob;
+- **`RUN_FINE_TUNING` branch:** a GPU run with `RUN_FINE_TUNING = True`.
+
+The owner ruled on 2026-10-22 that the optional activity and the `RUN_FINE_TUNING` branch must be run before promotion. Promotion
+is an integrator decision; the builder does not change the status.
+
 **First hosted run of the migrated notebook (2026-10-22, `20a13b1` / blob `f426780d`, Notebook Spec 3.0).** Colab CLI 0.7.4
 `colab exec -f`, fresh Colab Tesla T4, default path of `tutorials/mitra_classifier_colab.ipynb` on PR #52 at
 `20a13b167c072ec643f0f50d04b0a090dac96c2a`, started 2026-10-22T02:14:03Z, 189.7 s wall, exit code 0, input notebook unchanged;
@@ -389,7 +404,7 @@ was redacted to `<local-run-dir>` before the first commit; SHA-256 captured → 
 | `mitra_classifier_colab_be831ef_colab-cli-t4_output.ipynb` | `687bb3d83ec8f476a6c74dc738ed819ba6d23d2feaa4c489c991cb46543b9c0d` | same (no local path) |
 | `suite.log` | `776edc54bdb49a7e11b22b96941d1bf4c2205eedb9200a2a72123280887bdc09` | `89cf8db196c05c4bb3ea178e339a8e0d1c0ab52e2c9c28cb1b15722ee96aab3f` |
 
-**Generated tutorial pair (2.2, history): Candidate.** The E2E notebook's current blob `2748c0a2e7f8` has one recorded execution, the 2026-10-08 Colab CLI T4 run above (default path only); browser Run all, BYOD, the fine-tuning gate and the activity remain unexercised, and promotion is an integrator's decision. The 2026-09-14 Kaggle T4 row is evidence for the previous E2E blob (`9599d5c4832c`) only: an nbclient execution of the default sample path with a `google.colab` shim, not a browser Colab `Run all`. On 2026-10-08 both notebooks were regenerated (generator /2.2 isolated uv environment, DIMER Notebook Specification 2.2, Notebook Review Framework v1 fixes MCC-M1..M3 / MCC-m1..m6), so under NOTEBOOK_SPEC REL14 they return to Candidate until a run of the exact new blobs is recorded; the earlier row stays as history. The ARTIFACT-INFERENCE companion's default path now downloads the trusted sample bundle (release `sample-bundle-v1`, asset `mitra_classifier_predictor.zip`, SHA-256 `d2a330457fe8dbda2e7ad016e2ac0a0e8a461a738b1864ff5861654acb3cca01`, produced by the 2026-10-08 E2E run recorded above; the repository's immutable-releases setting was enabled before it was published) and checks the digest before extraction (NOTEBOOK_SPEC SART6–SART8); its current blob `54e9966c16bd` passed the 2026-10-08 Colab CLI T4 run above (default path only). Static validation (`tools/validate_release_assets.py`), nbformat validation, a `compile()` sweep over every code
+**Generated tutorial pair (2.2, history): Candidate.** The E2E notebook's then-current blob `2748c0a2e7f8` (superseded by `f426780d`; not evidence for it, REL14) had one recorded execution, the 2026-10-08 Colab CLI T4 run above (default path only); browser Run all, BYOD, the fine-tuning gate and the activity remain unexercised, and promotion is an integrator's decision. The 2026-09-14 Kaggle T4 row is evidence for the previous E2E blob (`9599d5c4832c`) only: an nbclient execution of the default sample path with a `google.colab` shim, not a browser Colab `Run all`. On 2026-10-08 both notebooks were regenerated (generator /2.2 isolated uv environment, DIMER Notebook Specification 2.2, Notebook Review Framework v1 fixes MCC-M1..M3 / MCC-m1..m6), so under NOTEBOOK_SPEC REL14 they return to Candidate until a run of the exact new blobs is recorded; the earlier row stays as history. The ARTIFACT-INFERENCE companion's default path now downloads the trusted sample bundle (release `sample-bundle-v1`, asset `mitra_classifier_predictor.zip`, SHA-256 `d2a330457fe8dbda2e7ad016e2ac0a0e8a461a738b1864ff5861654acb3cca01`, produced by the 2026-10-08 E2E run recorded above; the repository's immutable-releases setting was enabled before it was published) and checks the digest before extraction (NOTEBOOK_SPEC SART6–SART8); its then-current blob `54e9966c16bd` (deleted with the companion) passed the 2026-10-08 Colab CLI T4 run above (default path only). Static validation (`tools/validate_release_assets.py`), nbformat validation, a `compile()` sweep over every code
 cell, and the offline unit suite passed on the tutorial source at the candidate revision, which is necessary but not
 sufficient. The registry status remains **Candidate** until a reviewer confirms a recorded run against the notebook blobs
 under review and an integrator promotes it; promotion is not performed by the builder. Facts a reviewer should weigh:
