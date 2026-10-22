@@ -354,6 +354,22 @@ external-artifact section and the companion notebook is deleted; the pinned asse
 a recorded hosted Colab T4 run of the default path at `be831ef` (SHA-256 `17cbea6fbd8ed5a97decd4b359ef2c47d1d6025d26447e7500bc65a4dde364dd`,
 280,280,365 bytes). The revision's own hosted run is still to be recorded. The paragraph below describes the 2.2 pair.
 
+**Producing run of the pinned sample artifact (2026-10-22).** Colab CLI 0.7.4 `colab exec -f`, fresh Colab Tesla T4, default
+path of `tutorials/mitra_classifier_colab.ipynb` at `be831efb226378f342d1aabac72ee56597c9403d` (blob `2748c0a2e7f8`), exit code 0,
+161.2 s wall, input notebook unchanged; the run's own fresh reload verified the manifest and provenance before deserialisation and
+matched labels exactly and probabilities at `rtol=1e-6`. Its exported `outputs/mitra_classifier_predictor.zip` was published as
+the release asset `sample-artifact-breast-cancer-v1/mitra_classifier_predictor.zip` (SHA-256 above). It was written by that
+revision's `shutil.make_archive`, so its digest is not reproducible by re-running; later exports use `deterministic_zip`.
+Evidence in `docs/execution-evidence/2026-10-22/mitra_classifier_colab_be831ef/` (byte-exact, `-text`). The local run directory
+was redacted to `<local-run-dir>` before the first commit; SHA-256 captured → committed:
+
+| File | Captured | Committed |
+|---|---|---|
+| `run_summary.json` | `dcb03aa2537229aae24d5ab6ba39b2014d095dcb0922202c4d96a30231075015` | same (no local path) |
+| `exec.log` | `84483bcf9d8cf3a282d19abf6a60d673bee96cfc3912328c3d5d20f341c707ed` | `b5504232fcaae7402c29030b8af3cd8bdd0ed457effc0b838ce25438c27185df` |
+| `mitra_classifier_colab_be831ef_colab-cli-t4_output.ipynb` | `687bb3d83ec8f476a6c74dc738ed819ba6d23d2feaa4c489c991cb46543b9c0d` | same (no local path) |
+| `suite.log` | `776edc54bdb49a7e11b22b96941d1bf4c2205eedb9200a2a72123280887bdc09` | `89cf8db196c05c4bb3ea178e339a8e0d1c0ab52e2c9c28cb1b15722ee96aab3f` |
+
 **Generated tutorial pair (2.2, history): Candidate.** The E2E notebook's current blob `2748c0a2e7f8` has one recorded execution, the 2026-10-08 Colab CLI T4 run above (default path only); browser Run all, BYOD, the fine-tuning gate and the activity remain unexercised, and promotion is an integrator's decision. The 2026-09-14 Kaggle T4 row is evidence for the previous E2E blob (`9599d5c4832c`) only: an nbclient execution of the default sample path with a `google.colab` shim, not a browser Colab `Run all`. On 2026-10-08 both notebooks were regenerated (generator /2.2 isolated uv environment, DIMER Notebook Specification 2.2, Notebook Review Framework v1 fixes MCC-M1..M3 / MCC-m1..m6), so under NOTEBOOK_SPEC REL14 they return to Candidate until a run of the exact new blobs is recorded; the earlier row stays as history. The ARTIFACT-INFERENCE companion's default path now downloads the trusted sample bundle (release `sample-bundle-v1`, asset `mitra_classifier_predictor.zip`, SHA-256 `d2a330457fe8dbda2e7ad016e2ac0a0e8a461a738b1864ff5861654acb3cca01`, produced by the 2026-10-08 E2E run recorded above; the repository's immutable-releases setting was enabled before it was published) and checks the digest before extraction (NOTEBOOK_SPEC SART6–SART8); its current blob `54e9966c16bd` passed the 2026-10-08 Colab CLI T4 run above (default path only). Static validation (`tools/validate_release_assets.py`), nbformat validation, a `compile()` sweep over every code
 cell, and the offline unit suite passed on the tutorial source at the candidate revision, which is necessary but not
 sufficient. The registry status remains **Candidate** until a reviewer confirms a recorded run against the notebook blobs
