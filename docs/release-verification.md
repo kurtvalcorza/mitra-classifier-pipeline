@@ -349,10 +349,29 @@ they are measurements for the stated runtime, not general estimates.
 
 ## Current status
 
-**NOTEBOOK_SPEC 3.0 revision (2026-10-22): Candidate, not yet executed.** The E2E notebook now closes with the Section 10
+**NOTEBOOK_SPEC 3.0 revision (2026-10-22): Candidate, executed once on a hosted T4.** The E2E notebook now closes with the Section 10
 external-artifact section and the companion notebook is deleted; the pinned asset `sample-artifact-breast-cancer-v1` was produced by
 a recorded hosted Colab T4 run of the default path at `be831ef` (SHA-256 `17cbea6fbd8ed5a97decd4b359ef2c47d1d6025d26447e7500bc65a4dde364dd`,
-280,280,365 bytes). The revision's own hosted run is still to be recorded. The paragraph below describes the 2.2 pair.
+280,280,365 bytes). The revision's own hosted run is recorded below (second pass of §32.2). The paragraph after it describes the 2.2 pair.
+
+**First hosted run of the migrated notebook (2026-10-22, `20a13b1` / blob `f426780d`, Notebook Spec 3.0).** Colab CLI 0.7.4
+`colab exec -f`, fresh Colab Tesla T4, default path of `tutorials/mitra_classifier_colab.ipynb` on PR #52 at
+`20a13b167c072ec643f0f50d04b0a090dac96c2a`, started 2026-10-22T02:14:03Z, 189.7 s wall, exit code 0, input notebook unchanged;
+executed cell sources equal blob `f426780d` (40 cells). The fresh reload of the run's own export passed (labels identical,
+probabilities at `rtol=1e-6`; its deterministic export printed `zip_sha256` `a3362cc603b07f345502c2c90926f64924e81722f7c4f93caadd85d2850fcd1e`).
+**Section 10 ran end to end on the default path:** it downloaded the pinned release asset, verified SHA-256
+`17cbea6fbd8ed5a97decd4b359ef2c47d1d6025d26447e7500bc65a4dde364dd` before extraction, rebuilt the Mitra predictor from the bundle
+(30 features, binary, on CUDA), scored 114 rows and wrote `outputs/external_artifact/mitra_classifier_external_predictions.csv`
+and `..._external_result.json` (verdict `not-measurable`, as designed: the section scores rows as new input without labels).
+Evidence in `docs/execution-evidence/2026-10-22/mitra_classifier_colab_20a13b1/`. The local run directory was redacted to
+`<local-run-dir>` before the first commit; SHA-256 captured → committed:
+
+| File | Captured | Committed |
+|---|---|---|
+| `run_summary.json` | `ee859aba5ec2542d847af4f905973bd7e3cbe7bf7624af4622624383e40668d5` | same (no local path) |
+| `exec.log` | `67cdf9a1045f677bbd14a13fc459c5b69ec024724eed325805d27912a223e077` | `c6f23209fcf0f81765a2fd9a13910d7ccb31185971e70aba5b7ba14439f3b304` |
+| `mitra_classifier_colab_20a13b1_colab-cli-t4_output.ipynb` | `9b38176d612e6be3589378ed2a8ad3b96c8930599daa72c635de593277609c6d` | same (no local path) |
+| `suite.log` | `132151706ce63b46f5e6ee6d93656ce40f758f573b00ad91a91009caa769865f` | `5d415ed1c3b2e04921d5a1350e4da1538944f74cae1b7966b538f45c53ac0493` |
 
 **Producing run of the pinned sample artifact (2026-10-22).** Colab CLI 0.7.4 `colab exec -f`, fresh Colab Tesla T4, default
 path of `tutorials/mitra_classifier_colab.ipynb` at `be831efb226378f342d1aabac72ee56597c9403d` (blob `2748c0a2e7f8`), exit code 0,
