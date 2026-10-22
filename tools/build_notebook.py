@@ -455,6 +455,9 @@ def template_contract() -> dict[str, str]:
         "learning_objectives": "one markdown paragraph starting after the bold label",
         "exclusions": "one markdown sentence after the bold label",
         "prerequisites": "list of markdown bullets; the generator appends the External access bullet",
+        "notebook_spec": "OPTIONAL notebook spec version declared in the metadata and the header (default NOTEBOOK_SPEC)",
+        "notebook_kind": "OPTIONAL §3.7 notebook kind declared in the metadata and the header (for example TUTORIAL)",
+        "external_access_note": "OPTIONAL sentence that replaces the default 'No GitHub access ...' clause of the External access bullet",
         "cells": "list of {'md': str, 'code': str} stage cells inserted after the model cell; may use {stem}, {MODEL_ID}, {MODEL_REVISION}",
         "closing": "markdown for Interpretation and limits + References",
         "weights_key": "MODEL_KEY value (weights/<key>/dimer-base-manifest.json)",
@@ -851,8 +854,9 @@ def render(repo: Path, template: dict[str, Any], revision: str | None = None) ->
         f"# {template['title']}\n\n{badges}\n\n"
         f"**Profile:** `{template['profile']}`  \n"
         f"**Mode:** `{mode}`  \n"
-        f"**Notebook specification:** DIMER Notebook Specification {NOTEBOOK_SPEC} — **standalone** (§4)  \n"
-        f"**Capability:** {template['capability']}"
+        f"**Notebook specification:** DIMER Notebook Specification {template.get('notebook_spec', NOTEBOOK_SPEC)} — **standalone** (§4)  \n"
+        + (f"**Notebook kind:** `{template['notebook_kind']}`  \n" if template.get("notebook_kind") else "")
+        + f"**Capability:** {template['capability']}"
     )
     about = (
         f"**This notebook is standalone.** It carries {carried}, the pinned model identity and the per-file SHA-256 manifest in Section 3, "
@@ -896,7 +900,8 @@ def render(repo: Path, template: dict[str, Any], revision: str | None = None) ->
     )
     prereq = list(template["prerequisites"]) + [
         f"- **External access:** {ctx['host']['name']} only, to fetch the pinned `{ctx['MODEL_ID']}` snapshot (~{total_mb:.0f} MB in total) "
-        f"at revision `{ctx['MODEL_REVISION'][:12]}…`. No GitHub access and no credentials are required; nothing is installed from this repository."
+        f"at revision `{ctx['MODEL_REVISION'][:12]}…`. "
+        + template.get("external_access_note", "No GitHub access and no credentials are required; nothing is installed from this repository.")
         + isolated_access
     ]
     add(_md("## Prerequisites\n\n" + "\n".join(prereq)))
@@ -912,7 +917,7 @@ def render(repo: Path, template: dict[str, Any], revision: str | None = None) ->
         f"    'embedded_modules': {ctx['module_rels']!r},\n"
         f"    'module_sha256': {ctx['module_sha256']!r},\n"
         f"    'generator': {GENERATOR_VERSION!r},\n"
-        f"    'notebook_spec': {NOTEBOOK_SPEC!r},\n"
+        f"    'notebook_spec': {template.get('notebook_spec', NOTEBOOK_SPEC)!r},\n"
         "}\n"
     )
     if isolated:
@@ -983,7 +988,7 @@ def render(repo: Path, template: dict[str, Any], revision: str | None = None) ->
                 f"    'embedded_modules': {ctx['module_rels']!r},\n"
                 f"    'module_sha256': {ctx['module_sha256']!r},\n"
                 f"    'generator': {GENERATOR_VERSION!r},\n"
-                f"    'notebook_spec': {NOTEBOOK_SPEC!r},\n"
+                f"    'notebook_spec': {template.get('notebook_spec', NOTEBOOK_SPEC)!r},\n"
                 "}\n"
                 "SKIP_INSTALL = os.environ.get('DIMER_NOTEBOOK_CI_PREINSTALLED') == '1'\n"
                 f"{_INSTALL_GUARD}\n"
@@ -1083,7 +1088,8 @@ def render(repo: Path, template: dict[str, Any], revision: str | None = None) ->
             "dimer": {
                 "notebook_profile": template["profile"],
                 "notebook_mode": mode,
-                "notebook_spec": NOTEBOOK_SPEC,
+                "notebook_spec": template.get("notebook_spec", NOTEBOOK_SPEC),
+                **({"notebook_kind": template["notebook_kind"]} if template.get("notebook_kind") else {}),
                 "standalone": True,
                 **({"environment": "isolated hash-locked uv environment; nothing installed into the kernel"} if isolated else {}),
                 "generated_from": {

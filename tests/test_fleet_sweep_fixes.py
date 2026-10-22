@@ -20,9 +20,9 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-NOTEBOOKS = ['mitra_classifier_colab', 'mitra_classifier_predictor_inference_colab']
+NOTEBOOKS = ['mitra_classifier_colab']  # NOTEBOOK_SPEC 3.0: the companion was folded into Section 10
 LOCK = ROOT / 'tutorials/requirements-colab-isolated.lock.txt'
-MIN_PREDICT = {'mitra_classifier_colab': 5, 'mitra_classifier_predictor_inference_colab': 3}
+MIN_PREDICT = {'mitra_classifier_colab': 5}
 
 
 @functools.cache
@@ -194,7 +194,7 @@ def _no_colab(monkeypatch) -> None:
 
 import os  # noqa: E402
 
-MAIN, INFERENCE = NOTEBOOKS
+(MAIN,) = NOTEBOOKS
 RECORD = ROOT / "docs" / "release-verification.md"
 KIND = "classifier"
 
@@ -204,7 +204,7 @@ def test_swp_g_checkpoint_answers_quote_only_recorded_facts():
     record = RECORD.read_text(encoding="utf-8")
     markdown = "\n".join(c["source"] for c in _nb(MAIN)["cells"] if c["cell_type"] == "markdown")
     checks = re.findall(r"<details><summary>Check your reasoning</summary>(.*?)</details>", markdown, re.S)
-    assert len(checks) == 5
+    assert len(checks) == 7  # five on the main path, two in the Section 10 external-artifact section
     facts = ("302,717,904", "train=341, holdout=114, test=114", "215.5 s") if KIND == "classifier" else ("302,683,140", "159.4 s")
     for fact in facts:
         assert fact in record, fact
@@ -214,10 +214,6 @@ def test_swp_g_checkpoint_answers_quote_only_recorded_facts():
         assert "442" in checks[0] and "recorded" in checks[0]
     # No invented metric: no accuracy/MAE value is asserted as the run's result.
     assert not re.search(r"(scored|reached|measured) 0\.\d{2,}", " ".join(checks))
-    inference = "\n".join(c["source"] for c in _nb(INFERENCE)["cells"] if c["cell_type"] == "markdown")
-    # Row 48 (MCP-M2) added the Section 8 activity answer; the companion now defers run numbers to docs (REL13).
-    assert len(re.findall(r"<details><summary>Check your reasoning</summary>", inference)) == 4
-    assert "recorded runs of each notebook revision are listed" in inference
 
 
 def _byod_payloads(nb: dict):
@@ -276,10 +272,10 @@ def test_swp_b_byod_gate_is_off_by_default_and_has_a_path_field():
     assert "data_name, payload = csvs[0]" not in code
 
 
-def test_swp_b_inference_notebook_names_the_missing_dialog_instead_of_a_name_error():
-    """The companion's Section 6 relied on Section 4's conditional import of google.colab.files (a NameError when
-    ARTIFACT_ZIP_PATH was set but NEW_DATA_PATH was empty); it now imports inside a guard with a named message."""
-    s6 = _cell(_nb(INFERENCE), "NEW_DATA_PATH = ''  # @param")
-    branch = s6[s6.index("else:") : s6.index("new_upload = files.upload()")]
-    assert "from google.colab import files" in branch and "except ImportError" in branch
-    assert "needs the Colab upload dialog" in branch and "set NEW_DATA_PATH to its path" in branch
+def test_swp_b_external_section_names_the_missing_dialog_instead_of_a_name_error():
+    """The retired companion's Section 6 fix, carried into Section 10: each upload branch imports google.colab inside a
+    guard with a named message instead of relying on another cell's import."""
+    for marker, field in (("ARTIFACT_SOURCE = 'Pinned sample artifact'", "ARTIFACT_ZIP_PATH"), ("USE_OWN_ROWS = False  # @param", "EXTERNAL_ROWS_PATH")):
+        source = _cell(_nb(MAIN), marker)
+        branch = source[source.index("from google.colab import files") - 40 : source.index("files.upload()")]
+        assert "except ImportError" in branch and "exists only in Google Colab" in branch and f"set {field} to its path" in branch

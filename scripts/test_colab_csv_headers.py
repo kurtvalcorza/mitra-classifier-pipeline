@@ -15,7 +15,6 @@ from mitra_pipeline import read_csv_bytes, validate_inference_frame
 
 NOTEBOOKS = (
     "mitra_classifier_colab.ipynb",
-    "mitra_classifier_predictor_inference_colab.ipynb",
 )
 
 DUPLICATE_CASES = (

@@ -10,7 +10,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 MAIN = ROOT / "tutorials" / "mitra_classifier_colab.ipynb"
-INFERENCE = ROOT / "tutorials" / "mitra_classifier_predictor_inference_colab.ipynb"
 
 
 def notebook_sources(path):
@@ -39,27 +38,29 @@ class Issue16HardeningTests(unittest.TestCase):
         self.assertIn("'selection_basis': SELECTION_BASIS", text)
         self.assertIn("(evidence only; never used for selection)", text)
 
-    def test_companion_verifies_archive_before_load(self):
-        text = notebook_text(INFERENCE)
+    def test_external_artifact_section_verifies_archive_before_load(self):
+        # The retired companion's checks now live in the E2E notebook's Section 10 (NOTEBOOK_SPEC 3.0 §19.1).
+        text = notebook_text(MAIN)
         self.assertIn("EXPECTED_ZIP_SHA256", text)
-        self.assertIn("checksum mismatch", text)
-        self.assertLess(text.index("checksum mismatch"), text.index("predictor = TabularPredictor.load(str(EXTRACT_ROOT))"))
-        self.assertLess(text.index("validate_artifact_directory(EXTRACT_ROOT)"), text.index("predictor = TabularPredictor.load(str(EXTRACT_ROOT))"))
+        load = text.index("ext_predictor = TabularPredictor.load(str(EXT_BUNDLE))")
+        self.assertLess(text.index("fetch_pinned_artifact(EXT_INPUTS"), load)
+        self.assertLess(text.index("check_trusted_digest(ext_zip, EXPECTED_ZIP_SHA256"), load)
+        self.assertLess(text.index("validate_artifact_directory(EXT_BUNDLE)"), load)
         self.assertIn("Trust boundary", text)
 
-    def test_companion_rejects_wrong_problem_type_and_output_collisions(self):
+    def test_external_artifact_section_rejects_wrong_problem_type_and_output_collisions(self):
         from mitra_pipeline import validate_inference_frame
         import pandas as pd
 
-        text = notebook_text(INFERENCE)
-        self.assertIn("if predictor.problem_type not in {'binary', 'multiclass'}:", text)
+        text = notebook_text(MAIN)
+        self.assertIn("if ext_predictor.problem_type not in {'binary', 'multiclass'}:", text)
         with self.assertRaisesRegex(ValueError, "output column\\(s\\) reserved by this notebook"):
             validate_inference_frame(pd.DataFrame({"x": [1], "probability_yes": [0.5]}), ["x"])
         with self.assertRaisesRegex(ValueError, "output column\\(s\\) reserved by this notebook"):
             validate_inference_frame(pd.DataFrame({"x": [1], "prediction": ["yes"]}), ["x"])
 
     def test_autogluon_version_spelling_is_consistent(self):
-        for path in (MAIN, INFERENCE):
+        for path in (MAIN,):
             text = notebook_text(path)
             self.assertIn("importlib.metadata.version('autogluon.tabular')", text)
             self.assertNotIn("AUTOGLOUON_VERSION", text)

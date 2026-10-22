@@ -17,7 +17,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MAIN = ROOT / "tutorials" / "mitra_classifier_colab.ipynb"
-INFERENCE = ROOT / "tutorials" / "mitra_classifier_predictor_inference_colab.ipynb"
 TUTORIAL_README = ROOT / "tutorials" / "README.md"
 PUBLIC_API = ROOT / "mitra_pipeline" / "tutorial_api.py"
 REQUIREMENTS = ROOT / "tutorials" / "requirements-colab.in"
@@ -70,7 +69,8 @@ def load_notebook(path: Path) -> tuple[dict, str, list[str], list[str]]:
 def require_profile(payload: dict, filename: str, expected: str) -> None:
     dimer = payload.get("metadata", {}).get("dimer", {})
     require(dimer.get("notebook_profile") == expected, f"{filename}: metadata profile must be {expected}")
-    require(str(dimer.get("notebook_spec")) == "2.2" and dimer.get("standalone") is True, f"{filename}: must be standalone spec 2.2")
+    require(str(dimer.get("notebook_spec")) == "3.0" and dimer.get("standalone") is True, f"{filename}: must be standalone spec 3.0")
+    require(dimer.get("notebook_kind") == "TUTORIAL", f"{filename}: must declare notebook_kind TUTORIAL (KND1)")
 
 
 def require_markers(text: str, markers: tuple[str, ...], label: str) -> None:
@@ -131,48 +131,38 @@ def main_tutorial() -> None:
     require("pipe.fit(" in own_text and "ACTIVE_MODEL.predict(" in own_text, "main notebook must exercise the carried pipeline API")
     require("TabularPredictor(" not in own_text and "hyperparameters=" not in own_text, "main notebook must not construct AutoGluon predictors outside the carried API")
     require("predict_proba(" in own_text and "argmax" in text, "main classification notebook must expose class probabilities under the argmax rule")
-    require("github.com/kurtvalcorza" not in "\n".join(_code_cells), "main notebook must not reach this repository (ST1)")
+    # The one pinned sample-artifact URL lives in the carried module (exact-token check: tools/validate_release_assets.py).
+    require("github.com/kurtvalcorza" not in own_text, "main notebook's own cells must not reference this repository (ST1)")
+    require("shutil.make_archive(" not in own_text and "deterministic_zip(" in own_text, "the export must be the deterministic ZIP")
     require("from mitra_pipeline" not in own_text and "import mitra_pipeline" not in own_text, "main notebook must not import the repository package (ST1)")
 
 
-def inference_tutorial() -> None:
-    payload, text, code_cells, own = load_notebook(INFERENCE)
-    require_profile(payload, INFERENCE.name, "ARTIFACT-INFERENCE")
+def external_artifact_section() -> None:
+    """NOTEBOOK_SPEC 3.0 §19.1: the retired companion's checks, now on the E2E notebook's Section 10."""
+    _payload, text, _code_cells, own = load_notebook(MAIN)
+    own_text = "\n".join(own)
     require_markers(
         text,
         (
-            "**Profile:** `ARTIFACT-INFERENCE`",
-            "**This notebook is standalone.**",
+            "## 10. Using an artifact made elsewhere",
             "ARTIFACT_ZIP_PATH",
-            "NEW_DATA_PATH",
             "EXPECTED_ZIP_SHA256",
             "ALLOW_UNVERIFIED_ARTIFACT",
-            "artifact_manifest",
-            "run_metadata",
-            "validate_artifact_directory(",
-            "safe_extract_archive(",
-            "TabularPredictor.load(",
-            "validate_inputs(",
-            "uncalibrated",
-            "no threshold is shipped",
-            "probability_",
-            "_predictions.csv",
-            "A successful run proves",
-            "It does **not** prove",
+            "EXTERNAL_ROWS_PATH",
+            "**Trust boundary.**",
+            "outputs/external_artifact/",
+            "_external_predictions.csv",
         ),
-        INFERENCE.name,
+        MAIN.name,
     )
-    own_text = "\n".join(own)
-    require(top_level_literal(own, "ALLOW_UNVERIFIED_ARTIFACT", False), "artifact-inference notebook must fail closed unless unverified loading is explicitly enabled")
-    require(".fit(" not in own_text, "artifact-inference notebook must not fit/train")
-    require("shutil.make_archive(" not in own_text and "write_artifact_manifest(" not in own_text, "artifact-inference notebook must not create an artifact")
-    require(own_text.index("validate_artifact_directory(") < own_text.index("TabularPredictor.load("), "manifest/provenance must be verified before deserialization")
-    require("AUTOGLUON_VERSION:" in own_text and "runtime_python_mm" in own_text, "runtime compatibility must be checked before deserialization")
-    require("to_csv(" in own_text, "artifact-inference notebook must export CSV")
-    # The pinned, SHA-256-checked sample-bundle release asset (MCP-B1, SART6) is a download, not a repository dependency.
-    artifact_code = re.sub(r"https://github\.com/kurtvalcorza/mitra-classifier-pipeline/releases/download/sample-bundle-v\d+/[A-Za-z0-9_.-]+\.zip(?=['\"])", "", "\n".join(code_cells))
-    require("github.com/kurtvalcorza" not in artifact_code, "artifact notebook must not reach this repository (ST1)")
-    require("SAMPLE_ARTIFACT = {'url': 'https://github.com/kurtvalcorza/mitra-classifier-pipeline/releases/download/sample-bundle-v" in own_text and "'sha256': '" in own_text, "artifact notebook must pin its sample bundle by URL and SHA-256 (SART6)")
+    require(top_level_literal(own, "ALLOW_UNVERIFIED_ARTIFACT", False), "the section must fail closed unless unverified loading is explicitly enabled")
+    require(top_level_literal(own, "USE_OWN_ROWS", False), "the section's BYOD rows must be off by default")
+    require(top_level_literal(own, "ARTIFACT_SOURCE", "Pinned sample artifact"), "the section's location field must default to the pinned asset (SART6)")
+    load = own_text.index("TabularPredictor.load(str(EXT_BUNDLE))")
+    for check in ("fetch_pinned_artifact(", "safe_extract_archive(ext_zip", "validate_artifact_directory(EXT_BUNDLE)", "check_data_contract(", "ext_metadata['autogluon_version'] != ext_autogluon"):
+        require(own_text.index(check) < load, f"{check} must run before deserialization")
+    section = own_text[own_text.index("ARTIFACT_SOURCE = 'Pinned sample artifact'"):]
+    require("outputs/{0}".format("mitra_classifier_predictor.zip") not in section and "artifact-reload" not in section and "ACTIVE_MODEL" not in section, "the section must never use this run's export (XAS2)")
 
 
 def docs_and_api() -> None:
@@ -191,9 +181,8 @@ def docs_and_api() -> None:
     require_markers(
         readme,
         (
-            "DIMER Notebook Specification 2.2",
+            "DIMER Notebook Specification 3.0",
             "`E2E`",
-            "`ARTIFACT-INFERENCE`",
             "standalone (generated)",
             "release-verification",
             MODEL_ID,
@@ -224,6 +213,10 @@ def docs_and_api() -> None:
             "class MitraClassificationPipeline",
             "def validate_inputs",
             "def evaluation_report",
+            "def deterministic_zip",
+            "def fetch_pinned_artifact",
+            "def check_trusted_digest",
+            "def check_data_contract",
         ),
         "mitra_pipeline/tutorial_api.py",
     )
@@ -231,9 +224,9 @@ def docs_and_api() -> None:
 
 def main() -> int:
     main_tutorial()
-    inference_tutorial()
+    external_artifact_section()
     docs_and_api()
-    print("Mitra Classifier repository-specific Notebook Specification 2.2 static conformance: OK")
+    print("Mitra Classifier repository-specific Notebook Specification 3.0 static conformance: OK")
     print("NOTE: static validation is not clean-runtime execution evidence.")
     return 0
 
