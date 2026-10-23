@@ -18,6 +18,7 @@ import types
 from pathlib import Path
 
 import pytest
+from mitra_pipeline.tutorial_api import Refused
 
 ROOT = Path(__file__).resolve().parents[1]
 NOTEBOOKS = ['mitra_classifier_colab']  # NOTEBOOK_SPEC 3.0: the companion was folded into Section 10
@@ -219,7 +220,7 @@ def test_swp_g_checkpoint_answers_quote_only_recorded_facts():
 def _byod_payloads(nb: dict):
     source = _cell(nb, "def byod_payloads(")
     helper = source[source.index("def byod_payloads(") : source.index("test_data = None")]
-    ns = {"os": os, "Path": Path}
+    ns = {"os": os, "Path": Path, "Refused": Refused}
     exec(helper, ns)
     return ns["byod_payloads"]
 
@@ -229,36 +230,36 @@ def test_swp_b_byod_path_reads_a_csv_or_a_presplit_directory_and_refusals_name_t
     csv = tmp_path / "mine.csv"
     csv.write_bytes(b"a,target\n1,2\n")
     assert helper(str(csv)) == {"mine.csv": b"a,target\n1,2\n"}
-    with pytest.raises(FileNotFoundError, match="missing.csv"):
+    with pytest.raises(Refused, match="^missing.csv: "):
         helper(str(tmp_path / "missing.csv"))
     bad = tmp_path / "wrong.xlsx"
     bad.write_bytes(b"x")
-    with pytest.raises(ValueError, match="wrong.xlsx: expected a labelled CSV"):
+    with pytest.raises(Refused, match="wrong.xlsx: expected a labelled CSV"):
         helper(str(bad))
     folder = tmp_path / "split"
     folder.mkdir()
     (folder / "train.csv").write_bytes(b"t")
-    with pytest.raises(FileNotFoundError, match=r"missing \['test.csv', 'val.csv'\]"):
+    with pytest.raises(Refused, match=r"^split: .*missing \['test.csv', 'val.csv'\]"):
         helper(str(folder), ("train.csv", "val.csv", "test.csv"))
     (folder / "val.csv").write_bytes(b"v")
     (folder / "test.csv").write_bytes(b"s")
     assert helper(str(folder), ("train.csv", "val.csv", "test.csv")) == {"train.csv": b"t", "val.csv": b"v", "test.csv": b"s"}
-    with pytest.raises(FileNotFoundError, match="must be a directory"):
+    with pytest.raises(Refused, match="must be a directory"):
         helper(str(csv), ("train.csv", "val.csv", "test.csv"))
     _no_colab(monkeypatch)
-    with pytest.raises(RuntimeError, match="only in Google Colab"):
+    with pytest.raises(Refused, match="only in Google Colab"):
         helper("")
 
 
 def test_swp_b_cancelled_or_partial_uploads_are_named_and_a_good_upload_works(monkeypatch):
     helper = _byod_payloads(_nb(MAIN))
     _colab(monkeypatch, lambda: {})
-    with pytest.raises(RuntimeError, match="Upload exactly one labelled CSV"):
+    with pytest.raises(Refused, match=r"^\(no file\): Upload exactly one labelled CSV"):
         helper("")
-    with pytest.raises(RuntimeError, match=r"received nothing; a cancelled dialog sends none.*Missing: \['test.csv', 'train.csv', 'val.csv'\]"):
+    with pytest.raises(Refused, match=r"received nothing; a cancelled dialog sends none.*Missing: \['test.csv', 'train.csv', 'val.csv'\]"):
         helper("", ("train.csv", "val.csv", "test.csv"))
     _colab(monkeypatch, lambda: {"train.csv": b"t"})
-    with pytest.raises(RuntimeError, match=r"Missing: \['test.csv', 'val.csv'\]"):
+    with pytest.raises(Refused, match=r"^train.csv: .*Missing: \['test.csv', 'val.csv'\]"):
         helper("", ("train.csv", "val.csv", "test.csv"))
     _colab(monkeypatch, lambda: {"Train.CSV": b"t", "val.csv": b"v", "test.csv": b"s"})
     assert helper("", ("train.csv", "val.csv", "test.csv")) == {"train.csv": b"t", "val.csv": b"v", "test.csv": b"s"}

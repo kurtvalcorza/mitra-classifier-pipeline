@@ -322,10 +322,10 @@ def test_own_artifact_with_a_wrong_digest_is_refused_before_extraction(tmp_path,
     source = source.replace("ARTIFACT_SOURCE = 'Pinned sample artifact'", "ARTIFACT_SOURCE = 'My own artifact ZIP'", 1)
     source = source.replace("ARTIFACT_ZIP_PATH = ''", f"ARTIFACT_ZIP_PATH = {str(archive)!r}", 1)
     source = source.replace("EXPECTED_ZIP_SHA256 = ''", f"EXPECTED_ZIP_SHA256 = {'0' * 64!r}", 1)
-    with pytest.raises(ValueError, match="EXPECTED_ZIP_SHA256 is 0{64}.*nothing was extracted"):
+    with pytest.raises(api.Refused, match="EXPECTED_ZIP_SHA256 is 0{64}.*nothing was extracted"):
         exec(compile(source, "<section>", "exec"), ns)
     unverified = _section_code()[0].replace("ARTIFACT_SOURCE = 'Pinned sample artifact'", "ARTIFACT_SOURCE = 'My own artifact ZIP'", 1).replace("ARTIFACT_ZIP_PATH = ''", f"ARTIFACT_ZIP_PATH = {str(archive)!r}", 1)
-    with pytest.raises(RuntimeError, match="A trusted whole-archive SHA-256 is required"):
+    with pytest.raises(api.Refused, match="A trusted whole-archive SHA-256 is required"):
         exec(compile(unverified, "<section>", "exec"), ns)
 
 

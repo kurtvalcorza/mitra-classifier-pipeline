@@ -120,7 +120,7 @@ NOTEBOOKS = {
             "ARTIFACT_SOURCE = 'Pinned sample artifact'",
             "ext_zip = fetch_pinned_artifact(EXT_INPUTS / 'pinned_sample_artifact.zip', SAMPLE_ARTIFACT_URL, SAMPLE_ARTIFACT_SHA256)",
             "check_trusted_digest(ext_zip, EXPECTED_ZIP_SHA256, 'EXPECTED_ZIP_SHA256')",
-            "raise RuntimeError('A trusted whole-archive SHA-256 is required before loading this Python-serialized artifact.",
+            "raise Refused(ext_zip.name, 'A trusted whole-archive SHA-256 is required before loading this Python-serialized artifact.",
             "safe_extract_archive(ext_zip, EXT_BUNDLE)",
             "ext_manifest, ext_metadata = validate_artifact_directory(EXT_BUNDLE)",
             "!= (MODEL_ID, MODEL_REVISION, WEIGHTS_SHA256, CONFIG_SHA256):",
