@@ -773,27 +773,30 @@ next sample artifact is to be scanned before upload and published only at the di
 The release asset `sample-artifact-breast-cancer-v1/mitra_classifier_predictor.zip` was downloaded on 2026-10-23; its SHA-256 (`17cbea6fbd8ed5a97decd4b359ef2c47d1d6025d26447e7500bc65a4dde364dd`) matches the pinned value. `scan.py`
 (picklescan 1.0.5, joblib 1.6.0, numpy 2.5.4, Python 3.13) extracted it with member-path checks, reached every nested archive,
 and judged each pickle file on its own: **dangerous** if any global is dangerous, **incomplete** if no recorded method read the
-whole file, otherwise **clean**. PyTorch zips are scanned in place, so each payload is scanned once.
+whole file, otherwise **clean**. Content decides what is a pickle, not the file name, and every archive (PyTorch zips
+included) is unpacked so each member gets its own verdict.
 
 | File | Kind | Verdict |
 |---|---|---|
 | `predictor.pkl` | pickle | clean |
 | `learner.pkl` | pickle | clean |
 | `models/trainer.pkl` | pickle | clean |
-| `models/Mitra/model.pt` | pytorch-zip | clean |
+| `models/Mitra/model.pt` | pytorch-zip | extracted |
 | `models/Mitra/model.pkl` | pickle | clean |
 | `utils/data/y_val.pkl` | pickle | clean |
 | `utils/data/y.pkl` | pickle | clean |
 | `utils/data/X_val.pkl` | pickle | clean |
 | `utils/data/X.pkl` | pickle | clean |
 | `utils/attr/Mitra/y_pred_proba_val.pkl` | pickle | clean |
+| `models/Mitra/model.pt.x/model/data.pkl` | pickle | clean |
 
 - **Result:** 10 pickle files; clean=10 dangerous=0 incomplete=0; `scan_status=0`. Dangerous globals: none.
 - **Globals (distinct, all files):** 56, by top-level package: autogluon (27), numpy (7), pandas (7), torch (7), builtins (2), collections (2), networkx (2), __builtin__ (1), sklearn (1). The per-file lists with picklescan's
   classification are in the report.
 - **Evidence:** `docs/execution-evidence/2026-10-23/ser13-sample-artifact-scan/` holds `scan-report.txt` exactly as `scan.py`
   wrote it (it records only paths inside the asset), `scan.py`, and `test_scan.py`, its regression tests (dangerous globals
-  behind joblib buffers or beside joblib files, gzipped and nested pickles, nested archives, bad archives and escaping paths).
+  behind joblib buffers or beside joblib files, protocol-0 pickles under other names, pickle/zip polyglots, every PyTorch zip
+  member, compressed and truncated pickles, nested zip and tar archives, duplicate, escaping and malformed members).
   `scan.py` exits 0 clean, 1 dangerous, 2 incomplete, 3 could not scan.
 
 ### Local-path redaction of earlier evidence (2026-10-22)
