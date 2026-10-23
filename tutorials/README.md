@@ -131,7 +131,7 @@ The E2E tutorial exports `mitra-predictor.zip`. The archive contains the selecte
 
 Because Mitra inference uses support/training context and AutoGluon preprocessing state, the exported predictor may contain or encode information derived from source data. Apply the source dataset's confidentiality, licensing, disclosure, and retention rules to the artifact.
 
-Path safety and manifest consistency do not make Python serialization safe. Only load predictor ZIPs from trusted producers. Section 10 requires a trusted whole-archive SHA-256 by default; bypassing that check is an explicit expert override.
+Path safety and manifest consistency do not make Python serialization safe. Only load predictor ZIPs from trusted producers. Section 10 requires a trusted whole-archive SHA-256 by default; bypassing that check is an explicit expert override. The pinned sample artifact's static pickle scan (ARTIFACT_SPEC 2.0 SER13) is recorded in [`docs/release-verification.md`](../docs/release-verification.md).
 
 The optional DIMER offline model ZIP has its own normative manifest contract documented in [`DIMER_MODEL_PACKAGE.md`](DIMER_MODEL_PACKAGE.md).
 

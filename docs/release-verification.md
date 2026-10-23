@@ -764,6 +764,29 @@ The guided edition was run at commit `ac0998ceb5cef6efcff8f2624d5c38e5c90bbca7` 
 
 This record satisfies REL14 for blob `a25bfbfb`. The other items listed above remain open. **Status: Candidate.**
 
+### Serialization scan of the pinned sample artifact (2026-10-23, retroactive)
+
+ARTIFACT_SPEC 2.0 (ml-worker#90) SER9 and SER13: AutoGluon has no faithful non-code-executing format for a `TabularPredictor`,
+so the sample artifact stays pickle-based and needs a recorded trust note (SER6, under "Artifact contract" in
+[`tutorials/README.md`](../tutorials/README.md)) and a static scan. SER13 asks for that scan **before** publication; this
+asset was published on 2026-10-22, before 2.0 existed, so this is a **retroactive** scan of the published bytes, not the
+pre-publication control. The next sample artifact is to be scanned before upload and published only at the digest that passed.
+
+The release asset `sample-artifact-breast-cancer-v1/mitra_classifier_predictor.zip` was downloaded on 2026-10-23; its SHA-256
+(`17cbea6fbd8ed5a97decd4b359ef2c47d1d6025d26447e7500bc65a4dde364dd`) matches the pinned value. It was extracted and scanned
+with picklescan 1.0.5 (`-g`); nothing was loaded. `models/Mitra/model.pt` is a PyTorch zip, which picklescan reads in place, so
+it was not extracted and each pickle payload was scanned once.
+
+- **Result:** 10 pickle files scanned to the end, **0 dangerous globals**, 78 suspicious global references (50 distinct),
+  picklescan exit code 0, `scan_status=0`.
+- **Suspicious globals (distinct):** all library classes and functions that rebuild the predictor: AutoGluon (27), pandas (7),
+  numpy (4), torch (5, including `torch.nn` modules, because `models/Mitra/model.pt` pickles the whole model object), networkx
+  (2), `builtins.list`/`slice`, `__builtin__.set`, `collections.defaultdict`, and `sklearn.metrics.accuracy_score`. None names
+  an operating-system, process, network, or `eval`/`exec`/`getattr` callable.
+- **Evidence:** `docs/execution-evidence/2026-10-23/ser13-sample-artifact-scan/` holds `scan-report.txt` exactly as `scan.sh`
+  wrote it except that `make_evidence.py` replaced local scan paths with `<scan-dir>`, plus both scripts. `scan.sh` exits with
+  the scanner's status (0 clean, 1 dangerous, 2 incomplete).
+
 ### Local-path redaction of earlier evidence (2026-10-22)
 
 The local run directory in these earlier committed evidence files was replaced by `<local-run-dir>/`, the
