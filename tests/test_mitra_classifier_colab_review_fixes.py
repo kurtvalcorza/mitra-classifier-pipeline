@@ -152,7 +152,9 @@ def test_mcc_m3_rows_correct_and_what_to_notice_follow_the_comparison():
 def _section4_helpers():
     source = _code(E2E, "def byod_payloads(")
     helper = source[source.index("def byod_payloads(") : source.index("test_data = None")]
-    ns = {"os": os, "Path": Path, "TARGET_COLUMN": "target"}
+    from mitra_pipeline.tutorial_api import Refused
+
+    ns = {"os": os, "Path": Path, "TARGET_COLUMN": "target", "Refused": Refused}
     exec(helper, ns)
     return ns
 
@@ -161,7 +163,8 @@ def test_mcc_m4_archives_are_refused_with_an_extract_instruction(tmp_path, monke
     ns = _section4_helpers()
     archive = tmp_path / "telco-customer-churn.zip"
     archive.write_bytes(b"PK")
-    with pytest.raises(ValueError, match="is an archive: extract it"):
+    Refused = ns["Refused"]
+    with pytest.raises(Refused, match="^telco-customer-churn.zip: this is an archive: extract it"):
         ns["byod_payloads"](str(archive))
     colab = types.ModuleType("google.colab")
     colab.files = types.SimpleNamespace(upload=lambda: {"telco-customer-churn.zip": b"PK"})
@@ -169,7 +172,7 @@ def test_mcc_m4_archives_are_refused_with_an_extract_instruction(tmp_path, monke
     google.colab = colab
     monkeypatch.setitem(sys.modules, "google", google)
     monkeypatch.setitem(sys.modules, "google.colab", colab)
-    with pytest.raises(RuntimeError, match="Extract the archive and upload its CSV"):
+    with pytest.raises(Refused, match="^telco-customer-churn.zip: archives are not read here. Extract the archive and upload its CSV"):
         ns["byod_payloads"]("", ("train.csv", "val.csv", "test.csv"))
 
 
@@ -178,7 +181,7 @@ def test_mcc_m4_wrong_target_column_is_named_in_section_4():
 
     ns = _section4_helpers()
     frame = pd.DataFrame({"tenure": [1], "Churn": ["No"]})
-    with pytest.raises(ValueError, match=r"TARGET_COLUMN 'target' is not a column of train.csv. Set TARGET_COLUMN in this cell \(Section 4\).*'Churn'"):
+    with pytest.raises(ns["Refused"], match=r"^train.csv: TARGET_COLUMN 'target' is not a column of train.csv. Set TARGET_COLUMN in this cell \(Section 4\).*'Churn'"):
         ns["require_target"](frame, "train.csv")
     ns["TARGET_COLUMN"] = "Churn"
     assert ns["require_target"](frame, "train.csv") is frame

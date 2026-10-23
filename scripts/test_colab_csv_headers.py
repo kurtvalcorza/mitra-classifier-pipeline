@@ -61,7 +61,8 @@ class CsvHeaderTests(unittest.TestCase):
     def test_main_presplit_upload_uses_repository_reader(self):
         text = notebook_text("mitra_classifier_colab.ipynb")
         for filename in ("train.csv", "val.csv", "test.csv"):
-            self.assertIn(f"read_csv_bytes(payloads['{filename}'], '{filename}')", text)
+            self.assertIn(f"read_byod_csv(payloads['{filename}'], '{filename}')", text)
+        self.assertIn("return require_target(read_csv_bytes(payload, name), name)", text)  # the repository reader
 
 
 if __name__ == "__main__":
