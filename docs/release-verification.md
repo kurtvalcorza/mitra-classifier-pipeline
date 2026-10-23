@@ -766,26 +766,35 @@ This record satisfies REL14 for blob `a25bfbfb`. The other items listed above re
 
 ### Serialization scan of the pinned sample artifact (2026-10-23, retroactive)
 
-ARTIFACT_SPEC 2.0 (ml-worker#90) SER9 and SER13: AutoGluon has no faithful non-code-executing format for a `TabularPredictor`,
-so the sample artifact stays pickle-based and needs a recorded trust note (SER6, under "Artifact contract" in
-[`tutorials/README.md`](../tutorials/README.md)) and a static scan. SER13 asks for that scan **before** publication; this
-asset was published on 2026-10-22, before 2.0 existed, so this is a **retroactive** scan of the published bytes, not the
-pre-publication control. The next sample artifact is to be scanned before upload and published only at the digest that passed.
+ARTIFACT_SPEC 2.0 (ml-worker#90): SER9 (a): AutoGluon has no faithful non-code-executing format for a `TabularPredictor`, so the predictor stays pickle-based (including `models/Mitra/model.pt`, which pickles the whole model object). It needs a recorded trust note (SER6, under "Artifact contract" in [`tutorials/README.md`](../tutorials/README.md)) and a scan with an acceptable outcome (SER13). SER13 asks for the scan **before** publication; this asset was published on
+2026-10-22, before 2.0 existed, so this is a **retroactive** scan of the published bytes, not the pre-publication control. The
+next sample artifact is to be scanned before upload and published only at the digest that passed.
 
-The release asset `sample-artifact-breast-cancer-v1/mitra_classifier_predictor.zip` was downloaded on 2026-10-23; its SHA-256
-(`17cbea6fbd8ed5a97decd4b359ef2c47d1d6025d26447e7500bc65a4dde364dd`) matches the pinned value. It was extracted and scanned
-with picklescan 1.0.5 (`-g`); nothing was loaded. `models/Mitra/model.pt` is a PyTorch zip, which picklescan reads in place, so
-it was not extracted and each pickle payload was scanned once.
+The release asset `sample-artifact-breast-cancer-v1/mitra_classifier_predictor.zip` was downloaded on 2026-10-23; its SHA-256 (`17cbea6fbd8ed5a97decd4b359ef2c47d1d6025d26447e7500bc65a4dde364dd`) matches the pinned value. `scan.py`
+(picklescan 1.0.5, joblib 1.6.0, numpy 2.5.4, Python 3.13) extracted it with member-path checks, reached every nested archive,
+and judged each pickle file on its own: **dangerous** if any global is dangerous, **incomplete** if no recorded method read the
+whole file, otherwise **clean**. PyTorch zips are scanned in place, so each payload is scanned once.
 
-- **Result:** 10 pickle files scanned to the end, **0 dangerous globals**, 78 suspicious global references (50 distinct),
-  picklescan exit code 0, `scan_status=0`.
-- **Suspicious globals (distinct):** all library classes and functions that rebuild the predictor: AutoGluon (27), pandas (7),
-  numpy (4), torch (5, including `torch.nn` modules, because `models/Mitra/model.pt` pickles the whole model object), networkx
-  (2), `builtins.list`/`slice`, `__builtin__.set`, `collections.defaultdict`, and `sklearn.metrics.accuracy_score`. None names
-  an operating-system, process, network, or `eval`/`exec`/`getattr` callable.
-- **Evidence:** `docs/execution-evidence/2026-10-23/ser13-sample-artifact-scan/` holds `scan-report.txt` exactly as `scan.sh`
-  wrote it except that `make_evidence.py` replaced local scan paths with `<scan-dir>`, plus both scripts. `scan.sh` exits with
-  the scanner's status (0 clean, 1 dangerous, 2 incomplete).
+| File | Kind | Verdict |
+|---|---|---|
+| `predictor.pkl` | pickle | clean |
+| `learner.pkl` | pickle | clean |
+| `models/trainer.pkl` | pickle | clean |
+| `models/Mitra/model.pt` | pytorch-zip | clean |
+| `models/Mitra/model.pkl` | pickle | clean |
+| `utils/data/y_val.pkl` | pickle | clean |
+| `utils/data/y.pkl` | pickle | clean |
+| `utils/data/X_val.pkl` | pickle | clean |
+| `utils/data/X.pkl` | pickle | clean |
+| `utils/attr/Mitra/y_pred_proba_val.pkl` | pickle | clean |
+
+- **Result:** 10 pickle files; clean=10 dangerous=0 incomplete=0; `scan_status=0`. Dangerous globals: none.
+- **Globals (distinct, all files):** 56, by top-level package: autogluon (27), numpy (7), pandas (7), torch (7), builtins (2), collections (2), networkx (2), __builtin__ (1), sklearn (1). The per-file lists with picklescan's
+  classification are in the report.
+- **Evidence:** `docs/execution-evidence/2026-10-23/ser13-sample-artifact-scan/` holds `scan-report.txt` exactly as `scan.py`
+  wrote it (it records only paths inside the asset), `scan.py`, and `test_scan.py`, its regression tests (dangerous globals
+  behind joblib buffers or beside joblib files, gzipped and nested pickles, nested archives, bad archives and escaping paths).
+  `scan.py` exits 0 clean, 1 dangerous, 2 incomplete, 3 could not scan.
 
 ### Local-path redaction of earlier evidence (2026-10-22)
 
