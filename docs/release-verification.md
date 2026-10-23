@@ -349,7 +349,7 @@ they are measurements for the stated runtime, not general estimates.
 
 ## Current status
 
-**NOTEBOOK_SPEC 3.0 revision (2026-10-22): Candidate; the default path, the optional activity and the `RUN_FINE_TUNING` branch each executed once on a hosted T4.** The E2E notebook now closes with the Section 10
+The 2026-10-23 refusal-display fix (branch `fix/refusal-display`, NOTEBOOK_SPEC 3.0 DAT19/DAT20: a refused user input is shown as one `Refused: <file name>: <rule>` line with no traceback, and the run stops at that cell) changed the notebook blob from `f426780d` to `1b310f76`, so under REL14 the `20a13b1` default-path run and the `c5bb8a6` activity and fine-tune runs are history for blob `f426780d`, not evidence for `1b310f76`; new hosted runs of `1b310f76` (the default path, the optional activity, the REL12 BYOD review and the REL2 browser run) are pending and will be recorded in `docs/release-verification.md`. **NOTEBOOK_SPEC 3.0 revision (2026-10-22): Candidate; the default path, the optional activity and the `RUN_FINE_TUNING` branch each executed once on a hosted T4.** The E2E notebook now closes with the Section 10
 external-artifact section and the companion notebook is deleted; the pinned asset `sample-artifact-breast-cancer-v1` was produced by
 a recorded hosted Colab T4 run of the default path at `be831ef` (SHA-256 `17cbea6fbd8ed5a97decd4b359ef2c47d1d6025d26447e7500bc65a4dde364dd`,
 280,280,365 bytes). The revision's own hosted runs are recorded below (the default-path run is the second pass of §32.2). The paragraph after it describes the 2.2 pair.
