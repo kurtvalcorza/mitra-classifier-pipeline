@@ -1,0 +1,129 @@
+asset=mitra_classifier_predictor.zip
+sha256=17cbea6fbd8ed5a97decd4b359ef2c47d1d6025d26447e7500bc65a4dde364dd
+tools: picklescan 1.0.5, joblib 1.6.0, numpy 2.5.4, python 3.13.16
+-- predictor.pkl [pickle] CLEAN
+   method: picklescan 1.0.5 (bytes)
+   suspicious autogluon.tabular.learner.default_learner.DefaultLearner
+   suspicious autogluon.tabular.predictor.predictor.TabularPredictor
+-- learner.pkl [pickle] CLEAN
+   method: picklescan 1.0.5 (bytes)
+   suspicious autogluon.common.features.feature_metadata.FeatureMetadata
+   suspicious autogluon.core.data.cleaner.CleanerDummy
+   suspicious autogluon.core.data.label_cleaner.LabelCleanerBinary
+   suspicious autogluon.core.metrics._ClassScorer
+   suspicious autogluon.features.generators.astype.AsTypeFeatureGenerator
+   suspicious autogluon.features.generators.auto_ml_pipeline.AutoMLPipelineFeatureGenerator
+   suspicious autogluon.features.generators.drop_duplicates.DropDuplicatesFeatureGenerator
+   suspicious autogluon.features.generators.drop_unique.DropUniqueFeatureGenerator
+   suspicious autogluon.features.generators.fillna.FillNaFeatureGenerator
+   suspicious autogluon.features.generators.identity.IdentityFeatureGenerator
+   suspicious autogluon.tabular.learner.default_learner.DefaultLearner
+   suspicious autogluon.tabular.trainer.auto_trainer.AutoTrainer
+   suspicious builtins.list
+   suspicious collections.defaultdict
+   innocuous  numpy.dtype
+   innocuous  numpy.ndarray
+   innocuous  numpy._core.multiarray._reconstruct
+   suspicious numpy._core.multiarray.scalar
+   suspicious sklearn.metrics._classification.accuracy_score
+-- models/trainer.pkl [pickle] CLEAN
+   method: picklescan 1.0.5 (bytes)
+   suspicious autogluon.common.features.feature_metadata.FeatureMetadata
+   suspicious autogluon.core.metrics._ClassScorer
+   suspicious autogluon.tabular.models.mitra.mitra_model.MitraModel
+   suspicious autogluon.tabular.trainer.auto_trainer.AutoTrainer
+   suspicious builtins.list
+   suspicious collections.defaultdict
+   suspicious networkx.classes.digraph.DiGraph
+   suspicious networkx.classes.reportviews.NodeView
+   suspicious sklearn.metrics._classification.accuracy_score
+-- models/Mitra/model.pt [pytorch-zip] EXTRACTED
+   398 members queued
+-- models/Mitra/model.pkl [pickle] CLEAN
+   method: picklescan 1.0.5 (bytes)
+   suspicious autogluon.common.features.feature_metadata.FeatureMetadata
+   suspicious autogluon.core.data.label_cleaner.LabelCleanerBinary
+   suspicious autogluon.core.metrics._ClassScorer
+   suspicious autogluon.features.generators.label_encoder.LabelEncoderFeatureGenerator
+   suspicious autogluon.tabular.models.mitra._internal.config.config_run.ConfigRun
+   suspicious autogluon.tabular.models.mitra._internal.config.enums.ModelName
+   suspicious autogluon.tabular.models.mitra._internal.core.trainer_finetune.TrainerFinetune
+   suspicious autogluon.tabular.models.mitra._internal.data.preprocessor.Preprocessor
+   suspicious autogluon.tabular.models.mitra.mitra_model.MitraModel
+   suspicious autogluon.tabular.models.mitra.sklearn_interface.MitraClassifier
+   suspicious builtins.list
+   suspicious collections.defaultdict
+   innocuous  numpy.dtype
+   innocuous  numpy.ndarray
+   innocuous  numpy._core.multiarray._reconstruct
+   suspicious numpy.random._mt19937.MT19937
+   suspicious numpy.random._pickle.__bit_generator_ctor
+   suspicious numpy.random._pickle.__randomstate_ctor
+   suspicious sklearn.metrics._classification.accuracy_score
+-- utils/data/y_val.pkl [pickle] CLEAN
+   method: picklescan 1.0.5 (bytes)
+   suspicious builtins.slice
+   innocuous  numpy.dtype
+   innocuous  numpy.ndarray
+   innocuous  numpy._core.multiarray._reconstruct
+   suspicious pandas.core.indexes.base.Index
+   suspicious pandas.core.indexes.base._new_Index
+   suspicious pandas.core.internals.managers.SingleBlockManager
+   suspicious pandas.core.series.Series
+-- utils/data/y.pkl [pickle] CLEAN
+   method: picklescan 1.0.5 (bytes)
+   suspicious builtins.slice
+   innocuous  numpy.dtype
+   innocuous  numpy.ndarray
+   innocuous  numpy._core.multiarray._reconstruct
+   suspicious pandas.core.indexes.base.Index
+   suspicious pandas.core.indexes.base._new_Index
+   suspicious pandas.core.internals.managers.SingleBlockManager
+   suspicious pandas.core.series.Series
+-- utils/data/X_val.pkl [pickle] CLEAN
+   method: picklescan 1.0.5 (bytes)
+   suspicious builtins.slice
+   innocuous  numpy.dtype
+   innocuous  numpy.ndarray
+   innocuous  numpy._core.multiarray._reconstruct
+   suspicious pandas._libs.internals._unpickle_block
+   suspicious pandas.core.frame.DataFrame
+   suspicious pandas.core.indexes.base.Index
+   suspicious pandas.core.indexes.base._new_Index
+   suspicious pandas.core.internals.managers.BlockManager
+-- utils/data/X.pkl [pickle] CLEAN
+   method: picklescan 1.0.5 (bytes)
+   suspicious builtins.slice
+   innocuous  numpy.dtype
+   innocuous  numpy.ndarray
+   innocuous  numpy._core.multiarray._reconstruct
+   suspicious pandas._libs.internals._unpickle_block
+   suspicious pandas.core.frame.DataFrame
+   suspicious pandas.core.indexes.base.Index
+   suspicious pandas.core.indexes.base._new_Index
+   suspicious pandas.core.internals.managers.BlockManager
+-- utils/attr/Mitra/y_pred_proba_val.pkl [pickle] CLEAN
+   method: picklescan 1.0.5 (bytes)
+   innocuous  numpy.dtype
+   innocuous  numpy.ndarray
+   innocuous  numpy._core.multiarray._reconstruct
+-- models/Mitra/model.pt!/model/data.pkl [pickle] CLEAN
+   method: picklescan 1.0.5 (bytes)
+   suspicious __builtin__.set
+   suspicious autogluon.tabular.models.mitra._internal.config.enums.Task
+   suspicious autogluon.tabular.models.mitra._internal.models.embedding.Tab2DEmbeddingX
+   suspicious autogluon.tabular.models.mitra._internal.models.embedding.Tab2DEmbeddingYClasses
+   suspicious autogluon.tabular.models.mitra._internal.models.embedding.Tab2DQuantileEmbeddingX
+   suspicious autogluon.tabular.models.mitra._internal.models.tab2d.Layer
+   suspicious autogluon.tabular.models.mitra._internal.models.tab2d.MultiheadAttention
+   suspicious autogluon.tabular.models.mitra._internal.models.tab2d.Tab2D
+   innocuous  collections.OrderedDict
+   innocuous  torch.FloatStorage
+   suspicious torch._utils._rebuild_parameter
+   innocuous  torch._utils._rebuild_tensor_v2
+   suspicious torch.nn.modules.container.ModuleList
+   suspicious torch.nn.modules.linear.Linear
+   suspicious torch.nn.modules.normalization.LayerNorm
+   suspicious torch.nn.modules.sparse.Embedding
+summary: 10 pickle files; clean=10 dangerous=0 incomplete=0
+scan_status=0
