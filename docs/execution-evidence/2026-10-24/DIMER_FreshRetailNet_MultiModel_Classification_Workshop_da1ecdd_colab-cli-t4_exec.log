@@ -1,0 +1,1087 @@
+[colab] Parsing notebook '<local-run-dir>/DIMER_FreshRetailNet_MultiModel_Classification_Workshop_da1ecdd_colab-cli-t4.ipynb'...
+<colab-cli-tool-dir>/lib/python3.12/site-packages/nbformat/validator.py:434: MissingIDFieldWarning: Cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
+  _validate(nbdict, ref, version, version_minor, relax_add_props)
+[colab] Executing cell 1/25 - 0.1 Imports, runtime check, and workspace (nothing is installed into this notebook's Python)...
+Session: /content/dimer_classifier_workshop_v1/sessions/00f55309cf3b
+| version                                                                       
+---|---                                                                         
+python | 3.13.16                                                                
+numpy | 2.1.3                                                                   
+pandas | 2.2.3                                                                  
+scikit_learn | 1.6.1                                                            
+lightgbm | 4.6.0                                                                
+matplotlib | 3.10.0                                                             
+host_within_tested_range | True                                                 
+[colab] Executing cell 2/25 - 1.1 Acquire, hash, and safely stage the dataset archive...
+Downloading pinned sample: https://raw.githubusercontent.com/kurtvalcorza/mitra-classifier-pipeline/469d91252f3583b38d08b5c4d90fef4848b93f24/examples/sample-data/freshretailnet-band-h7.zip
+| value                                                                         
+---|---                                                                         
+dataset_name | freshretailnet-band-h7                                           
+acquisition | {'method': 'pinned-public-sample', 'source': '...                 
+repository | kurtvalcorza/mitra-classifier-pipeline                             
+repository_revision | 469d91252f3583b38d08b5c4d90fef4848b93f24                  
+repository_path | examples/sample-data/freshretailnet-band-h7.zip               
+source_url | https://raw.githubusercontent.com/kurtvalcorza...                  
+archive_bytes | 244474                                                          
+sha256 | ad2d2a8729749bb055754e4867acfb048fc27816f4eb34...                      
+sha256_verified_against_published_value | True                                  
+split_sha256 | {'test': '571009a87af7a9f8fa75c425a6da4f84cd09...                
+[colab] Executing cell 3/25 - 2.1 Validate rows, schema, numeric features, and class coverage...
+Dataset fingerprint: b2dde6d783a0b886eac7ecdc09480787d622ea521b5aaf6aca6344a39cefbf8b
+| split | rows | features                                                       
+---|---|---|---                                                                 
+0 | train | 4180 | 17                                                           
+1 | validation | 1600 | 17                                                      
+2 | test | 1600 | 17                                                            
+Classes: ['low', 'mid', 'high']
+[colab] Executing cell 4/25 - 2.2 Inspect development class balance only...
+| train_pct | validation_pct                                                    
+---|---|---                                                                     
+class |  |                                                                      
+low | 31.53 | 35.12                                                             
+mid | 35.05 | 33.38                                                             
+high | 33.42 | 31.50                                                            
+<Figure size 800x400 with 1 Axes>
+
+[Image saved to: /tmp/tmpabcbuao0.png]
+Test rows: 1600
+Test target distribution intentionally not displayed before freeze.
+[colab] Executing cell 5/25 - 3.1 Development-only EDA...
+| train | validation                                                            
+---|---|---                                                                     
+| mean | std | min | 50% | max | mean | std | min | 50% | max                   
+lag_1 | 0.939 | 1.219 | 0.000 | 0.600 | 15.000 | 0.965 | 1.448 | 0.000 | 0.600 |
+19.30                                                                           
+lag_7 | 0.927 | 1.146 | 0.000 | 0.600 | 12.000 | 0.977 | 1.406 | 0.000 | 0.600 |
+16.00                                                                           
+lag_14 | 0.912 | 1.039 | 0.000 | 0.600 | 12.000 | 0.950 | 1.282 | 0.000 | 0.600 
+| 15.00                                                                         
+roll_7_mean | 0.925 | 1.037 | 0.014 | 0.614 | 12.857 | 1.001 | 1.343 | 0.029 |  
+0.671 | 17.30                                                                   
+stockout_hours | 3.219 | 4.640 | 0.000 | 0.000 | 16.000 | 2.750 | 4.328 | 0.000 
+| 0.000 | 16.00                                                                 
+roll_7_stockout | 3.303 | 2.756 | 0.000 | 2.714 | 16.000 | 2.632 | 2.428 | 0.000
+| 2.143 | 14.00                                                                 
+discount | 0.926 | 0.119 | 0.000 | 1.000 | 1.000 | 0.928 | 0.125 | 0.000 | 1.000
+| 1.00                                                                          
+avg_temperature | 21.610 | 1.733 | 18.940 | 21.210 | 27.330 | 23.634 | 1.150 |  
+21.160 | 23.425 | 27.64                                                         
+<Figure size 800x500 with 1 Axes>
+
+[Image saved to: /tmp/tmp2h82ewxb.png]
+| stockout_hours | roll_7_stockout                                              
+---|---|---                                                                     
+| mean | median | mean | median                                                 
+target |  |  |  |                                                               
+low | 3.090 | 0.0 | 3.253 | 2.571                                               
+mid | 3.064 | 0.0 | 3.125 | 2.714                                               
+high | 3.504 | 0.0 | 3.539 | 2.857                                              
+[colab] Executing cell 6/25 - 3.2 Band edges from training rows versus edges recomputed on validation rows...
+Training cut points: [0.5   0.771]  validation cut points: [0.556 0.829]
+| edges from training rows (as built) % | edges recomputed on validation rows   
+(leaky) %                                                                       
+---|---|---                                                                     
+roll_7_mean band |  |                                                           
+low | 25.7 | 33.2                                                               
+mid | 35.6 | 32.9                                                               
+high | 38.8 | 33.9                                                              
+Validation rows whose band changes: 197 of 1600
+[colab] Executing cell 7/25 - 4.1 Fit and score the baseline ladder...
+| model | balanced_accuracy | accuracy | f1_macro | mcc | log_loss |            
+roc_auc_ovr_macro                                                               
+---|---|---|---|---|---|---|---                                                 
+0 | Random Forest | 0.5733 | 0.5688 | 0.5698 | 0.3564 | 0.8741 | 0.7608         
+1 | Logistic Regression | 0.5707 | 0.5694 | 0.5776 | 0.3593 | 0.9121 | 0.7631   
+2 | LightGBM | 0.5426 | 0.5381 | 0.5386 | 0.3097 | 1.0722 | 0.7446              
+3 | Lag-7 quantile-band heuristic | 0.5086 | 0.5019 | 0.4980 | 0.2625 | 6.8819 |
+0.6302                                                                          
+4 | Training-prior majority | 0.3333 | 0.3338 | 0.1668 | 0.0000 | 1.1006 |      
+0.5000                                                                          
+[colab] Executing cell 8/25 - 4.2 Score LightGBM with aligned and with misaligned probability columns...
+LightGBM's own column order: ['high', 'low', 'mid']
+| balanced_accuracy | accuracy | log_loss | roc_auc_ovr_macro                   
+---|---|---|---|---                                                             
+aligned to low/mid/high | 0.5426 | 0.5381 | 1.0722 | 0.7446                     
+raw order high/low/mid read as low/mid/high | 0.2341 | 0.2331 | 2.8663 | 0.3784 
+[colab] Executing cell 9/25 - 5.1 Select foundation-model conditions...
+| model_key | model | condition | repository | repository_commit |              
+weights_licence | configuration                                                 
+---|---|---|---|---|---|---|---                                                 
+0 | mitra_icl | Mitra Classifier | in_context |                                 
+kurtvalcorza/mitra-classifier-pipeline |                                        
+469d91252f3583b38d08b5c4d90fef4848b93f24 | Apache-2.0 | {"fine_tune": false,    
+"fine_tune_steps": 0, "ti...                                                    
+1 | tabdpt_icl | TabDPT v1.2 Classifier | in_context |                          
+kurtvalcorza/tabdpt-classifier-pipeline |                                       
+1e35dc4738f015b254b1724fd4bc7ba9f49668af | Apache-2.0 | {"batch_size": 4096,    
+"context_size": 4180, "n_...                                                    
+2 | tabpfn3_icl | TabPFN-3 Classifier | in_context |                            
+kurtvalcorza/tabpfn-classifier-pipeline |                                       
+769fb7b47e01b1d10edd954dabc634b8034598c2 | TabPFN-3 licence v1.0 —              
+non-commercial weights | {"n_estimators": 4}                                    
+3 | tabiclv2_icl | TabICLv2 Classifier | in_context |                           
+kurtvalcorza/tabicl-classifier-pipeline |                                       
+7400516ac86e3b6e55f5134ad5e550f312948981 | BSD-3-Clause | {"n_estimators": 8}   
+[colab] Executing cell 10/25 - 5.1b Check the data against each selected model's limits...
+| model_key | train_rows | features | limit | within_limit                      
+---|---|---|---|---|---                                                         
+0 | mitra_icl | 4180 | 17 | 10,000 rows, 500 features | True                    
+1 | tabdpt_icl | 4180 | 17 | no row ceiling; uses at most 4,180 training ro... |
+True                                                                            
+2 | tabpfn3_icl | 4180 | 17 | 1,000,000 rows, 2,000 features | True             
+3 | tabiclv2_icl | 4180 | 17 | 50,000 rows, 2,000 features | True               
+[colab] Executing cell 11/25 - 5.2 Stage carried adapters and prepare isolated model environments...
+$ /content/dimer_classifier_workshop_v1/environments/uv-0.12.15/uv venv --managed-python --python 3.12.12 /content/dimer_classifier_workshop_v1/environments/mitra-bc0cd0eef00e
+Downloading cpython-3.12.12-linux-x86_64-gnu (download) (32.3MiB)
+ Downloaded cpython-3.12.12-linux-x86_64-gnu (download)
+Using CPython 3.12.12
+Creating virtual environment at: dimer_classifier_workshop_v1/environments/mitra-bc0cd0eef00e
+Activate with: source dimer_classifier_workshop_v1/environments/mitra-bc0cd0eef00e/bin/activate
+$ /content/dimer_classifier_workshop_v1/environments/uv-0.12.15/uv pip install --python /content/dimer_classifier_workshop_v1/environments/mitra-bc0cd0eef00e/bin/python --require-hashes --no-deps --index-url https://pypi.org/simple --only-binary :all: -r /content/dimer_classifier_workshop_v1/environments/mitra-bc0cd0eef00e/requirements.lock.txt
+Using Python 3.12.12 environment at: dimer_classifier_workshop_v1/environments/mitra-bc0cd0eef00e
+Resolved 74 packages in 596ms
+Downloading tokenizers (3.1MiB)
+Downloading pillow (6.6MiB)
+Downloading kiwisolver (1.4MiB)
+Downloading networkx (2.0MiB)
+Downloading sympy (6.0MiB)
+Downloading lightgbm (3.4MiB)
+Downloading pandas (11.8MiB)
+Downloading fonttools (5.1MiB)
+Downloading botocore (15.3MiB)
+Downloading matplotlib (8.4MiB)
+Downloading nvidia-nvjitlink-cu12 (37.4MiB)
+Downloading pyarrow (40.3MiB)
+Downloading numpy (15.8MiB)
+Downloading torch (858.1MiB)
+Downloading nvidia-cufft-cu12 (184.2MiB)
+Downloading nvidia-curand-cu12 (60.7MiB)
+Downloading nvidia-cusparse-cu12 (274.9MiB)
+Downloading scikit-learn (9.0MiB)
+Downloading nvidia-nvshmem-cu12 (118.9MiB)
+Downloading triton (162.6MiB)
+Downloading hf-xet (4.3MiB)
+Downloading nvidia-cuda-nvrtc-cu12 (84.0MiB)
+Downloading scipy (34.0MiB)
+Downloading nvidia-cublas-cu12 (566.8MiB)
+Downloading nvidia-nccl-cu12 (307.4MiB)
+Downloading nvidia-cudnn-cu12 (674.0MiB)
+Downloading nvidia-cufile-cu12 (1.1MiB)
+Downloading nvidia-cusparselt-cu12 (273.9MiB)
+Downloading nvidia-cusolver-cu12 (255.1MiB)
+Downloading transformers (11.4MiB)
+Downloading nvidia-cuda-cupti-cu12 (9.8MiB)
+ Downloaded nvidia-cufile-cu12
+ Downloaded kiwisolver
+ Downloaded networkx
+ Downloaded tokenizers
+ Downloaded lightgbm
+ Downloaded hf-xet
+ Downloaded fonttools
+ Downloaded sympy
+ Downloaded pillow
+ Downloaded matplotlib
+ Downloaded scikit-learn
+ Downloaded nvidia-cuda-cupti-cu12
+ Downloaded transformers
+ Downloaded pandas
+ Downloaded botocore
+ Downloaded numpy
+ Downloaded scipy
+ Downloaded nvidia-nvjitlink-cu12
+ Downloaded pyarrow
+ Downloaded nvidia-curand-cu12
+ Downloaded nvidia-cuda-nvrtc-cu12
+ Downloaded nvidia-nvshmem-cu12
+ Downloaded triton
+ Downloaded nvidia-cufft-cu12
+ Downloaded nvidia-cusolver-cu12
+ Downloaded nvidia-cusparse-cu12
+ Downloaded nvidia-cusparselt-cu12
+ Downloaded nvidia-nccl-cu12
+ Downloaded nvidia-cublas-cu12
+ Downloaded nvidia-cudnn-cu12
+ Downloaded torch
+Prepared 74 packages in 1m 25s
+Installed 74 packages in 883ms
+ + autogluon-common==1.5.0
+ + autogluon-core==1.5.0
+ + autogluon-features==1.5.0
+ + autogluon-tabular==1.5.0
+ + boto3==1.43.108
+ + botocore==1.43.108
+ + certifi==2026.7.22
+ + charset-normalizer==3.5.2
+ + cloudpickle==3.1.2
+ + contourpy==1.4.0
+ + cycler==0.12.1
+ + einops==0.8.2
+ + einx==0.4.3
+ + filelock==4.0.9
+ + fonttools==4.66.1
+ + frozendict==2.4.7
+ + fsspec==2026.9.0
+ + hf-xet==1.6.0
+ + huggingface-hub==0.36.2
+ + idna==3.20
+ + jinja2==3.1.6
+ + jmespath==1.1.0
+ + joblib==1.6.0
+ + kiwisolver==1.5.1
+ + lightgbm==4.6.0
+ + loguru==0.7.3
+ + markupsafe==3.0.4
+ + matplotlib==3.10.9
+ + mpmath==1.3.0
+ + networkx==3.7
+ + numpy==2.3.5
+ + nvidia-cublas-cu12==12.8.4.1
+ + nvidia-cuda-cupti-cu12==12.8.90
+ + nvidia-cuda-nvrtc-cu12==12.8.93
+ + nvidia-cuda-runtime-cu12==12.8.90
+ + nvidia-cudnn-cu12==9.10.2.21
+ + nvidia-cufft-cu12==11.3.3.83
+ + nvidia-cufile-cu12==1.13.1.3
+ + nvidia-curand-cu12==10.3.9.90
+ + nvidia-cusolver-cu12==11.7.3.90
+ + nvidia-cusparse-cu12==12.5.8.93
+ + nvidia-cusparselt-cu12==0.7.1
+ + nvidia-nccl-cu12==2.27.5
+ + nvidia-nvjitlink-cu12==12.8.93
+ + nvidia-nvshmem-cu12==3.3.20
+ + nvidia-nvtx-cu12==12.8.90
+ + omegaconf==2.0.6
+ + packaging==26.3
+ + pandas==2.3.3
+ + pillow==12.3.0
+ + psutil==7.1.3
+ + pyarrow==20.0.0
+ + pyparsing==3.3.3
+ + python-dateutil==2.9.0.post0
+ + pytz==2026.4
+ + pyyaml==6.0.3
+ + regex==2026.9.29
+ + requests==2.34.2
+ + s3transfer==0.19.2
+ + safetensors==0.8.0
+ + scikit-learn==1.7.2
+ + scipy==1.16.3
+ + setuptools==84.0.0
+ + six==1.17.0
+ + sympy==1.14.0
+ + threadpoolctl==3.7.0
+ + tokenizers==0.22.2
+ + torch==2.9.1
+ + tqdm==4.70.1
+ + transformers==4.57.6
+ + triton==3.5.1
+ + typing-extensions==4.16.0
+ + tzdata==2026.4
+ + urllib3==2.8.0
+$ /content/dimer_classifier_workshop_v1/environments/uv-0.12.15/uv pip check --python /content/dimer_classifier_workshop_v1/environments/mitra-bc0cd0eef00e/bin/python
+Using Python 3.12.12 environment at: dimer_classifier_workshop_v1/environments/mitra-bc0cd0eef00e
+Checked 74 packages in 8ms
+All installed packages are compatible
+$ /content/dimer_classifier_workshop_v1/environments/mitra-bc0cd0eef00e/bin/python -c 'import mitra_pipeline.tutorial_api'
+$ /content/dimer_classifier_workshop_v1/environments/uv-0.12.15/uv venv --managed-python --python 3.12.12 /content/dimer_classifier_workshop_v1/environments/tabdpt-8a19b1d6c4c8
+Using CPython 3.12.12
+Creating virtual environment at: dimer_classifier_workshop_v1/environments/tabdpt-8a19b1d6c4c8
+Activate with: source dimer_classifier_workshop_v1/environments/tabdpt-8a19b1d6c4c8/bin/activate
+$ /content/dimer_classifier_workshop_v1/environments/uv-0.12.15/uv pip install --python /content/dimer_classifier_workshop_v1/environments/tabdpt-8a19b1d6c4c8/bin/python --require-hashes --no-deps --index-url https://pypi.org/simple --only-binary :all: -r /content/dimer_classifier_workshop_v1/environments/tabdpt-8a19b1d6c4c8/requirements.lock.txt
+Using Python 3.12.12 environment at: dimer_classifier_workshop_v1/environments/tabdpt-8a19b1d6c4c8
+Resolved 54 packages in 154ms
+Downloading nvidia-cufile-cu12 (1.1MiB)
+Downloading scipy (35.6MiB)
+Downloading nvidia-cuda-cupti-cu12 (8.5MiB)
+Downloading nvidia-nvjitlink-cu12 (18.8MiB)
+Downloading pyarrow (47.8MiB)
+Downloading scikit-learn (11.9MiB)
+Downloading torchvision (7.1MiB)
+Downloading nvidia-cusparselt-cu12 (149.5MiB)
+Downloading nvidia-cudnn-cu12 (544.5MiB)
+Downloading nvidia-cusolver-cu12 (150.9MiB)
+Downloading nvidia-cusparse-cu12 (206.5MiB)
+Downloading torchaudio (3.3MiB)
+Downloading nvidia-cufft-cu12 (190.9MiB)
+Downloading nvidia-nccl-cu12 (192.0MiB)
+Downloading nvidia-curand-cu12 (53.7MiB)
+Downloading torch (783.0MiB)
+Downloading faiss-cpu (29.8MiB)
+Downloading nvidia-cublas-cu12 (374.9MiB)
+Downloading nvidia-cuda-nvrtc-cu12 (22.6MiB)
+Downloading triton (148.5MiB)
+Downloading numpy (15.9MiB)
+Downloading pandas (11.4MiB)
+ Downloaded nvidia-cufile-cu12
+ Downloaded torchaudio
+ Downloaded torchvision
+ Downloaded nvidia-cuda-cupti-cu12
+ Downloaded pandas
+ Downloaded scikit-learn
+ Downloaded numpy
+ Downloaded nvidia-nvjitlink-cu12
+ Downloaded nvidia-cuda-nvrtc-cu12
+ Downloaded faiss-cpu
+ Downloaded scipy
+ Downloaded pyarrow
+ Downloaded nvidia-curand-cu12
+ Downloaded nvidia-cusparselt-cu12
+ Downloaded nvidia-cusolver-cu12
+ Downloaded triton
+ Downloaded nvidia-cufft-cu12
+ Downloaded nvidia-nccl-cu12
+ Downloaded nvidia-cusparse-cu12
+ Downloaded nvidia-cublas-cu12
+ Downloaded nvidia-cudnn-cu12
+ Downloaded torch
+Prepared 28 packages in 53.40s
+Installed 54 packages in 318ms
+ + certifi==2026.7.22
+ + charset-normalizer==3.5.2
+ + cloudpickle==3.1.2
+ + faiss-cpu==1.11.0
+ + filelock==4.0.9
+ + fsspec==2026.9.0
+ + hf-xet==1.6.0
+ + huggingface-hub==0.36.2
+ + idna==3.20
+ + jinja2==3.1.6
+ + joblib==1.6.0
+ + markupsafe==3.0.4
+ + mpmath==1.3.0
+ + networkx==3.7
+ + numpy==2.3.0
+ + nvidia-cublas-cu12==12.6.4.1
+ + nvidia-cuda-cupti-cu12==12.6.80
+ + nvidia-cuda-nvrtc-cu12==12.6.77
+ + nvidia-cuda-runtime-cu12==12.6.77
+ + nvidia-cudnn-cu12==9.5.1.17
+ + nvidia-cufft-cu12==11.3.0.4
+ + nvidia-cufile-cu12==1.11.1.6
+ + nvidia-curand-cu12==10.3.7.77
+ + nvidia-cusolver-cu12==11.7.1.2
+ + nvidia-cusparse-cu12==12.5.4.2
+ + nvidia-cusparselt-cu12==0.6.3
+ + nvidia-nccl-cu12==2.26.2
+ + nvidia-nvjitlink-cu12==12.6.85
+ + nvidia-nvtx-cu12==12.6.77
+ + omegaconf==2.3.0
+ + packaging==26.3
+ + pandas==2.3.2
+ + pillow==12.3.0
+ + pyarrow==25.0.0
+ + python-dateutil==2.9.0.post0
+ + pytz==2026.4
+ + pyyaml==6.0.3
+ + requests==2.34.2
+ + safetensors==0.5.3
+ + scikit-learn==1.7.0
+ + scipy==1.15.3
+ + setuptools==84.0.0
+ + six==1.17.0
+ + sympy==1.14.0
+ + tabdpt==1.2.0
+ + threadpoolctl==3.7.0
+ + torch==2.7.1
+ + torchaudio==2.7.1
+ + torchvision==0.22.1
+ + tqdm==4.67.1
+ + triton==3.3.1
+ + typing-extensions==4.16.0
+ + tzdata==2026.4
+ + urllib3==2.8.0
+$ /content/dimer_classifier_workshop_v1/environments/uv-0.12.15/uv pip install --python /content/dimer_classifier_workshop_v1/environments/tabdpt-8a19b1d6c4c8/bin/python --require-hashes --no-deps --index-url https://pypi.org/simple --no-build-isolation -r /content/dimer_classifier_workshop_v1/environments/tabdpt-8a19b1d6c4c8/requirements-sdist.lock.txt
+Using Python 3.12.12 environment at: dimer_classifier_workshop_v1/environments/tabdpt-8a19b1d6c4c8
+Resolved 1 package in 78ms
+   Building antlr4-python3-runtime==4.9.3
+      Built antlr4-python3-runtime==4.9.3
+Prepared 1 package in 921ms
+Installed 1 package in 1ms
+ + antlr4-python3-runtime==4.9.3
+$ /content/dimer_classifier_workshop_v1/environments/uv-0.12.15/uv pip check --python /content/dimer_classifier_workshop_v1/environments/tabdpt-8a19b1d6c4c8/bin/python
+Using Python 3.12.12 environment at: dimer_classifier_workshop_v1/environments/tabdpt-8a19b1d6c4c8
+Checked 55 packages in 1ms
+All installed packages are compatible
+$ /content/dimer_classifier_workshop_v1/environments/tabdpt-8a19b1d6c4c8/bin/python -c 'import tabdpt_classifier_pipeline.pipeline; import tabdpt_classifier_pipeline.artifact'
+$ /content/dimer_classifier_workshop_v1/environments/uv-0.12.15/uv venv --managed-python --python 3.12.12 /content/dimer_classifier_workshop_v1/environments/tabicl-f666488fd747
+Using CPython 3.12.12
+Creating virtual environment at: dimer_classifier_workshop_v1/environments/tabicl-f666488fd747
+Activate with: source dimer_classifier_workshop_v1/environments/tabicl-f666488fd747/bin/activate
+$ /content/dimer_classifier_workshop_v1/environments/uv-0.12.15/uv pip install --python /content/dimer_classifier_workshop_v1/environments/tabicl-f666488fd747/bin/python --require-hashes --no-deps --index-url https://pypi.org/simple --only-binary :all: -r /content/dimer_classifier_workshop_v1/environments/tabicl-f666488fd747/requirements.lock.txt
+Using Python 3.12.12 environment at: dimer_classifier_workshop_v1/environments/tabicl-f666488fd747
+Resolved 90 packages in 337ms
+Downloading pygments (1.2MiB)
+Downloading tokenizers (3.2MiB)
+Downloading nvidia-nvshmem-cu13 (57.6MiB)
+Downloading nvidia-cusparselt-cu13 (162.3MiB)
+Downloading triton (236.5MiB)
+Downloading scikit-learn (8.7MiB)
+Downloading pyarrow (47.8MiB)
+Downloading nvidia-cusparse (139.2MiB)
+Downloading cuda-bindings (6.8MiB)
+Downloading nvidia-cuda-cupti (10.2MiB)
+Downloading pydantic-core (2.0MiB)
+Downloading scipy (33.7MiB)
+Downloading wandb (24.9MiB)
+Downloading torchvision (7.1MiB)
+Downloading nvidia-cuda-runtime (2.1MiB)
+Downloading transformers (11.7MiB)
+Downloading nvidia-nccl-cu13 (206.0MiB)
+Downloading nvidia-cublas (403.5MiB)
+Downloading nvidia-cuda-nvrtc (86.0MiB)
+Downloading nvidia-curand (56.8MiB)
+Downloading numpy (15.9MiB)
+Downloading nvidia-cusolver (191.6MiB)
+Downloading lightgbm (3.3MiB)
+Downloading nvidia-cudnn-cu13 (527.5MiB)
+Downloading nvidia-cufile (1.2MiB)
+Downloading pandas (10.5MiB)
+Downloading torchaudio (1.7MiB)
+Downloading nvidia-cufft (204.2MiB)
+Downloading torch (528.9MiB)
+Downloading nvidia-nvjitlink (40.5MiB)
+ Downloaded pygments
+ Downloaded nvidia-cufile
+ Downloaded torchaudio
+ Downloaded pydantic-core
+ Downloaded nvidia-cuda-runtime
+ Downloaded tokenizers
+ Downloaded lightgbm
+ Downloaded cuda-bindings
+ Downloaded torchvision
+ Downloaded scikit-learn
+ Downloaded nvidia-cuda-cupti
+ Downloaded pandas
+ Downloaded transformers
+ Downloaded numpy
+ Downloaded wandb
+ Downloaded scipy
+ Downloaded nvidia-nvjitlink
+ Downloaded pyarrow
+ Downloaded nvidia-curand
+ Downloaded nvidia-nvshmem-cu13
+ Downloaded nvidia-cuda-nvrtc
+ Downloaded nvidia-cusparse
+ Downloaded nvidia-cusparselt-cu13
+ Downloaded nvidia-cusolver
+ Downloaded nvidia-cufft
+ Downloaded nvidia-nccl-cu13
+ Downloaded triton
+ Downloaded nvidia-cublas
+ Downloaded torch
+ Downloaded nvidia-cudnn-cu13
+Prepared 63 packages in 59.65s
+Installed 90 packages in 512ms
+ + annotated-doc==0.0.5
+ + annotated-types==0.8.0
+ + anyio==4.15.1
+ + certifi==2026.7.22
+ + charset-normalizer==3.5.2
+ + click==8.5.0
+ + cloudpickle==3.1.2
+ + cuda-bindings==13.4.3
+ + cuda-pathfinder==1.8.3
+ + cuda-toolkit==13.0.3.0
+ + einops==0.8.2
+ + filelock==4.0.9
+ + fsspec==2026.9.0
+ + googleapis-common-protos==1.75.5
+ + h11==0.16.0
+ + hf-xet==1.6.0
+ + httpcore==1.0.9
+ + httpx==0.28.1
+ + huggingface-hub==1.30.0
+ + idna==3.20
+ + jinja2==3.1.6
+ + joblib==1.6.0
+ + lightgbm==4.7.0
+ + markdown-it-py==4.2.0
+ + markupsafe==3.0.4
+ + mdurl==0.1.2
+ + mpmath==1.3.0
+ + narwhals==2.26.0
+ + networkx==3.7
+ + numpy==2.5.2
+ + nvidia-cublas==13.1.1.3
+ + nvidia-cuda-cupti==13.0.85
+ + nvidia-cuda-nvrtc==13.0.88
+ + nvidia-cuda-runtime==13.0.96
+ + nvidia-cudnn-cu13==9.24.0.43
+ + nvidia-cufft==12.0.0.61
+ + nvidia-cufile==1.15.1.6
+ + nvidia-curand==10.4.0.35
+ + nvidia-cusolver==12.0.4.66
+ + nvidia-cusparse==12.6.3.3
+ + nvidia-cusparselt-cu13==0.8.1
+ + nvidia-nccl-cu13==2.30.7
+ + nvidia-nvjitlink==13.4.92
+ + nvidia-nvshmem-cu13==3.4.5
+ + nvidia-nvtx==13.0.85
+ + opentelemetry-api==1.45.0
+ + opentelemetry-exporter-http-transport==0.66b0
+ + opentelemetry-exporter-otlp-common==0.66b0
+ + opentelemetry-exporter-otlp-proto-common==1.45.0
+ + opentelemetry-exporter-otlp-proto-http==1.45.0
+ + opentelemetry-proto==1.45.0
+ + opentelemetry-sdk==1.45.0
+ + opentelemetry-semantic-conventions==0.66b0
+ + packaging==26.3
+ + pandas==3.0.5
+ + pillow==12.3.0
+ + platformdirs==4.12.2
+ + protobuf==7.36.2
+ + psutil==7.2.2
+ + pyarrow==25.0.1
+ + pydantic==2.13.5
+ + pydantic-core==2.46.5
+ + pygments==2.21.0
+ + python-dateutil==2.9.0.post0
+ + pyyaml==6.0.3
+ + regex==2026.9.29
+ + requests==2.34.2
+ + rich==15.0.0
+ + safetensors==0.8.0
+ + scikit-learn==1.9.0
+ + scipy==1.18.1
+ + setuptools==84.0.0
+ + shellingham==1.5.4
+ + six==1.17.0
+ + sympy==1.14.0
+ + tabicl==2.1.1
+ + threadpoolctl==3.7.0
+ + tokenizers==0.23.2
+ + torch==2.14.0
+ + torchaudio==2.11.0
+ + torchvision==0.29.0
+ + tqdm==4.70.1
+ + transformers==5.17.0
+ + triton==3.8.0
+ + typer==0.27.2
+ + typing-extensions==4.16.0
+ + typing-inspection==0.4.4
+ + urllib3==2.8.0
+ + wandb==0.30.0
+ + xxhash==4.0.1
+$ /content/dimer_classifier_workshop_v1/environments/uv-0.12.15/uv pip check --python /content/dimer_classifier_workshop_v1/environments/tabicl-f666488fd747/bin/python
+Using Python 3.12.12 environment at: dimer_classifier_workshop_v1/environments/tabicl-f666488fd747
+Checked 90 packages in 2ms
+All installed packages are compatible
+$ /content/dimer_classifier_workshop_v1/environments/tabicl-f666488fd747/bin/python -c 'import tabicl_classifier_pipeline.api'
+$ /content/dimer_classifier_workshop_v1/environments/uv-0.12.15/uv venv --managed-python --python 3.12.12 /content/dimer_classifier_workshop_v1/environments/tabpfn-3847ccb73baf
+Using CPython 3.12.12
+Creating virtual environment at: dimer_classifier_workshop_v1/environments/tabpfn-3847ccb73baf
+Activate with: source dimer_classifier_workshop_v1/environments/tabpfn-3847ccb73baf/bin/activate
+$ /content/dimer_classifier_workshop_v1/environments/uv-0.12.15/uv pip install --python /content/dimer_classifier_workshop_v1/environments/tabpfn-3847ccb73baf/bin/python --require-hashes --no-deps --index-url https://pypi.org/simple --only-binary :all: -r /content/dimer_classifier_workshop_v1/environments/tabpfn-3847ccb73baf/requirements.lock.txt
+Using Python 3.12.12 environment at: dimer_classifier_workshop_v1/environments/tabpfn-3847ccb73baf
+Resolved 63 packages in 206ms
+Downloading numpy (15.9MiB)
+Downloading setuptools (1.0MiB)
+Downloading nvidia-cusparselt-cu13 (162.0MiB)
+Downloading torch (506.1MiB)
+Downloading nvidia-nvjitlink (38.8MiB)
+Downloading nvidia-nccl-cu13 (187.4MiB)
+Downloading triton (179.5MiB)
+Downloading nvidia-cudnn-cu13 (349.1MiB)
+Downloading nvidia-cublas (403.5MiB)
+Downloading torchvision (7.2MiB)
+ Downloaded setuptools
+ Downloaded torchvision
+ Downloaded numpy
+ Downloaded nvidia-nvjitlink
+ Downloaded nvidia-cusparselt-cu13
+ Downloaded triton
+ Downloaded nvidia-nccl-cu13
+ Downloaded nvidia-cudnn-cu13
+ Downloaded nvidia-cublas
+ Downloaded torch
+Prepared 14 packages in 36.87s
+Installed 63 packages in 340ms
+ + annotated-types==0.8.0
+ + certifi==2026.7.22
+ + charset-normalizer==3.5.2
+ + cloudpickle==3.1.2
+ + cuda-bindings==13.4.3
+ + cuda-pathfinder==1.8.3
+ + cuda-toolkit==13.0.2
+ + einops==0.8.2
+ + filelock==4.0.9
+ + fsspec==2026.9.0
+ + hf-xet==1.6.0
+ + huggingface-hub==0.36.2
+ + idna==3.20
+ + jinja2==3.1.6
+ + joblib==1.6.0
+ + lightgbm==4.7.0
+ + markupsafe==3.0.4
+ + mpmath==1.3.0
+ + narwhals==2.26.0
+ + networkx==3.7
+ + numpy==2.5.3
+ + nvidia-cublas==13.1.0.3
+ + nvidia-cuda-cupti==13.0.85
+ + nvidia-cuda-nvrtc==13.0.88
+ + nvidia-cuda-runtime==13.0.96
+ + nvidia-cudnn-cu13==9.19.0.56
+ + nvidia-cufft==12.0.0.61
+ + nvidia-cufile==1.15.1.6
+ + nvidia-curand==10.4.0.35
+ + nvidia-cusolver==12.0.4.66
+ + nvidia-cusparse==12.6.3.3
+ + nvidia-cusparselt-cu13==0.8.0
+ + nvidia-nccl-cu13==2.28.9
+ + nvidia-nvjitlink==13.0.88
+ + nvidia-nvshmem-cu13==3.4.5
+ + nvidia-nvtx==13.0.85
+ + packaging==26.3
+ + pandas==2.3.2
+ + pillow==12.3.0
+ + pydantic==2.13.5
+ + pydantic-core==2.46.5
+ + pydantic-settings==2.15.0
+ + python-dateutil==2.9.0.post0
+ + python-dotenv==1.2.4
+ + pytz==2026.4
+ + pyyaml==6.0.3
+ + requests==2.34.2
+ + safetensors==0.8.0
+ + scikit-learn==1.9.0
+ + scipy==1.18.1
+ + setuptools==81.0.0
+ + six==1.17.0
+ + sympy==1.14.0
+ + tabpfn==8.1.0
+ + threadpoolctl==3.7.0
+ + torch==2.11.0
+ + torchvision==0.26.0
+ + tqdm==4.70.1
+ + triton==3.6.0
+ + typing-extensions==4.16.0
+ + typing-inspection==0.4.4
+ + tzdata==2026.4
+ + urllib3==2.8.0
+$ /content/dimer_classifier_workshop_v1/environments/uv-0.12.15/uv pip check --python /content/dimer_classifier_workshop_v1/environments/tabpfn-3847ccb73baf/bin/python
+Using Python 3.12.12 environment at: dimer_classifier_workshop_v1/environments/tabpfn-3847ccb73baf
+Checked 63 packages in 1ms
+All installed packages are compatible
+$ /content/dimer_classifier_workshop_v1/environments/tabpfn-3847ccb73baf/bin/python -c 'import tabpfn_classifier_pipeline.pipeline'
+| environment | python | weights_dir | adapter_revision                         
+---|---|---|---|---                                                             
+0 | mitra | /content/dimer_classifier_workshop_v1/environm... |                 
+/content/dimer_classifier_workshop_v1/model_we... |                             
+469d91252f3583b38d08b5c4d90fef4848b93f24                                        
+1 | tabdpt | /content/dimer_classifier_workshop_v1/environm... |                
+/content/dimer_classifier_workshop_v1/model_we... |                             
+1e35dc4738f015b254b1724fd4bc7ba9f49668af                                        
+2 | tabicl | /content/dimer_classifier_workshop_v1/environm... |                
+/content/dimer_classifier_workshop_v1/model_we... |                             
+7400516ac86e3b6e55f5134ad5e550f312948981                                        
+3 | tabpfn | /content/dimer_classifier_workshop_v1/environm... |                
+/content/dimer_classifier_workshop_v1/model_we... |                             
+769fb7b47e01b1d10edd954dabc634b8034598c2                                        
+[colab] Executing cell 12/25 - 5.3 Write the isolated model runner...
+Runner ready: /content/dimer_classifier_workshop_v1/sessions/00f55309cf3b/support/local_foundation_classifier.py
+Runner SHA-256: c6310d93c571bc8b2a98932b35208ad3dbdc9e8276777960ac83e21558d0d4ab
+[colab] Executing cell 13/25 - 5.4 Execute validation-stage foundation-model runs...
+
+=== mitra_icl ===
+$ /content/dimer_classifier_workshop_v1/environments/mitra-bc0cd0eef00e/bin/python /content/dimer_classifier_workshop_v1/sessions/00f55309cf3b/support/local_foundation_classifier.py --config /content/dimer_classifier_workshop_v1/sessions/00f55309cf3b/support/mitra_icl-bf1dc2f3ec86.json
+Verbosity: 2 (Standard Logging)
+=================== System Info ===================
+AutoGluon Version:  1.5.0
+Python Version:     3.12.12
+Operating System:   Linux
+Platform Machine:   x86_64
+Platform Version:   #1 SMP Thu Apr 30 18:17:14 UTC 2026
+CPU Count:          2
+Pytorch Version:    2.9.1+cu128
+CUDA Version:       12.8
+GPU Memory:         GPU 0: 14.56/14.56 GB
+Total GPU Memory:   Free: 14.56 GB, Allocated: 0.00 GB, Total: 14.56 GB
+GPU Count:          1
+Memory Avail:       10.79 GB / 12.67 GB (85.2%)
+Disk Space Avail:   170.32 GB / 235.68 GB (72.3%)
+===================================================
+No presets specified! To achieve strong results with AutoGluon, it is recommended to use the available presets. Defaulting to `'medium'`...
+	Recommended Presets (For more details refer to https://auto.gluon.ai/stable/tutorials/tabular/tabular-essentials.html#presets):
+	presets='extreme'  : New in v1.5: The state-of-the-art for tabular data. Massively better than 'best' on datasets <100000 samples by using new Tabular Foundation Models (TFMs) meta-learned on https://tabarena.ai: TabPFNv2, TabICL, Mitra, TabDPT, and TabM. Requires a GPU and `pip install autogluon.tabular[tabarena]` to install TabPFN, TabICL, and TabDPT.
+	presets='best'     : Maximize accuracy. Recommended for most users. Use in competitions and benchmarks.
+	presets='best_v150': New in v1.5: Better quality than 'best' and 5x+ faster to train. Give it a try!
+	presets='high'     : Strong accuracy with fast inference speed.
+	presets='high_v150': New in v1.5: Better quality than 'high' and 5x+ faster to train. Give it a try!
+	presets='good'     : Good accuracy with very fast inference speed.
+	presets='medium'   : Fast training time, ideal for initial prototyping.
+Beginning AutoGluon training ... Time limit = 600s
+AutoGluon will save models to "/content/dimer_classifier_workshop_v1/sessions/00f55309cf3b/runs/foundation/mitra_icl-bf1dc2f3ec86/artifact/mitra_predictor"
+Train Data Rows:    4180
+Train Data Columns: 17
+Tuning Data Rows:    1600
+Tuning Data Columns: 17
+Label Column:       target
+Problem Type:       multiclass
+Preprocessing data ...
+Train Data Class Count: 3
+Using Feature Generators to preprocess the data ...
+Fitting AutoMLPipelineFeatureGenerator...
+	Available Memory:                    11051.70 MB
+	Train Data (Original)  Memory Usage: 0.75 MB (0.0% of available memory)
+	Inferring data type of each feature based on column values. Set feature_metadata_in to manually specify special dtypes of the features.
+	Stage 1 Generators:
+		Fitting AsTypeFeatureGenerator...
+			Note: Converting 3 features to boolean dtype as they only contain 2 unique values.
+	Stage 2 Generators:
+		Fitting FillNaFeatureGenerator...
+	Stage 3 Generators:
+		Fitting IdentityFeatureGenerator...
+	Stage 4 Generators:
+		Fitting DropUniqueFeatureGenerator...
+	Stage 5 Generators:
+		Fitting DropDuplicatesFeatureGenerator...
+	Types of features in original data (raw dtype, special dtypes):
+		('float', []) : 12 | ['lag_1', 'lag_7', 'lag_14', 'roll_7_mean', 'roll_28_mean', ...]
+		('int', [])   :  5 | ['stockout_hours', 'holiday_flag', 'activity_flag', 'dow', 'month']
+	Types of features in processed data (raw dtype, special dtypes):
+		('float', [])     : 12 | ['lag_1', 'lag_7', 'lag_14', 'roll_7_mean', 'roll_28_mean', ...]
+		('int', [])       :  2 | ['stockout_hours', 'dow']
+		('int', ['bool']) :  3 | ['holiday_flag', 'activity_flag', 'month']
+	0.0s = Fit runtime
+	17 features in original data used to generate 17 features in processed data.
+	Train Data (Processed) Memory Usage: 0.63 MB (0.0% of available memory)
+Data preprocessing and feature engineering runtime = 0.07s ...
+AutoGluon will gauge predictive performance using evaluation metric: 'balanced_accuracy'
+	To change this, specify the eval_metric parameter of Predictor()
+User-specified model hyperparameters to be fit:
+{
+	'MITRA': [{'fine_tune': False, 'seed': 42}],
+}
+Fitting 1 L1 models, fit_strategy="sequential" ...
+Fitting model: Mitra ... Training model for up to 599.93s of the 599.93s of remaining time.
+	Warning: Potentially not enough memory to safely train model. Estimated to require 10.023 GB out of 10.792 GB available memory (92.872%)... (99.000% of avail memory is the max safe size)
+	To avoid this warning, specify the model hyperparameter "ag.max_memory_usage_ratio" to a larger value (currently 1.1, set to >=1.29 to avoid the warning)
+		To set the same value for all models, do the following when calling predictor.fit: `predictor.fit(..., ag_args_fit={"ag.max_memory_usage_ratio": VALUE})`
+		Setting "ag.max_memory_usage_ratio" to values above 1 may result in out-of-memory errors. You may consider using a machine with more memory as a safer alternative.
+	Fitting with cpus=1, gpus=1, mem=10.0/10.8 GB
+	0.5828	 = Validation score   (balanced_accuracy)
+	30.16s	 = Training   runtime
+	19.72s	 = Validation runtime
+AutoGluon training complete, total runtime = 50.72s ... Best model: Mitra | Estimated inference throughput: 81.1 rows/s (1600 batch size)
+TabularPredictor saved. To load, use: predictor = TabularPredictor.load("/content/dimer_classifier_workshop_v1/sessions/00f55309cf3b/runs/foundation/mitra_icl-bf1dc2f3ec86/artifact/mitra_predictor")
+{
+  "model": "Mitra Classifier",
+  "condition": "in_context",
+  "metrics": {
+    "accuracy": 0.58125,
+    "balanced_accuracy": 0.5839380362751949,
+    "f1_macro": 0.5864180563403718,
+    "mcc": 0.37264049670802274,
+    "log_loss": 0.8585339555517141,
+    "roc_auc_ovr_macro": 0.7742335219969285
+  }
+}
+
+=== tabdpt_icl ===
+$ /content/dimer_classifier_workshop_v1/environments/tabdpt-8a19b1d6c4c8/bin/python /content/dimer_classifier_workshop_v1/sessions/00f55309cf3b/support/local_foundation_classifier.py --config /content/dimer_classifier_workshop_v1/sessions/00f55309cf3b/support/tabdpt_icl-1e746ee4bee9.json
+{
+  "model": "TabDPT v1.2 Classifier",
+  "condition": "in_context",
+  "metrics": {
+    "accuracy": 0.5925,
+    "balanced_accuracy": 0.5956008746904025,
+    "f1_macro": 0.5939259691636887,
+    "mcc": 0.3898934145798981,
+    "log_loss": 0.8614124648963443,
+    "roc_auc_ovr_macro": 0.7728289056683519
+  }
+}
+
+=== tabpfn3_icl ===
+$ /content/dimer_classifier_workshop_v1/environments/tabpfn-3847ccb73baf/bin/python /content/dimer_classifier_workshop_v1/sessions/00f55309cf3b/support/local_foundation_classifier.py --config /content/dimer_classifier_workshop_v1/sessions/00f55309cf3b/support/tabpfn3_icl-1994b7459359.json
+{
+  "model": "TabPFN-3 Classifier",
+  "condition": "in_context",
+  "metrics": {
+    "accuracy": 0.59875,
+    "balanced_accuracy": 0.6020979272858596,
+    "f1_macro": 0.6015355016763441,
+    "mcc": 0.4003912619380421,
+    "log_loss": 0.8584048156215858,
+    "roc_auc_ovr_macro": 0.7772644297706878
+  }
+}
+
+=== tabiclv2_icl ===
+$ /content/dimer_classifier_workshop_v1/environments/tabicl-f666488fd747/bin/python /content/dimer_classifier_workshop_v1/sessions/00f55309cf3b/support/local_foundation_classifier.py --config /content/dimer_classifier_workshop_v1/sessions/00f55309cf3b/support/tabiclv2_icl-a2143b83f0d7.json
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+{
+  "model": "TabICLv2 Classifier",
+  "condition": "in_context",
+  "metrics": {
+    "accuracy": 0.593125,
+    "balanced_accuracy": 0.5962372064575271,
+    "f1_macro": 0.5944636201408614,
+    "mcc": 0.39082870758050725,
+    "log_loss": 0.8661166533543443,
+    "roc_auc_ovr_macro": 0.7724057288050722
+  }
+}
+Successful foundation-model runs: 4 / 4
+[colab] Executing cell 14/25 - 5.5 Load, validate, and compare foundation-model results...
+| model | condition | balanced_accuracy | accuracy | f1_macro | mcc | log_loss |
+roc_auc_ovr_macro | device                                                      
+---|---|---|---|---|---|---|---|---|---                                         
+0 | TabPFN-3 Classifier | in_context | 0.6021 | 0.5988 | 0.6015 | 0.4004 |      
+0.8584 | 0.7773 | cuda                                                          
+1 | TabICLv2 Classifier | in_context | 0.5962 | 0.5931 | 0.5945 | 0.3908 |      
+0.8661 | 0.7724 | cuda                                                          
+2 | TabDPT v1.2 Classifier | in_context | 0.5956 | 0.5925 | 0.5939 | 0.3899 |   
+0.8614 | 0.7728 | cuda                                                          
+3 | Mitra Classifier | in_context | 0.5839 | 0.5812 | 0.5864 | 0.3726 | 0.8585 |
+0.7742 | cuda                                                                   
+4 | Random Forest | trained from scratch | 0.5733 | 0.5688 | 0.5698 | 0.3564 |  
+0.8741 | 0.7608 | cpu                                                           
+5 | Logistic Regression | trained from scratch | 0.5707 | 0.5694 | 0.5776 |     
+0.3593 | 0.9121 | 0.7631 | cpu                                                  
+6 | LightGBM | trained from scratch | 0.5426 | 0.5381 | 0.5386 | 0.3097 | 1.0722
+| 0.7446 | cpu                                                                  
+7 | Lag-7 quantile-band heuristic | fixed rule | 0.5086 | 0.5019 | 0.4980 |     
+0.2625 | 6.8819 | 0.6302 | cpu                                                  
+8 | Training-prior majority | fixed rule | 0.3333 | 0.3338 | 0.1668 | 0.0000 |  
+1.1006 | 0.5000 | cpu                                                           
+<Figure size 1000x600 with 1 Axes>
+
+[Image saved to: /tmp/tmp5fn3r2ho.png]
+[colab] Executing cell 15/25 - 5.6 Adaptation mode of every foundation-model run...
+| model_key | model | requested_mode | effective_mode | weights_updated |       
+training rows | validation rows | validation_balanced_accuracy                  
+---|---|---|---|---|---|---|---|---                                             
+0 | mitra_icl | Mitra Classifier | in_context | in_context | False | context    
+only | scored only | 0.5839                                                     
+1 | tabdpt_icl | TabDPT v1.2 Classifier | in_context | in_context | False |     
+context only | scored only | 0.5956                                             
+2 | tabpfn3_icl | TabPFN-3 Classifier | in_context | in_context | False |       
+context only | scored only | 0.6021                                             
+3 | tabiclv2_icl | TabICLv2 Classifier | in_context | in_context | False |      
+context only | scored only | 0.5962                                             
+[colab] Executing cell 16/25 - 6.1 Confusion matrix for one successful model...
+| pred_low | pred_mid | pred_high                                               
+---|---|---|---                                                                 
+true_low | 302 | 184 | 76                                                       
+true_mid | 151 | 293 | 90                                                       
+true_high | 15 | 126 | 363                                                      
+| class | recall                                                                
+---|---|---                                                                     
+0 | low | 0.5374                                                                
+1 | mid | 0.5487                                                                
+2 | high | 0.7202                                                               
+<Figure size 600x500 with 1 Axes>
+
+[Image saved to: /tmp/tmpfq_c7e9n.png]
+[colab] Executing cell 17/25 - 6.2 Distance between the predicted and the true band...
+Model: tabpfn3_icl
+| outcome | rows | share_pct                                                    
+---|---|---|---                                                                 
+0 | correct band | 958 | 59.9                                                   
+1 | one band away (low-mid or mid-high) | 551 | 34.4                            
+2 | two bands away (low-high) | 91 | 5.7                                        
+[colab] Executing cell 18/25 - 7.1 Classical and optional foundation-model feature-group ablations...
+| model_key | model | adaptation_mode | comparison | full_balanced_accuracy |   
+ablated_balanced_accuracy | delta                                               
+---|---|---|---|---|---|---|---                                                 
+0 | lightgbm_no_stockout | LightGBM | trained from scratch | without stockout   
+features | 0.5426 | 0.5370 | -0.0056                                            
+1 | lightgbm_no_period_proxies | LightGBM | trained from scratch | without month
+and weather features | 0.5426 | 0.5394 | -0.0032                                
+[colab] Executing cell 19/25 - 8.0 Freeze selected successful runs...
+Frozen: /content/dimer_classifier_workshop_v1/sessions/00f55309cf3b/freeze.json
+Selected: ['random_forest', 'logistic_regression', 'lightgbm', 'lag7_quantile_band', 'training_prior_majority', 'mitra_icl', 'tabdpt_icl', 'tabpfn3_icl', 'tabiclv2_icl', 'lightgbm_no_stockout', 'lightgbm_no_period_proxies']
+[colab] Executing cell 20/25 - 8.1 Evaluate only frozen models on the test partition...
+
+=== test: lag7_quantile_band ===
+
+=== test: lightgbm ===
+
+=== test: lightgbm_no_period_proxies ===
+
+=== test: lightgbm_no_stockout ===
+
+=== test: logistic_regression ===
+
+=== test: mitra_icl ===
+$ /content/dimer_classifier_workshop_v1/environments/mitra-bc0cd0eef00e/bin/python /content/dimer_classifier_workshop_v1/sessions/00f55309cf3b/support/local_foundation_classifier.py --config /content/dimer_classifier_workshop_v1/sessions/00f55309cf3b/support/test-mitra_icl.json
+{
+  "model": "Mitra Classifier",
+  "metrics": {
+    "accuracy": 0.54625,
+    "balanced_accuracy": 0.5399039949473649,
+    "f1_macro": 0.54027346219523,
+    "mcc": 0.3174857432547691,
+    "log_loss": 0.9125345682837529,
+    "roc_auc_ovr_macro": 0.7402921557625938
+  }
+}
+
+=== test: random_forest ===
+
+=== test: tabdpt_icl ===
+$ /content/dimer_classifier_workshop_v1/environments/tabdpt-8a19b1d6c4c8/bin/python /content/dimer_classifier_workshop_v1/sessions/00f55309cf3b/support/local_foundation_classifier.py --config /content/dimer_classifier_workshop_v1/sessions/00f55309cf3b/support/test-tabdpt_icl.json
+{
+  "model": "TabDPT v1.2 Classifier",
+  "metrics": {
+    "accuracy": 0.55,
+    "balanced_accuracy": 0.5421059739561409,
+    "f1_macro": 0.5322972538766709,
+    "mcc": 0.32275399647395797,
+    "log_loss": 0.9154691390498403,
+    "roc_auc_ovr_macro": 0.7388774081015388
+  }
+}
+
+=== test: tabiclv2_icl ===
+$ /content/dimer_classifier_workshop_v1/environments/tabicl-f666488fd747/bin/python /content/dimer_classifier_workshop_v1/sessions/00f55309cf3b/support/local_foundation_classifier.py --config /content/dimer_classifier_workshop_v1/sessions/00f55309cf3b/support/test-tabiclv2_icl.json
+{
+  "model": "TabICLv2 Classifier",
+  "metrics": {
+    "accuracy": 0.556875,
+    "balanced_accuracy": 0.5451711345509858,
+    "f1_macro": 0.5435689756166515,
+    "mcc": 0.32648662889343943,
+    "log_loss": 0.9118928886676241,
+    "roc_auc_ovr_macro": 0.73978888888093
+  }
+}
+
+=== test: tabpfn3_icl ===
+$ /content/dimer_classifier_workshop_v1/environments/tabpfn-3847ccb73baf/bin/python /content/dimer_classifier_workshop_v1/sessions/00f55309cf3b/support/local_foundation_classifier.py --config /content/dimer_classifier_workshop_v1/sessions/00f55309cf3b/support/test-tabpfn3_icl.json
+{
+  "model": "TabPFN-3 Classifier",
+  "metrics": {
+    "accuracy": 0.5725,
+    "balanced_accuracy": 0.5586530496376136,
+    "f1_macro": 0.5607820617818217,
+    "mcc": 0.35119825582810826,
+    "log_loss": 0.9157743569509142,
+    "roc_auc_ovr_macro": 0.7430507093405234
+  }
+}
+
+=== test: training_prior_majority ===
+| model | condition | balanced_accuracy | accuracy | f1_macro | mcc | log_loss |
+roc_auc_ovr_macro | device                                                      
+---|---|---|---|---|---|---|---|---|---                                         
+0 | TabPFN-3 Classifier | in_context | 0.5587 | 0.5725 | 0.5608 | 0.3512 |      
+0.9158 | 0.7431 | cuda                                                          
+1 | TabICLv2 Classifier | in_context | 0.5452 | 0.5569 | 0.5436 | 0.3265 |      
+0.9119 | 0.7398 | cuda                                                          
+2 | TabDPT v1.2 Classifier | in_context | 0.5421 | 0.5500 | 0.5323 | 0.3228 |   
+0.9155 | 0.7389 | cuda                                                          
+3 | Mitra Classifier | in_context | 0.5399 | 0.5462 | 0.5403 | 0.3175 | 0.9125 |
+0.7403 | cuda                                                                   
+4 | Logistic Regression | trained from scratch | 0.5247 | 0.5425 | 0.5216 |     
+0.3237 | 0.9482 | 0.7308 | cpu                                                  
+5 | Random Forest | trained from scratch | 0.5244 | 0.5462 | 0.5265 | 0.3078 |  
+0.9211 | 0.7287 | cpu                                                           
+6 | LightGBM | trained from scratch | 0.5205 | 0.5375 | 0.5238 | 0.3006 | 1.2397
+| 0.7160 | cpu                                                                  
+7 | LightGBM without stockout features | trained from scratch | 0.5122 | 0.5325 
+| 0.5151 | 0.2906 | 1.2736 | 0.7062 | cpu                                       
+8 | LightGBM without month and weather features | trained from scratch | 0.4965 
+| 0.5038 | 0.4962 | 0.2558 | 1.2077 | 0.7050 | cpu                              
+9 | Lag-7 quantile-band heuristic | fixed rule | 0.4889 | 0.5081 | 0.4893 |     
+0.2477 | 6.7955 | 0.6200 | cpu                                                  
+10 | Training-prior majority | fixed rule | 0.3333 | 0.3381 | 0.1685 | 0.0000 | 
+1.0950 | 0.5000 | cpu                                                           
+[colab] Executing cell 21/25 - 8.1b Class balance in all three files and per-class test recall...
+| train_pct | val_pct | test_pct                                                
+---|---|---|---                                                                 
+class |  |  |                                                                   
+low | 31.5 | 35.1 | 25.9                                                        
+mid | 35.0 | 33.4 | 33.8                                                        
+high | 33.4 | 31.5 | 40.3                                                       
+| model | test_recall_low | test_recall_mid | test_recall_high | weakest_band   
+---|---|---|---|---|---                                                         
+lag7_quantile_band | Lag-7 quantile-band heuristic | 0.3599 | 0.4787 | 0.6279 | 
+low                                                                             
+lightgbm | LightGBM | 0.3841 | 0.5619 | 0.6155 | low                            
+lightgbm_no_period_proxies | LightGBM without month and weather features |      
+0.4783 | 0.4251 | 0.5860 | mid                                                  
+lightgbm_no_stockout | LightGBM without stockout features | 0.3575 | 0.5434 |   
+0.6357 | low                                                                    
+logistic_regression | Logistic Regression | 0.3092 | 0.7301 | 0.5349 | low      
+mitra_icl | Mitra Classifier | 0.5193 | 0.4880 | 0.6124 | mid                   
+random_forest | Random Forest | 0.3671 | 0.5379 | 0.6682 | low                  
+tabdpt_icl | TabDPT v1.2 Classifier | 0.5700 | 0.3586 | 0.6977 | mid            
+tabiclv2_icl | TabICLv2 Classifier | 0.5048 | 0.4547 | 0.6760 | mid             
+tabpfn3_icl | TabPFN-3 Classifier | 0.4638 | 0.5564 | 0.6558 | low              
+training_prior_majority | Training-prior majority | 0.0000 | 1.0000 | 0.0000 |  
+low                                                                             
+[colab] Executing cell 22/25 - 8.2 Bootstrap confidence intervals for frozen test scores...
+Reference model (best validation balanced accuracy among classical baselines): random_forest
+Bootstrap draws: 1000; rows per draw: 1600
+Every gain column below is that model minus the comparator named in the `comparator` column.
+| model | condition | balanced_accuracy | ci_low | ci_high | is_reference |     
+comparator | gain_vs_reference | gain_ci_low | gain_ci_high |                   
+share_of_draws_better                                                           
+---|---|---|---|---|---|---|---|---|---|---|---                                 
+0 | TabPFN-3 Classifier | in_context | 0.5587 | 0.5347 | 0.5827 | False | Random
+Forest | 0.0341 | 0.0139 | 0.0552 | 1.000                                       
+1 | TabICLv2 Classifier | in_context | 0.5452 | 0.5207 | 0.5681 | False | Random
+Forest | 0.0206 | -0.0011 | 0.0409 | 0.967                                      
+2 | TabDPT v1.2 Classifier | in_context | 0.5421 | 0.5177 | 0.5666 | False |    
+Random Forest | 0.0178 | -0.0022 | 0.0385 | 0.959                               
+3 | Mitra Classifier | in_context | 0.5399 | 0.5148 | 0.5629 | False | Random   
+Forest | 0.0154 | -0.0045 | 0.0371 | 0.914                                      
+4 | Logistic Regression | trained from scratch | 0.5247 | 0.5029 | 0.5483 |     
+False | Random Forest | -0.0001 | -0.0225 | 0.0213 | 0.503                      
+5 | Random Forest | trained from scratch | 0.5244 | 0.5016 | 0.5475 | True |    
+Random Forest | NaN | NaN | NaN | NaN                                           
+6 | LightGBM | trained from scratch | 0.5205 | 0.4959 | 0.5428 | False | Random 
+Forest | -0.0046 | -0.0268 | 0.0158 | 0.344                                     
+7 | LightGBM without stockout features | trained from scratch | 0.5122 | 0.4882 
+| 0.5357 | False | Random Forest | -0.0129 | -0.0342 | 0.0076 | 0.115           
+8 | LightGBM without month and weather features | trained from scratch | 0.4965 
+| 0.4700 | 0.5219 | False | Random Forest | -0.0289 | -0.0527 | -0.0046 | 0.008 
+9 | Lag-7 quantile-band heuristic | fixed rule | 0.4889 | 0.4650 | 0.5140 |     
+False | Random Forest | -0.0360 | -0.0633 | -0.0107 | 0.002                     
+10 | Training-prior majority | fixed rule | 0.3333 | 0.3333 | 0.3333 | False |  
+Random Forest | -0.1913 | -0.2142 | -0.1683 | 0.000                             
+Paired ablation contrasts (ablated LightGBM minus full-feature LightGBM, same draws):
+| ablated_model | comparator | ablated_balanced_accuracy |                      
+comparator_balanced_accuracy | difference | difference_ci_low |                 
+difference_ci_high | share_of_draws_better                                      
+---|---|---|---|---|---|---|---|---                                             
+0 | LightGBM without stockout features | LightGBM (all features) | 0.5122 |     
+0.5205 | -0.0083 | -0.0292 | 0.0127 | 0.201                                     
+1 | LightGBM without month and weather features | LightGBM (all features) |     
+0.4965 | 0.5205 | -0.0240 | -0.0509 | 0.0004 | 0.026                            
+<Figure size 1000x600 with 1 Axes>
+
+[Image saved to: /tmp/tmpe9f60l_o.png]
+[colab] Executing cell 23/25 - 8.3 Preview prediction-only output from a frozen model...
+| row_id | prediction | probability_low | probability_mid | probability_high    
+---|---|---|---|---|---                                                         
+0 | 0 | high | 0.127077 | 0.425472 | 0.447451                                   
+1 | 1 | mid | 0.342834 | 0.514683 | 0.142483                                    
+2 | 2 | low | 0.463779 | 0.444012 | 0.092209                                    
+3 | 3 | mid | 0.172749 | 0.487824 | 0.339427                                    
+4 | 4 | mid | 0.332877 | 0.518235 | 0.148889                                    
+5 | 5 | low | 0.651368 | 0.317585 | 0.031047                                    
+6 | 6 | high | 0.077383 | 0.354886 | 0.567731                                   
+7 | 7 | low | 0.476157 | 0.457773 | 0.066070                                    
+Inference model: tabpfn3_icl
+Decision rule: argmax over class probabilities in this order: ['low', 'mid', 'high']
+[colab] Executing cell 24/25 - 9.1 Export results, figures, provenance, and freeze metadata...
+Export directory: /content/dimer_classifier_workshop_v1/sessions/00f55309cf3b/exports/report-5df6bad3
+Report ZIP: /content/dimer_classifier_workshop_v1/sessions/00f55309cf3b/exports/report-5df6bad3.zip
+SHA-256: 8b47a3bbb0141cbe6396fbc14ee83b4aba34666ef1886cdc3cd32fa986e1d4c5
+[colab] Executing cell 25/25 - Run-all completion summary...
+| value                                                                         
+---|---                                                                         
+notebook_spec | 2.1                                                             
+profile | E2E                                                                   
+mode | WORKSHOP                                                                 
+dataset_source | pinned-public-sample                                           
+validation_models | 9                                                           
+frozen_test_models | 11                                                         
+foundation_failures | {}                                                        
+export_directory | /content/dimer_classifier_workshop_v1/sessions...            
+Run-all complete: validation, freeze, artifact reload, independent test evaluation, inference preview, and export succeeded.
+[colab] Saving notebook with outputs to '<local-run-dir>/DIMER_FreshRetailNet_MultiModel_Classification_Workshop_da1ecdd_colab-cli-t4_output.ipynb'...
