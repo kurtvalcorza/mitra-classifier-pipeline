@@ -349,7 +349,13 @@ they are measurements for the stated runtime, not general estimates.
 
 ## Current status
 
-**Current blob `1b310f76` (2026-10-23): Candidate; the default path, the optional activity and the `RUN_FINE_TUNING` branch each executed once on a hosted T4.** The refusal-display fix (branch `fix/refusal-display`, PR #56, NOTEBOOK_SPEC 3.0
+**Current blob `3555a971` (2026-10-24): Candidate; hosted runs pending.** The E2E notebook was regenerated from code commit
+`ac85ec9` (branch `docs/mitra-model-pt-trust`): the Section 10 trust-boundary text and glossary now name `models/Mitra/model.pt` as
+code-capable next to `predictor.pkl` (see the load-path trust note below); no code path changed. Under REL14 the three hosted runs of
+blob `1b310f76` recorded below are history for that blob, not evidence for `3555a971`. Hosted runs of `3555a971` (the default path,
+the optional activity and the `RUN_FINE_TUNING` branch), the REL12 BYOD run and the REL2 browser run are pending and will be recorded here.
+
+**Previous blob `1b310f76` (2026-10-23, history under REL14): Candidate; the default path, the optional activity and the `RUN_FINE_TUNING` branch each executed once on a hosted T4.** The refusal-display fix (branch `fix/refusal-display`, PR #56, NOTEBOOK_SPEC 3.0
 DAT19/DAT20: a refused user input is shown as one `Refused: <file name>: <rule>` line with no traceback, and the run stops at that
 cell) changed the E2E notebook blob from `f426780d` to `1b310f76` (`tutorials/mitra_classifier_colab.ipynb` at `90c60e4`). Under
 REL14 the `20a13b1` default-path run and the `c5bb8a6` activity and fine-tune runs are history for blob `f426780d`, not evidence for
