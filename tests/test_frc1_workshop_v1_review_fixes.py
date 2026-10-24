@@ -12,7 +12,6 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
-import pickle
 import shutil
 import time
 import urllib.request
@@ -216,7 +215,6 @@ def _baseline_namespace(tmp_path: Path) -> dict:
         _quiet(),
         RUN_ROOT=tmp_path,
         shutil=shutil,
-        pickle=pickle,
         time=time,
         frames={"train": train, "val": val},
         X_train=train[features],
@@ -247,6 +245,48 @@ def test_baseline_ladder_can_be_rerun(tmp_path: Path) -> None:
     pd.testing.assert_frame_equal(
         first.drop(columns=volatile), namespace["baseline_validation_results"].drop(columns=volatile)
     )
+
+
+def _strict_json(path: Path) -> dict:
+    def refuse(constant: str):
+        raise ValueError(f"{path.name} holds the non-JSON constant {constant}")
+
+    return json.loads(path.read_text(encoding="utf-8"), parse_constant=refuse)
+
+
+def test_baselines_are_saved_as_plain_json_and_refit_exactly(tmp_path: Path) -> None:
+    """ARTIFACT_SPEC 2.0 SER7: no baseline is pickled; a reload refits from plain JSON and reproduces it."""
+    namespace = _run_cell("32NWYtJvFXEg", _baseline_namespace(tmp_path))
+    root = tmp_path / "baselines"
+    assert not list(root.rglob("*.pkl"))
+    records = {path.parent.name: _strict_json(path) for path in root.glob("*/artifact.json")}
+    assert sorted(records) == [
+        "lag7_quantile_band", "lightgbm", "logistic_regression", "random_forest", "training_prior_majority"
+    ]
+    assert records["training_prior_majority"]["kind"] == "majority"
+    assert records["lag7_quantile_band"]["kind"] == "lag7_quantile"
+    logistic = records["logistic_regression"]["estimator"]
+    assert logistic["class"] == "Pipeline"
+    assert [step for step, _ in logistic["steps"]] == ["imputer", "scaler", "model"]
+    assert logistic["steps"][0][1]["params"]["missing_values"] == {"float": "nan"}
+    validation = namespace["frames"]["val"][namespace["FEATURE_COLUMNS"]]
+    for key in ("logistic_regression", "random_forest", "lightgbm"):
+        record = records[key]
+        assert record["format"] == "dimer-sklearn-refit/1"
+        assert record["features"] == namespace["FEATURE_COLUMNS"]
+        refitted = namespace["refit_baseline"](record).predict_proba(validation)
+        assert namespace["probability_sha256"](refitted) == record["validation_probability_sha256"]
+        saved = hashlib.sha256((root / key / "artifact.json").read_bytes()).hexdigest()
+        assert _strict_json(root / key / "result.json")["artifact_sha256"] == saved
+
+    other_rows = dict(records["random_forest"], training_rows_sha256="0" * 64)
+    with pytest.raises(ValueError, match="training rows differ"):
+        namespace["refit_baseline"](other_rows)
+    unknown = dict(records["random_forest"], estimator={"class": "os.system", "params": {}})
+    with pytest.raises(ValueError, match="does not build"):
+        namespace["refit_baseline"](unknown)
+    with pytest.raises(TypeError, match="not plain JSON"):
+        namespace["baseline_estimator_spec"](LogisticRegression(class_weight={"low": object()}))
 
 
 # --- FRC1-M5: each objective has an activity that runs ------------------------------------------------------
@@ -499,7 +539,6 @@ def test_frozen_test_ignores_a_live_configuration_change(tmp_path: Path) -> None
         stream_command=_fake_test_run,
         staged_paths={"test": tmp_path / "test.csv"},
         PRIMARY_METRIC="balanced_accuracy",
-        pickle=pickle,
         BASELINE_ROOT=tmp_path,
         Pipeline=object,
     )
@@ -514,7 +553,7 @@ def _freeze_namespace(tmp_path: Path) -> dict:
     run_dir = baseline_root / "random_forest"
     run_dir.mkdir(parents=True)
     (run_dir / "result.json").write_text(json.dumps({"balanced_accuracy": 0.5}))
-    (run_dir / "artifact.pkl").write_bytes(b"artifact")
+    (run_dir / "artifact.json").write_text("{}")
     namespace = _helpers()
     namespace.update(
         _quiet(),
