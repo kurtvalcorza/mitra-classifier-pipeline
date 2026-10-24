@@ -10,7 +10,6 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
-import pickle
 import shutil
 import urllib.request
 import uuid
@@ -42,6 +41,16 @@ def _helpers() -> dict:
         "verify_file_inventory",
         "align_probabilities",
         "prediction_frame",
+        # The plain-JSON baseline artifact and its exact refit (ARTIFACT_SPEC 2.0 SER7).
+        "baseline_estimator_classes",
+        "_json_parameter",
+        "_python_parameter",
+        "baseline_estimator_spec",
+        "rebuild_baseline_estimator",
+        "table_sha256",
+        "probability_sha256",
+        "refit_baseline",
+        "baseline_artifact_record",
     }
     module = ast.Module(
         body=[n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in wanted], type_ignores=[]
@@ -326,7 +335,6 @@ def test_frozen_test_ignores_a_live_configuration_change(tmp_path: Path) -> None
         staged_paths={"test": tmp_path / "test.csv"},
         PRIMARY_METRIC="balanced_accuracy",
         display=lambda *a, **k: None,
-        pickle=pickle,
         BASELINE_ROOT=tmp_path,
         Pipeline=object,
     )
@@ -504,7 +512,6 @@ def _section_state(tmp_path: Path) -> dict:
         CONDITION_SPECS={},
         display=lambda *a, **k: None,
         shutil=shutil,
-        pickle=pickle,
         time=__import__("time"),
         Pipeline=Pipeline,
         SimpleImputer=SimpleImputer,
@@ -645,7 +652,7 @@ def test_a_test_stage_that_fails_part_way_still_counts_as_exposure(tmp_path: Pat
     state = _test_stage_state(tmp_path)
     _run_cell("32NWYtJvFXEg", state)  # 4.1
     _run_cell("aNhMl_zxFXEn", state)  # 8.0 freezes every baseline
-    (state["BASELINE_ROOT"] / "random_forest" / "artifact.pkl").write_bytes(b"tampered")
+    (state["BASELINE_ROOT"] / "random_forest" / "artifact.json").write_text("{}")
     with pytest.raises(ValueError, match="changed after freeze"):
         _run_cell("S8SYDvNeFXEn", state)  # 8.1 stops part-way
     with pytest.raises(RuntimeError, match="REFREEZE_REASON"):

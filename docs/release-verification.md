@@ -695,6 +695,78 @@ Both editions were run separately at commit `05d54cdd968f34b9168404968b9a294041a
 
 This record satisfies the fresh default-path run of both revisions, including the v1 §3.2, §4.2, §5.1b, §5.6, §6.2 and §8.1b outputs. The other items listed for revision 2.1.1 of each edition above remain open. **Status: Candidate.**
 
+## FreshRetailNet classification workshops (v1 and v2): no pickle artifacts — 2026-10-24
+
+**Current status (2026-10-24).** Both notebook blobs changed: compact v1 `d17c298b` → `b182ff49`, guided v2 `a25bfbfb` →
+`9a825964` (PR #60, branch `fix/freshretail-no-pickle`, head `da1ecdd`). Each new blob passed a hosted default-path run
+(Colab CLI, fresh T4, 2026-10-24; recorded below under *Colab CLI execution of the no-pickle blobs*). Every other run in
+this document is of an earlier blob and is history for that blob only (REL14). Still open for both blobs: a BYOD run with
+one refused input (REL12) and a browser run of the interactive journeys (REL2), plus the optional-path items listed for
+each edition above.
+
+Neither notebook saves or reads a pickle any more (ARTIFACT_SPEC 2.0 SER7). The edits are the same in both editions:
+
+- **Classical baselines (Sections 4.1, 7.1, 8.0, 8.1):** `artifact.pkl` is replaced by `artifact.json`. It holds the
+  estimator's class and constructor parameters (`get_params(deep=False)`) as plain JSON, the SHA-256 of its training
+  rows and the SHA-256 of its validation probabilities. A reload looks the class up in a fixed list of the six classes the
+  notebook uses, refits it on the same in-session training rows (every estimator has a fixed `random_state`), and must
+  reproduce the validation probabilities bit for bit, both when the artifact is saved and in the frozen test stage.
+- **TabICLv2 (Section 5.3 runner):** `tabicl.pkl` is replaced by the rice runner's `save_tabicl_context` /
+  `load_tabicl_context` from `tools/rice_workshop/fm_runner.py`, carried verbatim (a test keeps the copies identical),
+  plus `model_source.json` naming a fine-tuned checkpoint by SHA-256. The development stage reloads the condition and
+  requires the first 256 validation rows' probabilities to agree with the fitted model within 1e-6.
+
+The exact refit was checked once on the pinned sample (4,180 / 1,600 / 1,600 rows) with real LightGBM 4.6.0 and
+scikit-learn 1.9.0 on CPU: Sections 4.1, 7.1, 8.0 and 8.1 of v2 ran, and all five sklearn baselines (logistic regression,
+random forest, LightGBM and its two ablations) reproduced their validation probabilities exactly. The TabICLv2 reload
+parity has run only against a CPU fake in the tests; the hosted run is its first real check. The Mitra (AutoGluon) and
+TabPFN artifacts are written by those libraries and are unchanged.
+
+### Colab CLI execution of the no-pickle blobs at `da1ecdd` — 2026-10-24
+
+Both editions were run at commit `da1ecdd275038b8476aed0cf5601f097ee976622` by the Colab CLI (`colab exec -f`, a scripted run,
+not a browser Run all) on fresh Colab Tesla T4 sessions, default controls only (no `# @param` edited); forms and uploads were not
+exercised. The fetched sources' Git blobs were checked against the PR head, and each executed notebook against its
+`run_summary.json` (`executed_sha256`) before any edit.
+
+- **Compact v1, blob `b182ff49`:** started 2026-10-24T11:02:05Z, wall 536.5 s, exit 0, input unchanged, 25/25 code cells, 0
+  errors, verdict PASS. Evidence:
+  [`…Workshop_da1ecdd_colab-cli-t4.ipynb`](execution-evidence/2026-10-24/DIMER_FreshRetailNet_MultiModel_Classification_Workshop_da1ecdd_colab-cli-t4.ipynb)
+  with its `_exec.log` and `_run_summary.json`.
+- **Guided v2, blob `9a825964`:** started 2026-10-24T11:11:03Z, wall 535.5 s, exit 0, input unchanged, 23/23 code cells, 0
+  errors, verdict PASS. Evidence:
+  [`…Workshop_v2_da1ecdd_colab-cli-t4.ipynb`](execution-evidence/2026-10-24/DIMER_FreshRetailNet_MultiModel_Classification_Workshop_v2_da1ecdd_colab-cli-t4.ipynb)
+  with its `_exec.log` and `_run_summary.json`.
+- **Reload checks (the point of this change):** both runs printed "Run-all complete: validation, freeze, artifact reload,
+  independent test evaluation, inference preview, and export succeeded." The checks print nothing when they pass; they raise
+  on a mismatch (read from the notebook code): the classical baselines' `artifact.json` refit must reproduce the saved
+  validation probabilities exactly (`np.array_equal`), at save time and again in the frozen test stage, and the reloaded
+  TabICLv2 context must agree with the fitted model within `TABICL_RELOAD_PARITY_ATOL`. Neither run raised (0 error outputs),
+  so both checks passed on the hosted T4; no numeric difference is printed, so none is quoted here.
+- **Validation balanced accuracy (both editions, identical, equal to the 2026-10-03 and 2026-10-14 runs):** TabPFN-3 0.6021,
+  TabICLv2 0.5962, TabDPT 0.5956, Mitra 0.5839, Random Forest 0.5733.
+- **Test balanced accuracy after the freeze (both editions, identical, equal to the earlier runs):** TabPFN-3 0.5587,
+  TabICLv2 0.5452, TabDPT 0.5421, Mitra 0.5399, Logistic Regression 0.5247, Random Forest 0.5244, LightGBM 0.5205. The guided
+  edition's §8.0 printed "Validation-selected model: tabpfn3_icl | comparator: random_forest".
+- **Report ZIP SHA-256:** v1 `8b47a3bbb0141cbe…`, v2 `6d93d90fb7344e62…` (new sessions, so they differ from earlier runs by
+  construction).
+- **Local-path redaction.** Local paths were replaced before the first commit: the run directory by `<local-run-dir>/`, and,
+  in the exec logs, the Colab CLI's own install directory (an nbformat warning line) by `<colab-cli-tool-dir>/`.
+
+| File (under `execution-evidence/2026-10-24/`) | Captured | Committed |
+|---|---|---|
+| `DIMER_FreshRetailNet_MultiModel_Classification_Workshop_da1ecdd_colab-cli-t4.ipynb` | `2bfb98172dc3aa297dc2e991f31809c74d5a1132a00637516b20b7c7fa95e7bb` | unchanged (no local path) |
+| `DIMER_FreshRetailNet_MultiModel_Classification_Workshop_da1ecdd_colab-cli-t4_exec.log` | `a9b78916bead91f0a2a3d4f8dd8d261e08449e7974259a1032e6225da673dbd7` | `14b83aef0a5249c9a84fccc6358b4ffc5f46eadef8dedea88ab9fce928576026` (3 replacements) |
+| `DIMER_FreshRetailNet_MultiModel_Classification_Workshop_da1ecdd_colab-cli-t4_run_summary.json` | `6d92ddfd2fd5a2a060a81d5dcd51918d85493c2d4535712185a27cec86b91706` | unchanged (no local path) |
+
+| File (under `execution-evidence/2026-10-24/`) | Captured | Committed |
+|---|---|---|
+| `DIMER_FreshRetailNet_MultiModel_Classification_Workshop_v2_da1ecdd_colab-cli-t4.ipynb` | `ff4afbfa400616c1101f2280f4bce1e3e12e5ac066d66fc45489bfee5f07ce51` | unchanged (no local path) |
+| `DIMER_FreshRetailNet_MultiModel_Classification_Workshop_v2_da1ecdd_colab-cli-t4_exec.log` | `8f8b7dde394ae7a2ee7449e42dbbe052d99634698f04303f3a15561de735490b` | `4c5e1fb6de4318a28342180fe865a34c9dbd27846c50c8da6ca04dba534268e1` (2 replacements) |
+| `DIMER_FreshRetailNet_MultiModel_Classification_Workshop_v2_da1ecdd_colab-cli-t4_run_summary.json` | `2e68fb330945cba21c6a0b47606f1020dfbc95809b88d5b713f00957891012d0` | unchanged (no local path) |
+
+This record satisfies REL14 for blobs `b182ff49` and `9a825964` on the default path. **Status: Candidate.**
+
 ## FreshRetailNet Classification v2: NR2 review fixes — 2026-10-12
 
 A Notebook Review Framework v1 review (prefix NR2) of the guided edition at `6b10569` (blob `f00c9351`) found 1 Major,

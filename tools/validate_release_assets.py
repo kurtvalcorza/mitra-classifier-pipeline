@@ -926,6 +926,10 @@ def _validate_auxiliary_workshop(path: Path, notebook: dict, spec: dict, registr
                 ast.parse(source, filename=f"{path.name}:cell-{index}")
             except SyntaxError as exc:
                 raise ValidationError(f"{path.name}: code cell {index} does not parse: {exc}") from exc
+            # ARTIFACT_SPEC 2.0 SER7: the workshop saves its baselines and TabICL condition as plain data, so no cell,
+            # including the runner it carries as a string, may export or read a pickle artifact.
+            hits = pickle_export_hits(source, PICKLE_ARTIFACT_CALLS)
+            _check(not hits, f"{path.name}: code cell {index} must not export or read a pickle artifact (SER7): {hits[:3]}")
             code_sources.append(source)
         elif cell.get("cell_type") == "markdown":
             markdown_sources.append(source)
