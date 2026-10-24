@@ -1,0 +1,50 @@
+{
+  "repo": "mitra-classifier-pipeline",
+  "sha": "44b401467c6e91340ef5230c3ace02115de02d15",
+  "notebook": "tutorials/mitra_classifier_colab.ipynb",
+  "blob": "3555a971de4e5225bbaaf1f8aa68049ef181a399",
+  "gpu": "T4",
+  "session": "suite-mitra-44b4014-6032",
+  "started_utc": "2026-10-24T14:03:46+00:00",
+  "runner": "Colab CLI `colab exec -f` on a fresh session (not a browser Run all)",
+  "overrides": [
+    {
+      "name": "RUN_FINE_TUNING",
+      "from": "False",
+      "to": "True"
+    }
+  ],
+  "run_copy_blob": "e048c8d6d601c7dec554892f1cebc2f981ae57a2",
+  "run_copy_sha256": "453c7bd1e3cf42cb2590e214f7d2ae02de77dae371ec0768d1e19d75a7d49182",
+  "run_copy_note": "the executed copy differs from the committed blob only in the listed assignment literals; input_unchanged compares against that copy",
+  "status": "[suite-mitra-44b4014-6032] gpu-t4-s-usw4b1-2nf7xrz5cvk5f | Hardware: T4 | Shape: Standard | Variant: GPU | Status: IDLE",
+  "exec_exit_code": 0,
+  "stopped": true,
+  "wall_s": 351.8,
+  "input_unchanged": true,
+  "executed_file": "mitra_classifier_colab_44b4014_colab-cli-t4_output.ipynb",
+  "log_cells": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13
+  ],
+  "log_total": 13,
+  "code_cells": 13,
+  "executed_cells": 12,
+  "errors": [],
+  "execution_counts": [],
+  "sequential": null,
+  "executed_sha256": "2c35938404e7652a03066676efdec758508ff0e489825d8af8bac608d8534e38",
+  "log_sequential_complete": true,
+  "verdict": "PASS"
+}
