@@ -679,6 +679,30 @@ Both editions were run separately at commit `05d54cdd968f34b9168404968b9a294041a
 
 This record satisfies the fresh default-path run of both revisions, including the v1 §3.2, §4.2, §5.1b, §5.6, §6.2 and §8.1b outputs. The other items listed for revision 2.1.1 of each edition above remain open. **Status: Candidate.**
 
+## FreshRetailNet classification workshops (v1 and v2): no pickle artifacts — 2026-10-24
+
+**Pending (REL14).** Both notebook blobs changed: compact v1 `d17c298b` → `b182ff49`, guided v2 `a25bfbfb` → `9a825964`.
+Every run recorded in this document is of an earlier blob and is history for that blob only. A hosted default-path run
+of each new blob is pending.
+
+Neither notebook saves or reads a pickle any more (ARTIFACT_SPEC 2.0 SER7). The edits are the same in both editions:
+
+- **Classical baselines (Sections 4.1, 7.1, 8.0, 8.1):** `artifact.pkl` is replaced by `artifact.json`. It holds the
+  estimator's class and constructor parameters (`get_params(deep=False)`) as plain JSON, the SHA-256 of its training
+  rows and the SHA-256 of its validation probabilities. A reload looks the class up in a fixed list of the six classes the
+  notebook uses, refits it on the same in-session training rows (every estimator has a fixed `random_state`), and must
+  reproduce the validation probabilities bit for bit, both when the artifact is saved and in the frozen test stage.
+- **TabICLv2 (Section 5.3 runner):** `tabicl.pkl` is replaced by the rice runner's `save_tabicl_context` /
+  `load_tabicl_context` from `tools/rice_workshop/fm_runner.py`, carried verbatim (a test keeps the copies identical),
+  plus `model_source.json` naming a fine-tuned checkpoint by SHA-256. The development stage reloads the condition and
+  requires the first 256 validation rows' probabilities to agree with the fitted model within 1e-6.
+
+The exact refit was checked once on the pinned sample (4,180 / 1,600 / 1,600 rows) with real LightGBM 4.6.0 and
+scikit-learn 1.9.0 on CPU: Sections 4.1, 7.1, 8.0 and 8.1 of v2 ran, and all five sklearn baselines (logistic regression,
+random forest, LightGBM and its two ablations) reproduced their validation probabilities exactly. The TabICLv2 reload
+parity has run only against a CPU fake in the tests; the hosted run is its first real check. The Mitra (AutoGluon) and
+TabPFN artifacts are written by those libraries and are unchanged.
+
 ## FreshRetailNet Classification v2: NR2 review fixes — 2026-10-12
 
 A Notebook Review Framework v1 review (prefix NR2) of the guided edition at `6b10569` (blob `f00c9351`) found 1 Major,
