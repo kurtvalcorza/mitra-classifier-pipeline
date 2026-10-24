@@ -788,7 +788,7 @@ included) is unpacked so each member gets its own verdict.
 | `utils/data/X_val.pkl` | pickle | clean |
 | `utils/data/X.pkl` | pickle | clean |
 | `utils/attr/Mitra/y_pred_proba_val.pkl` | pickle | clean |
-| `models/Mitra/model.pt.x/model/data.pkl` | pickle | clean |
+| `models/Mitra/model.pt!/model/data.pkl` | pickle | clean |
 
 - **Result:** 10 pickle files; clean=10 dangerous=0 incomplete=0; `scan_status=0`. Dangerous globals: none.
 - **Globals (distinct, all files):** 56, by top-level package: autogluon (27), numpy (7), pandas (7), torch (7), builtins (2), collections (2), networkx (2), __builtin__ (1), sklearn (1). The per-file lists with picklescan's
@@ -796,7 +796,9 @@ included) is unpacked so each member gets its own verdict.
 - **Evidence:** `docs/execution-evidence/2026-10-23/ser13-sample-artifact-scan/` holds `scan-report.txt` exactly as `scan.py`
   wrote it (it records only paths inside the asset), `scan.py`, and `test_scan.py`, its regression tests (dangerous globals
   behind joblib buffers or beside joblib files, protocol-0 pickles under other names, pickle/zip polyglots, every PyTorch zip
-  member, compressed and truncated pickles, nested zip and tar archives, duplicate, escaping and malformed members).
+  member, object-dtype .npy files, torch payloads embedded in complete pickles, compressed (including zlib of any
+  window size) and truncated pickles, nested zip and tar archives that try to overwrite queued members, duplicate,
+  escaping and malformed members).
   `scan.py` exits 0 clean, 1 dangerous, 2 incomplete, 3 could not scan.
 
 ### Local-path redaction of earlier evidence (2026-10-22)

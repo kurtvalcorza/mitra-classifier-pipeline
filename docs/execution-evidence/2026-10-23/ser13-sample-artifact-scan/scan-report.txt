@@ -107,7 +107,7 @@ tools: picklescan 1.0.5, joblib 1.6.0, numpy 2.5.4, python 3.13.16
    innocuous  numpy.dtype
    innocuous  numpy.ndarray
    innocuous  numpy._core.multiarray._reconstruct
--- models/Mitra/model.pt.x/model/data.pkl [pickle] CLEAN
+-- models/Mitra/model.pt!/model/data.pkl [pickle] CLEAN
    method: picklescan 1.0.5 (bytes)
    suspicious __builtin__.set
    suspicious autogluon.tabular.models.mitra._internal.config.enums.Task
