@@ -800,6 +800,9 @@ included) is unpacked so each member gets its own verdict.
   window size) and truncated pickles, nested zip and tar archives that try to overwrite queued members, duplicate,
   escaping and malformed members).
   `scan.py` exits 0 clean, 1 dangerous, 2 incomplete, 3 could not scan.
+- **Scope:** the threat model at the top of `scan.py` (frozen 2026-10-24) says what the scan covers. Data a loader
+  decodes with no format marker, code that is not pickle, and harm through callables picklescan rates safe or
+  suspicious are out of scope; review findings inside the scope are fixed, findings outside it are recorded.
 
 ### Local-path redaction of earlier evidence (2026-10-22)
 
