@@ -146,8 +146,9 @@ Run 1 notebook wall time 2,454 s (41 min) for data + LightGBM + three FMs + one 
 
 `results.zip`: `run_summary.json`, `data_manifest.json` (INDEX digest, chip digests, roles), `features.json` (recipes,
 fills), `selection.json` (frozen thresholds and condition identities), `metrics.csv` (2 x 5 grid), `per_chip_metrics.csv`,
-`activity.csv`, saved condition artifacts as v2 saves them (TabPFN `save_artifact`, TabICL pickle, TabDPT artifact
-bundle, AutoGluon predictor), `checksums.json`, attribution text. Fresh-process reload of one condition (v2 pattern)
+`activity.csv`, saved condition artifacts as v2 saves them (TabPFN `save_artifact`, TabDPT artifact bundle, AutoGluon
+predictor), except TabICL: its support rows as `.npy` arrays (`allow_pickle=False`) plus a JSON sidecar with their
+SHA-256, never a pickle (ARTIFACT_SPEC 2.0 SER7), `checksums.json`, attribution text. Fresh-process reload of one condition (v2 pattern)
 must reproduce validation probabilities within a declared tolerance. No base weights or source imagery in the bundle.
 
 ## 11. Risks and findings from the smoke

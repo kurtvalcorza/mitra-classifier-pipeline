@@ -385,6 +385,28 @@ FORBIDDEN_PATTERNS = (
     ("archive extractall", re.compile(r"\.extractall\s*\(")),
     ("notebook magic or shell escape", re.compile(r"(?m)^\s*[%!]|get_ipython\(\)")),
 )
+# ARTIFACT_SPEC 2.0 SER7: the rice pixel-tables notebook's carried runner sources and code cells must never export (or
+# read) a pickle artifact. AutoGluon's own predictor bundle is the SER9 exception and is written by AutoGluon itself.
+PICKLE_ARTIFACT_EXPORT = re.compile(
+    r"^\s*(?:import|from)\s+(?:pickle|cloudpickle|dill|joblib)\b|\bpickle\.(?:dumps?|loads?)\s*\(|\btorch\.save\s*\("
+    r"|\bjoblib\.(?:dump|load)\s*\(|allow_pickle\s*=\s*True|['\"][^'\"\n]*\.(?:pkl|pickle|pt|pth|ckpt|bin)['\"]",
+    re.M,
+)
+
+
+# Notebook cells also name upstream files they only verify or stage (AutoGluon's `predictor.pkl`, a pinned upstream
+# checkpoint), so cells are checked for pickle export and read calls only, not for file names.
+PICKLE_ARTIFACT_CALLS = re.compile(
+    r"^\s*(?:import|from)\s+(?:pickle|cloudpickle|dill|joblib)\b|\bpickle\.(?:dumps?|loads?)\s*\(|\btorch\.save\s*\("
+    r"|\bjoblib\.(?:dump|load)\s*\(|allow_pickle\s*=\s*True",
+    re.M,
+)
+
+
+def pickle_export_hits(text: str, pattern: re.Pattern[str] = PICKLE_ARTIFACT_EXPORT) -> list[str]:
+    return [match.group(0).strip() for match in pattern.finditer(text)]
+
+
 # Worker/clone paths that must never appear outside the generator-owned cells (Kurt 2026-09-13:
 # inference is in-notebook; no worker process, no clone of the repository).
 FORBIDDEN_OUTSIDE_MODULE_FLEET = (
@@ -974,6 +996,9 @@ def validate_notebooks() -> None:
             rice = _load_tool("rice_workshop/build_workshop")
             _check(_read(path) == rice.build(), "Rice pixel-tables notebook generator parity failed")
             _check(f"`{path.name}`" in registry, "Rice pixel-tables notebook missing from tutorial registry")
+            for name, content in rice.carried_files().items():
+                hits = pickle_export_hits(content)
+                _check(not hits, f"Rice carried {name} must not export or read a pickle artifact (SER7): {hits[:3]}")
             dimer = notebook["metadata"]["dimer"]
             _check((dimer["notebook_profile"], dimer["notebook_mode"], dimer["notebook_kind"]) == ("E2E", "WORKSHOP", "WORKSHOP"),
                    "Rice pixel-tables notebook must declare E2E / WORKSHOP / WORKSHOP")
@@ -982,6 +1007,8 @@ def validate_notebooks() -> None:
                     ast.parse(_cell_source(cell))
                     _check(not cell["outputs"] and cell["execution_count"] is None,
                            "Candidate rice notebook must not carry fabricated execution outputs")
+                    hits = pickle_export_hits(_cell_source(cell), PICKLE_ARTIFACT_CALLS)
+                    _check(not hits, f"Rice notebook code must not export or read a pickle artifact (SER7): {hits[:3]}")
             continue
         if path.name in AUXILIARY_NOTEBOOKS:
             _validate_auxiliary_workshop(path, notebook, AUXILIARY_NOTEBOOKS[path.name], registry)

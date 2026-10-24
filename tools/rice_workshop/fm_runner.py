@@ -24,7 +24,6 @@ import argparse
 import gc
 import hashlib
 import json
-import pickle
 import sys
 import time
 from pathlib import Path
@@ -32,6 +31,8 @@ from pathlib import Path
 import numpy as np
 
 TARGET = "target"
+TABICL_CONTEXT_FORMAT = "dimer-rice-tabicl-context/1"
+TABICL_CONTEXT_FILES = ("context_X.npy", "context_y.npy")
 
 
 def sha256_file(path):
@@ -51,6 +52,65 @@ def file_inventory(root):
         if path.is_file():
             inventory[path.relative_to(root).as_posix()] = sha256_file(path)
     return inventory
+
+
+def save_tabicl_context(root, x, y, encoders, classes, settings):
+    """Save a conditioned TabICL condition as plain data, never as a pickle.
+
+    TabICL learns in context: its fitted state is the support rows it was conditioned on plus the categorical
+    encoders, and the weights are the pinned checkpoint. So the artifact holds the encoded support rows as `.npy`
+    arrays (written with allow_pickle=False), and a plain-JSON sidecar `tabicl.json` holds the column order, the
+    encoders, the class labels, the estimator settings and the SHA-256 of each array. Nothing in it runs code on load.
+    """
+    root = Path(root)
+    root.mkdir(parents=True, exist_ok=True)
+    columns = [str(c) for c in x.columns]
+    x_array = np.ascontiguousarray(x.to_numpy())
+    y_array = np.ascontiguousarray(np.asarray(y))
+    for name, array in (("support rows", x_array), ("support labels", y_array)):
+        if array.dtype.kind not in "biuf":
+            raise TypeError(f"TabICL {name} must be numeric to be saved without pickle, got dtype {array.dtype}")
+    np.save(root / "context_X.npy", x_array, allow_pickle=False)
+    np.save(root / "context_y.npy", y_array, allow_pickle=False)
+    sidecar = {
+        "format": TABICL_CONTEXT_FORMAT,
+        "columns": columns,
+        "encoders": {str(k): [str(v) for v in values] for k, values in encoders.items()},
+        "classes": [str(c) for c in classes],
+        "settings": {"n_estimators": int(settings["n_estimators"]), "random_state": int(settings["random_state"])},
+        "rows": int(len(y_array)),
+        "sha256": {name: sha256_file(root / name) for name in TABICL_CONTEXT_FILES},
+    }
+    (root / "tabicl.json").write_text(json.dumps(sidecar, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return sidecar
+
+
+def load_tabicl_context(root, settings):
+    """Read a TabICL condition saved by `save_tabicl_context`: the sidecar as JSON, then each array's SHA-256, and only
+    then the arrays (allow_pickle=False). Returns (support rows, support labels, columns, encoders, classes)."""
+    root = Path(root)
+    sidecar_path = root / "tabicl.json"
+    if not sidecar_path.is_file():
+        raise ValueError(f"TabICL artifact has no sidecar {sidecar_path.name}")
+    sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    if not isinstance(sidecar, dict) or sidecar.get("format") != TABICL_CONTEXT_FORMAT:
+        raise ValueError(f"TabICL sidecar format must be {TABICL_CONTEXT_FORMAT!r}")
+    expected = {"n_estimators": int(settings["n_estimators"]), "random_state": int(settings["random_state"])}
+    if sidecar.get("settings") != expected:
+        raise ValueError(f"TabICL sidecar settings {sidecar.get('settings')} differ from this run's {expected}")
+    digests = sidecar.get("sha256")
+    if not isinstance(digests, dict) or sorted(digests) != sorted(TABICL_CONTEXT_FILES):
+        raise ValueError("TabICL sidecar must record the SHA-256 of context_X.npy and context_y.npy")
+    for name in TABICL_CONTEXT_FILES:  # checked before any array is read
+        if sha256_file(root / name) != digests[name]:
+            raise ValueError(f"TabICL artifact file {name} does not match the digest in its sidecar")
+    x = np.load(root / "context_X.npy", allow_pickle=False)
+    y = np.load(root / "context_y.npy", allow_pickle=False)
+    columns = [str(c) for c in sidecar["columns"]]
+    if x.ndim != 2 or x.shape[1] != len(columns) or len(y) != len(x) or len(y) != sidecar.get("rows"):
+        raise ValueError(f"TabICL support arrays {x.shape}/{y.shape} do not match the sidecar")
+    encoders = {str(k): [str(v) for v in values] for k, values in sidecar["encoders"].items()}
+    return x, y, columns, encoders, [str(c) for c in sidecar["classes"]]
 
 
 PROBABILITY_EPSILON = 1e-6
@@ -146,9 +206,8 @@ def fit_family(family, pipe, fit_x, fit_y, tune_x, tune_y, names, cfg, artifact)
         pipe.fit(x, clean[TARGET])
 
         def save():
-            (artifact / "tabicl").mkdir(parents=True, exist_ok=True)
-            with open(artifact / "tabicl" / "tabicl.pkl", "wb") as handle:
-                pickle.dump({"pipe": pipe, "encoders": encoders}, handle)
+            save_tabicl_context(artifact / "tabicl", x, clean[TARGET], encoders, pipe.classes_,
+                                {"n_estimators": s["n_estimators"], "random_state": seed})
         return (lambda df: positive_column(pipe.predict_proba(apply_categorical_encoder(df, encoders)[0]), pipe.classes_)), save
     if family == "mitra":
         from autogluon.tabular import TabularPredictor
@@ -187,12 +246,16 @@ def reload_family(family, cfg, device, artifact):
         pipe = TabPFNClassifierPipeline.from_artifact(artifact / "tabpfn", device=device)
         return lambda df: positive_column(pipe.predict_proba(df), pipe.classes)
     if family == "tabicl":
+        import pandas as pd
         from tabicl_classifier_pipeline.api import apply_categorical_encoder
-        # Pickle runs code on load: this file was written by this notebook's own develop stage in this runtime, and its
-        # SHA-256 matched the inventory recorded then (checked above). Never load a pickle you did not create.
-        with open(artifact / "tabicl" / "tabicl.pkl", "rb") as handle:
-            restored = pickle.load(handle)
-        pipe, encoders = restored["pipe"], restored["encoders"]
+        # No pickle: rebuild the estimator on the digest-verified pinned checkpoint and condition it again on the saved
+        # support rows (in-context learning, so this restores the fitted state; reload parity checks it).
+        x, y, columns, encoders, classes = load_tabicl_context(
+            artifact / "tabicl", {"n_estimators": s["n_estimators"], "random_state": seed})
+        pipe = load_family("tabicl", cfg, device)
+        pipe.fit(pd.DataFrame(x, columns=columns), y)
+        if [str(c) for c in pipe.classes_] != classes:
+            raise RuntimeError(f"reconditioned TabICL classes {list(pipe.classes_)} differ from the saved {classes}")
         return lambda df: positive_column(pipe.predict_proba(apply_categorical_encoder(df, encoders)[0]), pipe.classes_)
     if family == "mitra":
         from autogluon.tabular import TabularPredictor
