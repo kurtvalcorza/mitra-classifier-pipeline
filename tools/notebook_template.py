@@ -738,11 +738,15 @@ TEMPLATE = {
                 "bundle's manifest (every listed file present, no unlisted file, sizes and SHA-256 equal) and its provenance; the "
                 "bundle must name the pinned base checkpoint; and `check_data_contract` requires the default path's task, features, "
                 "target and class labels (SART10). Any failed check stops the run, and no prediction file is written.\n\n"
-                "**Trust boundary.** A predictor bundle is Python-serialised state: `TabularPredictor.load` unpickles AutoGluon "
-                "objects, which can execute code, so loading a bundle means trusting its producer. Path checks and digests establish "
-                "integrity and consistency, not sender authenticity or the safety of deserialisation. The pinned SHA-256 binds this "
-                "download to the file the maintainer published, and nothing is deserialised before every check above has passed. "
-                "For a bundle of your own, the only binding is a digest you received from its producer through a separate channel.\n\n"
+                "**Trust boundary.** A predictor bundle is Python-serialised state, and two kinds of file in it can execute code "
+                "when loaded: `TabularPredictor.load` unpickles `predictor.pkl` and AutoGluon's other `.pkl` files, and AutoGluon "
+                "1.5.0 reads `models/Mitra/model.pt` with `torch.load(weights_only=False)`, which unpickles the whole saved Mitra "
+                "model. Both sit at the same trust level (ARTIFACT_SPEC SER9): loading a bundle means trusting its producer. Path "
+                "checks and digests establish integrity and consistency, not sender authenticity or the safety of deserialisation. "
+                "On the default path the whole sample-artifact ZIP, `model.pt` included, is pinned by SHA-256 and checked before "
+                "extraction, which binds this download to the file the maintainer published, and nothing is deserialised before "
+                "every check above has passed. On the own-ZIP path, safety rests on the digest you supply: the only binding is an "
+                "`EXPECTED_ZIP_SHA256` you received from the bundle's producer through a separate channel.\n\n"
                 "**Optional: your own bundle (off by default).** Set `ARTIFACT_SOURCE` to `My own artifact ZIP`, set "
                 "`ARTIFACT_ZIP_PATH` (or leave it empty on Colab to upload) and paste the producer's `EXPECTED_ZIP_SHA256`; the "
                 "digest is required unless `ALLOW_UNVERIFIED_ARTIFACT` is ticked for an already-trusted local bundle, which prints a "
@@ -1010,7 +1014,7 @@ TEMPLATE = {
         '- **Isolated environment** — the separate Python 3.12.12 environment Section 1 builds from the hash lock; every later cell runs there.\n'
         '- **BYOD** — bring your own data: a CSV (or a pre-split directory) via `BYOD_PATH`, or the Colab upload dialog when the path is empty.\n'
         '- **External artifact / pinned sample artifact** — a bundle made outside this run; by default the release asset pinned in the carried module by URL and whole-archive SHA-256 (`SAMPLE_ARTIFACT_URL`, `SAMPLE_ARTIFACT_SHA256`), exported by an earlier recorded run of this notebook and verified before extraction.\n'
-        '- **Trust boundary** — digests prove integrity and consistency, not who produced the archive; `TabularPredictor.load` executes Python-serialised state, so load only bundles from a trusted producer.\n'
+        '- **Trust boundary** — digests prove integrity and consistency, not who produced the archive; `TabularPredictor.load` unpickles `predictor.pkl` and AutoGluon reads `models/Mitra/model.pt` with `torch.load(weights_only=False)`, both of which can execute code, so load only bundles from a trusted producer.\n'
         '- **Data contract (SART10)** — the task, features, target and class labels of the default path; the pinned bundle must follow it, and the sample rows Section 10 scores follow it too.\n'
         '\n'
         "**Next experiments (summary):** the Section 11 Wine activity (re-run Sections 4–7), `EVAL_METRIC` (Sections 6–9), `SEED` "

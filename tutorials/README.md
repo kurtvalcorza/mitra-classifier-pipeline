@@ -133,6 +133,8 @@ Because Mitra inference uses support/training context and AutoGluon preprocessin
 
 Path safety and manifest consistency do not make Python serialization safe. Only load predictor ZIPs from trusted producers. Section 10 requires a trusted whole-archive SHA-256 by default; bypassing that check is an explicit expert override.
 
+Two kinds of file in a predictor bundle can execute code when loaded, and they share one trust level (ARTIFACT_SPEC SER9): `predictor.pkl` and AutoGluon's other `.pkl` files, which `TabularPredictor.load` unpickles, and `models/Mitra/model.pt`, which AutoGluon 1.5.0 reads with `torch.load(weights_only=False)` (`autogluon/tabular/models/mitra/mitra_model.py:239`) and so unpickles the whole saved Mitra model. On the default path the whole sample-artifact ZIP, `model.pt` included, is pinned by SHA-256 (`SAMPLE_ARTIFACT_SHA256`) and checked before extraction; on the own-ZIP path, safety rests on the `EXPECTED_ZIP_SHA256` you supply. Fitting does not load a `torch.load` checkpoint: AutoGluon's `USE_HF = True` makes it read the verified snapshot's `model.safetensors` with `safetensors.load_file`, and `tests/test_mitra_load_path_guard.py` fails if that changes or if this repository passes a `state_dict_*` or `hf_*_model` hyperparameter.
+
 The optional DIMER offline model ZIP has its own normative manifest contract documented in [`DIMER_MODEL_PACKAGE.md`](DIMER_MODEL_PACKAGE.md).
 
 ## Release verification
