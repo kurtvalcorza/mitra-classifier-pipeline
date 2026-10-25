@@ -1,0 +1,51 @@
+{
+  "repo": "mitra-classifier-pipeline",
+  "sha": "74800a45406d55f5e29270f5a45e83c54694cee2",
+  "notebook": "tutorials/mitra_classifier_colab.ipynb",
+  "blob": "87a6fa24aa0271f85260c0b694f7d7d3f51dc39a",
+  "gpu": "T4",
+  "session": "suite-mitra-74800a4-6032",
+  "started_utc": "2026-10-25T06:38:20+00:00",
+  "runner": "Colab CLI `colab exec -f` on a fresh session (not a browser Run all)",
+  "overrides": [
+    {
+      "name": "DATA_SOURCE",
+      "from": "'Sample: Breast Cancer'",
+      "to": "'Sample: Wine'"
+    }
+  ],
+  "run_copy_blob": "fae6a22b81a52195e09db617327276b0db2e242c",
+  "run_copy_sha256": "3d74053b4fc0db29ffa58accc2a4e9a35640ed41faa7f334e3b5620916a1e850",
+  "run_copy_note": "the executed copy differs from the committed blob only in the listed assignment literals; input_unchanged compares against that copy",
+  "status": "[suite-mitra-74800a4-6032] gpu-t4-s-kkb-use1c1-34i1znz3j3mpw | Hardware: T4 | Shape: Standard | Variant: GPU | Status: IDLE",
+  "exec_exit_code": 0,
+  "stopped": true,
+  "stop_verified": true,
+  "wall_s": 162.7,
+  "input_unchanged": true,
+  "executed_file": "mitra_classifier_colab_74800a4_colab-cli-t4_output.ipynb",
+  "log_cells": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13
+  ],
+  "log_total": 13,
+  "code_cells": 13,
+  "executed_cells": 12,
+  "errors": [],
+  "execution_counts": [],
+  "sequential": null,
+  "executed_sha256": "3a4d291222379efea92aa1ff706a8b55249cefcd8d6c2b2ca2faea91ecae8a86",
+  "log_sequential_complete": true,
+  "verdict": "PASS"
+}
