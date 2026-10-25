@@ -371,7 +371,9 @@ they are measurements for the stated runtime, not general estimates.
 
 ## Current status
 
-**Current blob `3555a971` (2026-10-24): Candidate; the default path, the optional activity and the `RUN_FINE_TUNING` branch each
+**Current status (2026-10-25): Candidate, hosted runs pending (REL14).** The current notebook `tutorials/mitra_classifier_colab.ipynb` is blob `87a6fa24aa0271f85260c0b694f7d7d3f51dc39a`, regenerated from generator commits `f675998` and `9ed2471` for the tier C review findings of row 47. No hosted run of this blob exists yet; every run recorded below is evidence for an earlier blob only. Changes: T47-1 (DAT9) states that Mitra was pretrained only on synthetic tables (model card, paper), and that an indirect influence of the public Breast Cancer Wisconsin and Wine tables through prior or checkpoint selection cannot be ruled out and was not checked; T47-2 names the tree baselines as untuned defaults (`n_estimators=100`) and retitles the Section 11 activity so it no longer presupposes an advantage; T47-3 adds the use notice and IEEE references and documents `DIMER_ISOLATED_ENV` (spec 3.0 and `notebook_kind` were already declared). The `DATA_SOURCE = 'Sample: Wine'` activity and `RUN_FINE_TUNING` branch of the new blob are also unrun. Local checks (generator `--check`, `tools/validate_release_assets.py`, ruff, pytest against the `main` baseline) are source checks, not clean-runtime evidence.
+
+**Previous blob `3555a971` (2026-10-24): Candidate; the default path, the optional activity and the `RUN_FINE_TUNING` branch each
 executed once on a hosted T4.** The E2E notebook was regenerated from code commit `ac85ec9` (branch `docs/mitra-model-pt-trust`, PR
 #58, head `44b4014`): the Section 10 trust-boundary text and glossary now name `models/Mitra/model.pt` as code-capable next to
 `predictor.pkl` (see the load-path trust note below); no code path changed. Three hosted runs of `3555a971` at `44b4014` are recorded
