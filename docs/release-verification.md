@@ -792,14 +792,16 @@ included) is unpacked so each member gets its own verdict.
 | `models/Mitra/model.pt!/model/data.pkl` | pickle | clean |
 
 - **Result:** 10 pickle files; clean=10 dangerous=0 incomplete=0; `scan_status=0`. Dangerous globals: none.
-- **Globals (distinct, all files):** 56, by top-level package: autogluon (27), numpy (7), pandas (7), torch (7), builtins (2), collections (2), networkx (2), __builtin__ (1), sklearn (1). The per-file lists with picklescan's
+- **Globals (distinct, all files):** 57, by top-level package: autogluon (27), numpy (7), pandas (7), torch (7), builtins (3), collections (2), networkx (2), __builtin__ (1), sklearn (1). The per-file lists with picklescan's
   classification are in the report.
 - **Evidence:** `docs/execution-evidence/2026-10-23/ser13-sample-artifact-scan/` holds `scan-report.txt` exactly as `scan.py`
   wrote it (it records only paths inside the asset), `scan.py`, and `test_scan.py`, its regression tests (dangerous globals
   behind joblib buffers or beside joblib files, protocol-0 pickles under other names, pickle/zip polyglots, every PyTorch zip
   member, object-dtype .npy files in every dtype spelling, object records after numeric ones in a multi-record .npy
   (also inside an .npz, and at both resume points after a STOP inside a frame), extension-registry opcodes (also in
-  streams that fail to load), compressed prefixes in front of an archive, streams at both continuations of a frame, torch payloads in complete pickles or under any qualified split of the loader name, object
+  streams that fail to load), compressed prefixes in front of an archive, streams at both continuations of a frame
+  (also with different memos), protocol-2 compatibility names, pickles after a record without NumPy magic, non-UTF-8
+  member names, torch payloads in complete pickles or under any qualified split of the loader name, object
   arrays and protocol-2 bytes, memo-aliased globals (also across consecutive streams), dangerous streams after a clean
   one or inside one protocol-4 frame, a pickle in front of the asset itself, zip/tar
   polyglots, compressed (including zlib of any window size or with delayed output, and LZMA-alone) and truncated

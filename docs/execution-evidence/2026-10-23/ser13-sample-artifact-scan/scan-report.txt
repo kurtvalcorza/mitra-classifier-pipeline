@@ -119,6 +119,7 @@ tools: picklescan 1.0.5, joblib 1.6.0, numpy 2.5.4, python 3.13.16
    suspicious autogluon.tabular.models.mitra._internal.models.tab2d.Layer
    suspicious autogluon.tabular.models.mitra._internal.models.tab2d.MultiheadAttention
    suspicious autogluon.tabular.models.mitra._internal.models.tab2d.Tab2D
+   suspicious builtins.set
    innocuous  collections.OrderedDict
    innocuous  torch.FloatStorage
    suspicious torch._utils._rebuild_parameter
