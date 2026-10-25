@@ -872,18 +872,20 @@ def render(repo: Path, template: dict[str, Any], revision: str | None = None) ->
         + (f"**Notebook kind:** `{template['notebook_kind']}`  \n" if template.get("notebook_kind") else "")
         + f"**Capability:** {template['capability']}"
     )
-    # NOTEBOOK_SPEC DOC17: the use notice after the title, before the first code cell (TUTORIAL kind).
-    if template.get("notebook_kind"):
-        top += (
-            "\n\n> **⚠️ Notice.** For research, training and evaluation only. Not validated for production,\n"
-            "> clinical, diagnostic or safety-critical use. Running this notebook downloads third-party\n"
-            "> model weights and datasets under their own licenses (see the model card) and uses compute\n"
-            "> on your own Colab or Kaggle account. Data you bring stays in your runtime, and you are\n"
-            "> responsible for having the right to use it. Results here are tutorial evidence, not\n"
-            "> benchmarks. Everything is provided \"as is\", without warranty of any kind. To the maximum\n"
-            "> extent permitted by law, the maintainers and the DIMER platform accept no liability for\n"
-            "> its use."
-        )
+    # NOTEBOOK_SPEC DOC17: the use notice after the title, before the first code cell (TUTORIAL kind). With
+    # `about_details` it closes the second markdown cell, so the short first cell stays short (MCC-m1).
+    notice = (
+        "\n\n> **⚠️ Notice.** For research, training and evaluation only. Not validated for production,\n"
+        "> clinical, diagnostic or safety-critical use. Running this notebook downloads third-party\n"
+        "> model weights and datasets under their own licenses (see the model card) and uses compute\n"
+        "> on your own Colab or Kaggle account. Data you bring stays in your runtime, and you are\n"
+        "> responsible for having the right to use it. Results here are tutorial evidence, not\n"
+        "> benchmarks. Everything is provided \"as is\", without warranty of any kind. To the maximum\n"
+        "> extent permitted by law, the maintainers and the DIMER platform accept no liability for\n"
+        "> its use."
+        if template.get("notebook_kind")
+        else ""
+    )
     about = (
         f"**This notebook is standalone.** It carries {carried}, the pinned model identity and the per-file SHA-256 manifest in Section 3, "
         f"and the exact runtime pins in Section 1, so it keeps working after export even if the repository changes or disappears. Its only "
@@ -900,9 +902,9 @@ def render(repo: Path, template: dict[str, Any], revision: str | None = None) ->
         # GDL1/GDL12: a short learner-facing first cell; the standalone, Run all, BYOD, scope and objectives
         # declarations follow in one collapsible "About this notebook" cell (still part of the notebook's markdown).
         add(_md(top + "\n\n" + template["about_details"].strip()))
-        add(_md("<details><summary><b>About this notebook</b> (standalone carrier, Run all, BYOD, objectives and scope)</summary>\n\n" + about + "\n\n</details>"))
+        add(_md("<details><summary><b>About this notebook</b> (standalone carrier, Run all, BYOD, objectives and scope)</summary>\n\n" + about + "\n\n</details>" + notice))
     else:
-        add(_md(top + "\n\n" + about))
+        add(_md(top + notice + "\n\n" + about))
     for opening in (template.get("guided") or {}).get("opening", []):
         add(_md(opening.format(**fmt)))
 

@@ -205,7 +205,7 @@ def test_section_states_its_dependency_trust_boundary_and_difference_from_the_re
 def test_section_runs_last_on_the_default_path_after_the_reload() -> None:
     cells = _cells()
     markdown = "\n" + "\n".join(_src(c) for c in cells if c["cell_type"] == "markdown")
-    order = ["## 9. Export the deployable predictor bundle, then prove a fresh reload", "## Interpretation and limits", "## Conclusion (your notes)", SECTION_START, "## 11. Optional activity: does Mitra's advantage survive a three-class table?", "## Troubleshooting", "## Glossary", "## References"]
+    order = ["## 9. Export the deployable predictor bundle, then prove a fresh reload", "## Interpretation and limits", "## Conclusion (your notes)", SECTION_START, "## 11. Optional activity: how do Mitra and the trees compare on a three-class table?", "## Troubleshooting", "## Glossary", "## References"]
     positions = [markdown.index("\n" + heading) for heading in order]
     assert positions == sorted(positions) and all(markdown.count("\n" + heading) == 1 for heading in order)
     assert not any(c["cell_type"] == "code" for c in cells[_index(cells, SECTION_END) :]), "only optional, non-executing material follows Section 10"
