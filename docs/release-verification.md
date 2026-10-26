@@ -1037,6 +1037,56 @@ The guided edition was run at commit `ac0998ceb5cef6efcff8f2624d5c38e5c90bbca7` 
 
 This record satisfies REL14 for blob `a25bfbfb`. The other items listed above remain open. **Status: Candidate.**
 
+### Serialization scan of the pinned sample artifact (2026-10-23, retroactive)
+
+ARTIFACT_SPEC 2.0 (ml-worker#90): SER9 (a): AutoGluon has no faithful non-code-executing format for a `TabularPredictor`, so the predictor stays pickle-based (including `models/Mitra/model.pt`, which pickles the whole model object). It needs a recorded trust note (SER6, under "Artifact contract" in [`tutorials/README.md`](../tutorials/README.md)) and a scan with an acceptable outcome (SER13). SER13 asks for the scan **before** publication; this asset was published on
+2026-10-22, before 2.0 existed, so this is a **retroactive** scan of the published bytes, not the pre-publication control. The
+next sample artifact is to be scanned before upload and published only at the digest that passed.
+
+The release asset `sample-artifact-breast-cancer-v1/mitra_classifier_predictor.zip` was downloaded on 2026-10-23; its SHA-256 (`17cbea6fbd8ed5a97decd4b359ef2c47d1d6025d26447e7500bc65a4dde364dd`) matches the pinned value. `scan.py`
+(picklescan 1.0.5, joblib 1.6.0, numpy 2.5.4, Python 3.13) extracted it with member-path checks, reached every nested archive,
+and judged each pickle file on its own: **dangerous** if any global is dangerous, **incomplete** if no recorded method read the
+whole file, otherwise **clean**. Content decides what is a pickle, not the file name, and every archive (PyTorch zips
+included) is unpacked so each member gets its own verdict.
+
+| File | Kind | Verdict |
+|---|---|---|
+| `mitra_classifier_predictor.zip` | archive | extracted |
+| `predictor.pkl` | pickle | clean |
+| `learner.pkl` | pickle | clean |
+| `models/trainer.pkl` | pickle | clean |
+| `models/Mitra/model.pt` | pytorch-zip | extracted |
+| `models/Mitra/model.pkl` | pickle | clean |
+| `utils/data/y_val.pkl` | pickle | clean |
+| `utils/data/y.pkl` | pickle | clean |
+| `utils/data/X_val.pkl` | pickle | clean |
+| `utils/data/X.pkl` | pickle | clean |
+| `utils/attr/Mitra/y_pred_proba_val.pkl` | pickle | clean |
+| `models/Mitra/model.pt!/model/data.pkl` | pickle | clean |
+
+- **Result:** 10 pickle files; clean=10 dangerous=0 incomplete=0; `scan_status=0`. Dangerous globals: none.
+- **Globals (distinct, all files):** 57, by top-level package: autogluon (27), numpy (7), pandas (7), torch (7), builtins (3), collections (2), networkx (2), __builtin__ (1), sklearn (1). The per-file lists with picklescan's
+  classification are in the report.
+- **Evidence:** `docs/execution-evidence/2026-10-23/ser13-sample-artifact-scan/` holds `scan-report.txt` exactly as `scan.py`
+  wrote it (it records only paths inside the asset), `scan.py`, and `test_scan.py`, its regression tests (dangerous globals
+  behind joblib buffers or beside joblib files, protocol-0 pickles under other names, pickle/zip polyglots, every PyTorch zip
+  member, object-dtype .npy files in every dtype spelling, object records after numeric ones in a multi-record .npy
+  (also inside an .npz, and at both resume points after a STOP inside a frame), extension-registry opcodes (also in
+  streams that fail to load), compressed prefixes in front of an archive, streams at both continuations of a frame
+  (also with different memos), protocol-2 compatibility names, pickles after a record without NumPy magic, non-UTF-8
+  member names, extension codes inside joblib object arrays, archive nesting, member-count and extracted-size
+  limits, failures while building the report, drive-like member names, torch payloads in complete pickles or under any qualified split of the loader name, object
+  arrays and protocol-2 bytes, memo-aliased globals (also across consecutive streams), dangerous streams after a clean
+  one or inside one protocol-4 frame, a pickle in front of the asset itself, zip/tar
+  polyglots, compressed (including zlib of any window size or with delayed output, and LZMA-alone) and truncated
+  pickles, streams that share a memo or sit behind a STOP inside a frame, streams after a legacy checkpoint's five
+  pickles and tails that are not its raw storages, nested archives that try to overwrite queued members, duplicate,
+  escaping and malformed members, relative member paths such as `home/` in the report, and unreadable assets).
+  `scan.py` exits 0 clean, 1 dangerous, 2 incomplete, 3 could not scan.
+- **Scope:** the threat model at the top of `scan.py` (frozen 2026-10-24) says what the scan covers. Data a loader
+  decodes with no format marker, code that is not pickle, and harm through callables picklescan rates safe or
+  suspicious are out of scope; review findings inside the scope are fixed, findings outside it are recorded.
+
 ### Local-path redaction of earlier evidence (2026-10-22)
 
 The local run directory in these earlier committed evidence files was replaced by `<local-run-dir>/`, the
