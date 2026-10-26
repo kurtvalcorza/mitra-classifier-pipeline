@@ -87,7 +87,13 @@ TEMPLATE = {
         "functions. `predict` applies an implicit `argmax` over class probabilities that are raw model outputs, **not "
         "calibrated probabilities**; the package ships no acceptance threshold. The default sample is scikit-learn's "
         "bundled Breast Cancer Wisconsin table; its metrics are tutorial sanity evidence, not a benchmark or "
-        "production claim."
+        "production claim.\n\n"
+        "**What the checkpoint may already have seen (DAT9).** The model card and the Mitra paper [1] state that Mitra was "
+        "pretrained only on synthetic tables (about 45 million, drawn from a mixture of priors), so the Breast Cancer Wisconsin "
+        "and Wine tables used here are not, by that statement, in its pretraining data. Both are classic public benchmark tables, "
+        "and neither source says which real datasets, if any, were used to choose the prior mixture or the released "
+        "checkpoint, so an indirect influence of these tables on the model **cannot be ruled out and was not checked** "
+        "(inferred from the model card, not verified). Read a margin of a few rows over the tree baselines with that in mind."
     ),
     "learning_objectives": (
         "install the pinned runtime, read what the carried package guarantees, resolve and digest-verify the immutable "
@@ -352,7 +358,9 @@ TEMPLATE = {
                 "records them. A constant majority-class predictor, LightGBM and Random Forest are fitted on **all** "
                 "support rows (with train-fitted median imputation and ordinal encoding that is never refitted on "
                 "holdout/test) and scored on the exact same partitions, so the comparison gives the trees about 25 % "
-                "more rows than Mitra sees — it favours the baselines, not Mitra. Their probability columns are mapped onto the Mitra class order with "
+                "more rows than Mitra sees — it favours the baselines, not Mitra. Both trees run at fixed library defaults "
+                "(`n_estimators=100`, no hyperparameter search) and Mitra at its preset, so the comparison is between untuned "
+                "recipes: a tuned baseline could close or reverse a gap of a few rows. Their probability columns are mapped onto the Mitra class order with "
                 "`align_probabilities` **before** they are scored, so a multiclass label permutation can never pass "
                 "silently. AutoGluon's log is shortened to its warnings and the split and validation-score lines "
                 "(`AUTOGLUON_LOG = 'full'` restores it); Mitra's float32 probabilities are renormalised to sum to one "
@@ -962,7 +970,7 @@ TEMPLATE = {
         },
     ],
     "closing": (
-        "## 11. Optional activity: does Mitra's advantage survive a three-class table?\n\n"
+        "## 11. Optional activity: how do Mitra and the trees compare on a three-class table?\n\n"
         "Off by default: nothing below runs on **Run all**.\n\n"
         "**Activity (about 3 minutes on CPU):** *Predict* — on `Sample: Wine` (178 rows, three classes) will Mitra beat LightGBM on the holdout, tie, or trail, and by how many rows? *Change* — set `DATA_SOURCE = 'Sample: Wine'` in Section 4. *Run* — Sections 4–7 (Runtime → Run after, from Section 4). *Observe* — 106 / 36 / 36 rows, `problem_type` `multiclass`, one-vs-rest `roc_auc`, and the `rows_correct` column on both partitions. *Explain* — with 36 holdout rows one row is 2.8 % of accuracy; write whether the holdout and the test rankings agree and what that says about a ranking from one small split.\n\n"
         '## Troubleshooting\n'
@@ -1021,12 +1029,13 @@ TEMPLATE = {
         "(Sections 4–9), fine-tuning on a GPU (Sections 6–9; never selects on Wine's 36-row holdout), your own extracted "
         "partitions with `TARGET_COLUMN` set (Sections 4–9), and your own bundle or rows in Section 10.\n\n"
         "## References\n\n"
-        f"- Repository README: https://github.com/kurtvalcorza/{REPO}/blob/main/README.md\n"
-        f"- Repository model card: https://github.com/kurtvalcorza/{REPO}/blob/main/MODEL_CARD.md\n"
-        f"- Weight provenance: https://github.com/kurtvalcorza/{REPO}/blob/main/docs/WEIGHTS.md\n"
-        f"- Sample dataset card: https://github.com/kurtvalcorza/{REPO}/blob/main/examples/sample-data/DATASET_CARD.md\n"
-        "- Upstream model: https://huggingface.co/{MODEL_ID}\n"
-        "- Upstream library: https://github.com/autogluon/autogluon\n"
-        "- Mitra paper: https://arxiv.org/abs/2508.02927"
+        "References follow the IEEE style.\n\n"
+        "[1] X. Zhang *et al.*, \"Mitra: Mixed synthetic priors for enhancing tabular foundation models,\" arXiv:2508.02927, 2025. [Online]. Available: https://arxiv.org/abs/2508.02927\n\n"
+        "[2] AutoGluon, \"{MODEL_ID},\" Hugging Face model card. [Online]. Available: https://huggingface.co/{MODEL_ID}\n\n"
+        "[3] AutoGluon, \"AutoGluon,\" upstream library, GitHub. [Online]. Available: https://github.com/autogluon/autogluon\n\n"
+        f"[4] K. Valcorza, \"{REPO}: README,\" GitHub. [Online]. Available: https://github.com/kurtvalcorza/{REPO}/blob/main/README.md\n\n"
+        f"[5] K. Valcorza, \"{REPO}: model card,\" GitHub. [Online]. Available: https://github.com/kurtvalcorza/{REPO}/blob/main/MODEL_CARD.md\n\n"
+        f"[6] K. Valcorza, \"{REPO}: weight provenance,\" GitHub. [Online]. Available: https://github.com/kurtvalcorza/{REPO}/blob/main/docs/WEIGHTS.md\n\n"
+        f"[7] K. Valcorza, \"{REPO}: sample dataset card,\" GitHub. [Online]. Available: https://github.com/kurtvalcorza/{REPO}/blob/main/examples/sample-data/DATASET_CARD.md"
     ),
 }
