@@ -1,0 +1,69 @@
+{
+  "repo": "mitra-classifier-pipeline",
+  "sha": "e489d328dc207f44672778c1f2ad5d40be362324",
+  "notebook": "tutorials/mitra_classifier_colab.ipynb",
+  "blob": "7c6bd1aad4f150469b1fc73d2e7e95dc2edfd35e",
+  "gpu": "T4",
+  "session": "suite-mitra-e489d32-6032",
+  "started_utc": "2026-11-03T01:05:07+00:00",
+  "runner": "Colab CLI `colab exec -f` on a fresh session (not a browser Run all)",
+  "overrides": [
+    {
+      "name": "USE_BYOD",
+      "from": "False",
+      "to": "True"
+    },
+    {
+      "name": "BYOD_PATH",
+      "from": "''",
+      "to": "'/etc/hostname'"
+    }
+  ],
+  "run_copy_blob": "738b83208139dbdc6f7a3c8d41e7b951ca792a2b",
+  "run_copy_sha256": "9d729d5bfd99a86f63ff28b3c07e4d3d2e002c48040805e69a42fdcea1b316c1",
+  "run_copy_note": "refusal run: the run copy is the committed notebook with the listed assignment overrides, cut immediately after the refusal cell and re-serialised (nbformat layout); input_unchanged compares against that copy",
+  "truncated_after_cell": "mitra_classifier-13",
+  "refusal_cell_ref": "mitra_classifier-13",
+  "refusal_cell_index": 5,
+  "cells_dropped": 26,
+  "code_cells_dropped": 8,
+  "original_sha256": "e56d75404a30f1a94dffd636d60b72b9b2d9fc220d994a49b18743f713cc22dc",
+  "status": "[suite-mitra-e489d32-6032] gpu-t4-s-euw4b0-3607atb9vl8ft | Hardware: T4 | Shape: Standard | Variant: GPU | Status: IDLE",
+  "exec_exit_code": 0,
+  "stopped": true,
+  "stop_verified": true,
+  "wall_s": 127.8,
+  "input_unchanged": true,
+  "executed_file": "mitra_classifier_colab_e489d32_colab-cli-t4_output.ipynb",
+  "log_cells": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "log_total": 5,
+  "code_cells": 5,
+  "executed_cells": 4,
+  "errors": [
+    {
+      "cell": "mitra_classifier-13",
+      "ename": "InputRefused",
+      "evalue": "USE_BYOD: USE_BYOD=True requires an Upload DATA_SOURCE. Choose an Upload option, or untick USE_BYOD, and run this cell again."
+    }
+  ],
+  "execution_counts": [],
+  "sequential": null,
+  "executed_sha256": "4cc56cc4913028d6f4fb2ac5c27f9a0a219427eb656d91e7072cd0633d28889e",
+  "log_sequential_complete": true,
+  "mode": "expect_refusal",
+  "refusal_line": "Refused: USE_BYOD: USE_BYOD=True requires an Upload DATA_SOURCE. Choose an Upload option, or untick USE_BYOD, and run this cell again.",
+  "halting_cell_index": 5,
+  "halting_cell_id": "mitra_classifier-13",
+  "error_cells": [
+    5
+  ],
+  "refusal_fail_reasons": [],
+  "refusal_ok": true,
+  "verdict": "PASS"
+}

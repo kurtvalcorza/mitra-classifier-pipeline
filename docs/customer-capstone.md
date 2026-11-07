@@ -3,7 +3,7 @@
 Status: default Colab T4 runs passed at `c81db75` (2026-09-28) and `9698515` (2026-10-03)
 ([record](release-verification.md)). The 2026-10-12 review-fix revision (blob `0c497aceb100`) passed a maintainer browser
 session on a Colab T4 on 2026-10-13 (Run all, valid BYOD, malformed BYOD refused cleanly); artifact-inference mode
-and maintainer review pending.
+and maintainer review pending. The current blob `7120223e` (`6f7fccc`, after the lock upgrades of 2026-10-31 and 2026-11-01) has no hosted run yet, so that gate is open; those runs are history (REL14).
 
 The standalone notebook asks whether purchase history predicts a recorded positive purchase in
 the next 30 days. It is an optional small-business workflow capstone, using a historical UK online
