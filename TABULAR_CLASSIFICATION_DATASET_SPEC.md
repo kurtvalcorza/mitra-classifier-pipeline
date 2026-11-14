@@ -36,7 +36,7 @@ the fine-tuner trains on.
 
 | Check | Required? | Rule |
 |---|---|---|
-| `no_nested_zip` | YES | The archive must not contain another `.zip` |
+| `no_nested_zip` | YES | No `.zip` entries remain after unwrapping: a lone inner `.zip` is unwrapped one level (same guards); a `.zip` beside other files, two `.zip`s or a second level is rejected |
 | `no_duplicate_tables` | YES | No two members may resolve to the same `train`/`val`/`test` table (e.g. `train.csv` and `dataset/train.csv`) |
 | `train_csv_present` | YES | A `train.csv` must exist in the archive |
 | `train_csv_parses` | YES | `train.csv` must parse as CSV |
@@ -202,6 +202,6 @@ python examples/build_freshretailnet_dataset.py --src <train.parquet> --out ./ou
    `drop_columns`.
 4. **Mismatched splits.** `val.csv` or `test.csv` with different columns than `train.csv`
    fails validation.
-5. **A zip inside the zip.** Extract and upload the CSVs at the archive root.
+5. **A zip inside the zip.** A zip whose only entry is another zip is unwrapped one level; anything more (a zip beside other files, several zips, or a zip inside the inner zip) fails. Upload the CSVs at the archive root.
 6. **Over 10,000 rows expecting all to be used.** The excess is sampled away; curate the most
    informative rows if the cap matters.
